@@ -1,15 +1,17 @@
 import { prisma } from "@/lib/prisma";
+import { getSettings } from "@/lib/settings";
 import EquipmentManager from "@/components/EquipmentManager";
 
 export const dynamic = "force-dynamic";
 
 export default async function EquipmentPage() {
-  const [locations, equipment] = await Promise.all([
+  const [locations, equipment, settings] = await Promise.all([
     prisma.location.findMany({
       orderBy: { createdAt: "asc" },
       include: { equipment: true },
     }),
     prisma.equipment.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] }),
+    getSettings(),
   ]);
 
   return (
@@ -28,7 +30,14 @@ export default async function EquipmentPage() {
           icon: l.icon,
           equipmentIds: l.equipment.map((e) => e.equipmentId),
         }))}
-        equipment={equipment}
+        equipment={equipment.map((e) => ({
+          id: e.id,
+          name: e.name,
+          category: e.category,
+          imageUrl: e.imageUrl,
+          imageTaskId: e.imageTaskId,
+        }))}
+        hasKieKey={Boolean(settings.kieApiKey)}
       />
     </main>
   );

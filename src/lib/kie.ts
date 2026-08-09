@@ -2,6 +2,13 @@ const KIE_BASE = "https://api.kie.ai/api/v1";
 
 export type KieTaskState = "waiting" | "queuing" | "generating" | "success" | "fail";
 
+export function buildEquipmentImagePrompt(
+  equipmentName: string,
+  category: string
+): string {
+  return `Product illustration of fitness equipment: "${equipmentName}" (category: ${category}). Single piece of gym equipment centered on a dark navy background (#0b0f14), modern flat illustration style with lime green (#a3e635) accents, subtle soft shadow, no people, no text, no watermark.`;
+}
+
 export function buildExerciseImagePrompt(
   exerciseName: string,
   equipment: string[]
@@ -13,7 +20,8 @@ export function buildExerciseImagePrompt(
 
 export async function createImageTask(
   prompt: string,
-  apiKey: string
+  apiKey: string,
+  aspectRatio: "3:2" | "1:1" = "3:2"
 ): Promise<string> {
   const res = await fetch(`${KIE_BASE}/jobs/createTask`, {
     method: "POST",
@@ -25,7 +33,7 @@ export async function createImageTask(
       model: "gpt-image-2-text-to-image",
       input: {
         prompt,
-        aspect_ratio: "3:2",
+        aspect_ratio: aspectRatio,
       },
     }),
   });

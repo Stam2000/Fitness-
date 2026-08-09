@@ -18,10 +18,12 @@ model Location {
 }
 
 model Equipment {
-  id        String              @id @default(cuid())
-  name      String              @unique
-  category  String
-  locations LocationEquipment[]
+  id          String              @id @default(cuid())
+  name        String              @unique
+  category    String
+  imageUrl    String?
+  imageTaskId String?
+  locations   LocationEquipment[]
 }
 
 model LocationEquipment {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   createEquipment,
   createLocation,
@@ -15,7 +15,19 @@ type LocationView = {
   equipmentIds: string[];
 };
 
-type EquipmentView = { id: string; name: string; category: string };
+type EquipmentView = {
+  id: string;
+  name: string;
+  category: string;
+  imageUrl: string | null;
+  imageTaskId: string | null;
+};
+
+type ImageState = {
+  status: "idle" | "generating" | "done" | "error";
+  url?: string;
+  error?: string;
+};
 
 const CATEGORIES = [
   "Poids du corps",
@@ -28,9 +40,11 @@ const CATEGORIES = [
 export default function EquipmentManager({
   locations,
   equipment,
+  hasKieKey,
 }: {
   locations: LocationView[];
   equipment: EquipmentView[];
+  hasKieKey: boolean;
 }) {
   const [activeId, setActiveId] = useState<string | null>(
     locations[0]?.id ?? null
@@ -38,6 +52,20 @@ export default function EquipmentManager({
   const [checked, setChecked] = useState<Record<string, Set<string>>>(() =>
     Object.fromEntries(locations.map((l) => [l.id, new Set(l.equipmentIds)]))
   );
+  const [images, setImages] = useState<Record<string, ImageState>>(() =>
+    Object.fromEntries(
+      equipment.map((e) => [
+        e.id,
+        e.imageUrl
+          ? ({ status: "done", url: e.imageUrl } as ImageState)
+          : e.imageTaskId
+            ? ({ status: "generating" } as ImageState)
+            : ({ status: "idle" } as ImageState),
+      ])
+    )
+  );
+  const [generatingAll, setGeneratingAll] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const [showNewLocation, setShowNewLocation] = useState(false);
   const [newLocationName, setNewLocationName] = useState("");
@@ -45,6 +73,7 @@ export default function EquipmentManager({
   const [newEquipmentCategory, setNewEquipmentCategory] = useState(
     "Accessoires"
   );
+  const pollers = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
   const byCategory = useMemo(() => {
     const map = new Map<string, EquipmentView[]>();
@@ -56,8 +85,96 @@ export default function EquipmentManager({
     return [...map.entries()].filter(([, items]) => items.length > 0);
   }, [equipment]);
 
+  const pollImage = useCallback((equipmentId: string) => {
+    if (pollers.current[equipmentId]) return;
+    pollers.current[equipmentId] = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/equipment/${equipmentId}/image`);
+        const json = await res.json();
+        if (json.state === "success") {
+          clearInterval(pollers.current[equipmentId]);
+          delete pollers.current[equipmentId];
+          setImages((m) => ({
+            ...m,
+            [equipmentId]: { status: "done", url: json.imageUrl },
+          }));
+        } else if (json.state === "fail" || json.error) {
+          clearInterval(pollers.current[equipmentId]);
+          delete pollers.current[equipmentId];
+          setImages((m) => ({
+            ...m,
+            [equipmentId]: { status: "error", error: json.error ?? "échec" },
+          }));
+        }
+      } catch {
+        // erreur réseau passagère : on continue à interroger
+      }
+    }, 4000);
+  }, []);
+
+  useEffect(() => {
+    for (const eq of equipment) {
+      if (eq.imageTaskId && !eq.imageUrl) pollImage(eq.id);
+    }
+    const current = pollers.current;
+    return () => {
+      Object.values(current).forEach(clearInterval);
+    };
+  }, [equipment, pollImage]);
+
+  const generateImage = useCallback(
+    async (equipmentId: string): Promise<boolean> => {
+      setImages((m) => ({ ...m, [equipmentId]: { status: "generating" } }));
+      try {
+        const res = await fetch(`/api/equipment/${equipmentId}/image`, {
+          method: "POST",
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          setImages((m) => ({
+            ...m,
+            [equipmentId]: { status: "error", error: json.error },
+          }));
+          setImageError(json.error ?? "Erreur de génération");
+          return false;
+        }
+        pollImage(equipmentId);
+        return true;
+      } catch {
+        setImages((m) => ({
+          ...m,
+          [equipmentId]: { status: "error", error: "erreur réseau" },
+        }));
+        setImageError("Erreur réseau pendant la génération.");
+        return false;
+      }
+    },
+    [pollImage]
+  );
+
+  async function generateAll() {
+    setGeneratingAll(true);
+    setImageError(null);
+    for (const eq of equipment) {
+      const state = images[eq.id];
+      if (state?.status === "idle" || state?.status === "error") {
+        const ok = await generateImage(eq.id);
+        // Clé manquante ou erreur systémique : inutile d'insister.
+        if (!ok) break;
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    }
+    setGeneratingAll(false);
+  }
+
   const active = locations.find((l) => l.id === activeId);
   const activeChecked = activeId ? checked[activeId] ?? new Set() : new Set();
+  const missingImages = equipment.filter(
+    (e) => images[e.id]?.status !== "done" && images[e.id]?.status !== "generating"
+  ).length;
+  const generatingCount = Object.values(images).filter(
+    (s) => s.status === "generating"
+  ).length;
 
   function toggle(equipmentId: string) {
     if (!activeId) return;
@@ -129,6 +246,29 @@ export default function EquipmentManager({
         </form>
       )}
 
+      {hasKieKey && missingImages > 0 && (
+        <button
+          onClick={generateAll}
+          disabled={generatingAll}
+          className="rounded-xl border border-accent/50 bg-accent/10 py-3 text-sm font-semibold text-accent disabled:opacity-60"
+        >
+          {generatingAll
+            ? `🎨 Génération en cours… (${generatingCount} restantes)`
+            : `🎨 Générer les images des équipements (${missingImages})`}
+        </button>
+      )}
+      {generatingCount > 0 && !generatingAll && (
+        <p className="text-center text-xs text-muted">
+          🎨 {generatingCount} image{generatingCount > 1 ? "s" : ""} en cours de
+          génération…
+        </p>
+      )}
+      {imageError && (
+        <p className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
+          {imageError}
+        </p>
+      )}
+
       {active && (
         <>
           {byCategory.map(([category, items]) => (
@@ -136,22 +276,77 @@ export default function EquipmentManager({
               <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
                 {category}
               </h2>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {items.map((eq) => {
                   const on = activeChecked.has(eq.id);
+                  const img = images[eq.id];
                   return (
-                    <button
+                    <div
                       key={eq.id}
+                      role="checkbox"
+                      aria-checked={on}
+                      tabIndex={0}
                       onClick={() => toggle(eq.id)}
-                      className={`rounded-full border px-3.5 py-2 text-sm ${
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggle(eq.id);
+                        }
+                      }}
+                      className={`relative cursor-pointer overflow-hidden rounded-xl border text-left ${
                         on
-                          ? "border-accent bg-accent/15 text-accent"
-                          : "border-border bg-surface text-muted"
+                          ? "border-accent bg-accent/10"
+                          : "border-border bg-surface"
                       }`}
                     >
-                      {on ? "✓ " : ""}
-                      {eq.name}
-                    </button>
+                      <div className="relative aspect-square w-full bg-surface-2">
+                        {img?.status === "done" && img.url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={img.url}
+                            alt={eq.name}
+                            loading="lazy"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-3xl">
+                            {img?.status === "generating" ? (
+                              <span className="animate-pulse">🎨</span>
+                            ) : (
+                              "🏋️"
+                            )}
+                          </div>
+                        )}
+                        <span
+                          className={`absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                            on
+                              ? "bg-accent text-black"
+                              : "bg-black/50 text-muted"
+                          }`}
+                        >
+                          {on ? "✓" : ""}
+                        </span>
+                        {hasKieKey && img?.status !== "generating" && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              generateImage(eq.id);
+                            }}
+                            aria-label={`Générer l'image de ${eq.name}`}
+                            className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-sm"
+                          >
+                            🎨
+                          </button>
+                        )}
+                      </div>
+                      <p
+                        className={`px-2 py-1.5 text-xs font-medium leading-tight ${
+                          on ? "text-accent" : "text-ink"
+                        }`}
+                      >
+                        {eq.name}
+                      </p>
+                    </div>
                   );
                 })}
               </div>
@@ -208,7 +403,9 @@ export default function EquipmentManager({
                 ) {
                   startTransition(async () => {
                     await deleteLocation(active.id);
-                    setActiveId(locations.find((l) => l.id !== active.id)?.id ?? null);
+                    setActiveId(
+                      locations.find((l) => l.id !== active.id)?.id ?? null
+                    );
                   });
                 }
               }}
