@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Contexte d'entraînement : « Maison », « Salle », etc.
+model Location {
+  id        String              @id @default(cuid())
+  name      String
+  icon      String?
+  equipment LocationEquipment[]
+  programs  Program[]
+  createdAt DateTime            @default(now())
+}
+
+model Equipment {
+  id        String              @id @default(cuid())
+  name      String              @unique
+  category  String
+  locations LocationEquipment[]
+}
+
+model LocationEquipment {
+  locationId  String
+  equipmentId String
+  location    Location  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@id([locationId, equipmentId])
+}
+
+model Program {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  goal        String?
+  level       String?
+  locationId  String?
+  location    Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  days        ProgramDay[]
+  createdAt   DateTime     @default(now())
+}
+
+model ProgramDay {
+  id        String           @id @default(cuid())
+  programId String
+  program   Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  dayIndex  Int
+  name      String
+  focus     String?
+  exercises Exercise[]
+  sessions  WorkoutSession[]
+}
+
+model Exercise {
+  id          String     @id @default(cuid())
+  dayId       String
+  day         ProgramDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  order       Int
+  name        String
+  sets        Int
+  reps        String
+  restSeconds Int
+  weightHint  String?
+  equipment   String[]
+  notes       String?
+  imageUrl    String?
+  imageTaskId String?
+  setLogs     SetLog[]
+}
+
+model WorkoutSession {
+  id          String     @id @default(cuid())
+  dayId       String
+  day         ProgramDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  startedAt   DateTime   @default(now())
+  completedAt DateTime?
+  notes       String?
+  setLogs     SetLog[]
+}
+
+model SetLog {
+  id         String         @id @default(cuid())
+  sessionId  String
+  session    WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  setIndex   Int
+  reps       Int?
+  weightKg   Float?
+  done       Boolean        @default(false)
+
+  @@unique([sessionId, exerciseId, setIndex])
+}
+
+model Settings {
+  id               Int     @id @default(1)
+  openrouterApiKey String?
+  openrouterModel  String  @default("openai/gpt-4o-mini")
+  kieApiKey        String?
+  voiceInput       Boolean @default(true)
+  voiceAnnounce    Boolean @default(true)
+}

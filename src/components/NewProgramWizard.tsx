@@ -1,0 +1,286 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import ProgramEditor, { type EditableProgram } from "@/components/ProgramEditor";
+import { saveProgram } from "@/app/actions";
+
+const GOALS = [
+  "Prise de muscle",
+  "Perte de poids",
+  "Force",
+  "Endurance",
+  "Remise en forme",
+];
+const LEVELS = ["Débutant", "Intermédiaire", "Avancé"];
+const DURATIONS = [30, 45, 60, 90];
+
+type LocationView = {
+  id: string;
+  name: string;
+  icon: string | null;
+  equipmentCount: number;
+};
+
+export default function NewProgramWizard({
+  locations,
+  hasOpenrouterKey,
+}: {
+  locations: LocationView[];
+  hasOpenrouterKey: boolean;
+}) {
+  const router = useRouter();
+  const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
+  const [goal, setGoal] = useState(GOALS[0]);
+  const [level, setLevel] = useState(LEVELS[1]);
+  const [daysPerWeek, setDaysPerWeek] = useState(3);
+  const [sessionMinutes, setSessionMinutes] = useState(60);
+  const [notes, setNotes] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<EditableProgram | null>(null);
+
+  async function generate() {
+    setGenerating(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/generate-program", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          locationId,
+          goal,
+          level,
+          daysPerWeek,
+          sessionMinutes,
+          notes: notes.trim() || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error ?? "Erreur lors de la génération");
+        return;
+      }
+      setDraft(json.draft as EditableProgram);
+    } catch {
+      setError("Erreur réseau. Vérifie ta connexion et réessaie.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function save(program: EditableProgram) {
+    setSaving(true);
+    try {
+      const id = await saveProgram(
+        {
+          name: program.name,
+          description: program.description ?? null,
+          days: program.days.map((d) => ({
+            name: d.name,
+            focus: d.focus ?? null,
+            exercises: d.exercises.map((ex) => ({
+              name: ex.name,
+              sets: ex.sets,
+              reps: ex.reps,
+              restSeconds: ex.restSeconds,
+              weightHint: ex.weightHint ?? null,
+              equipment: ex.equipment ?? [],
+              notes: ex.notes ?? null,
+            })),
+          })),
+        },
+        { locationId, goal, level }
+      );
+      router.push(`/programs/${id}`);
+    } catch {
+      setError("Impossible d'enregistrer le programme.");
+      setSaving(false);
+    }
+  }
+
+  if (draft) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="rounded-2xl border border-accent/40 bg-accent/10 p-3 text-sm">
+          ✨ Programme généré ! Modifie-le si besoin puis enregistre-le.
+        </div>
+        {error && (
+          <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
+            {error}
+          </div>
+        )}
+        <ProgramEditor
+          initial={draft}
+          onSave={save}
+          saveLabel="💾 Enregistrer le programme"
+          saving={saving}
+        />
+        <button
+          onClick={() => setDraft(null)}
+          className="pb-2 text-sm text-muted"
+        >
+          ← Revenir au formulaire et régénérer
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      {!hasOpenrouterKey && (
+        <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm">
+          ⚠️ Aucune clé OpenRouter configurée.{" "}
+          <Link href="/settings" className="font-semibold underline">
+            Ajoute ta clé dans Réglages
+          </Link>{" "}
+          pour générer un programme.
+        </div>
+      )}
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+          Où t&apos;entraînes-tu ?
+        </h2>
+        <div className="flex flex-wrap gap-2">
+          {locations.map((l) => (
+            <button
+              key={l.id}
+              onClick={() => setLocationId(l.id)}
+              className={`rounded-xl px-4 py-3 text-sm font-semibold ${
+                l.id === locationId
+                  ? "bg-accent text-black"
+                  : "border border-border bg-surface"
+              }`}
+            >
+              {l.icon} {l.name}
+              <span className="ml-1.5 text-xs opacity-70">
+                {l.equipmentCount} équip.
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-xs text-muted">
+          L&apos;équipement coché dans « Matériel » pour ce contexte sera
+          utilisé.
+        </p>
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+          Objectif
+        </h2>
+        <div className="flex flex-wrap gap-2">
+          {GOALS.map((g) => (
+            <button
+              key={g}
+              onClick={() => setGoal(g)}
+              className={`rounded-full px-3.5 py-2 text-sm ${
+                g === goal
+                  ? "bg-accent/15 text-accent border border-accent"
+                  : "border border-border bg-surface text-muted"
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+          Niveau
+        </h2>
+        <div className="flex gap-2">
+          {LEVELS.map((l) => (
+            <button
+              key={l}
+              onClick={() => setLevel(l)}
+              className={`flex-1 rounded-xl py-2.5 text-sm ${
+                l === level
+                  ? "bg-accent/15 text-accent border border-accent"
+                  : "border border-border bg-surface text-muted"
+              }`}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+          Séances par semaine : {daysPerWeek}
+        </h2>
+        <input
+          type="range"
+          min={1}
+          max={7}
+          value={daysPerWeek}
+          onChange={(e) => setDaysPerWeek(Number(e.target.value))}
+          className="w-full accent-[#a3e635]"
+        />
+        <div className="flex justify-between text-xs text-muted">
+          {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+            <span key={n}>{n}</span>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+          Durée de séance
+        </h2>
+        <div className="flex gap-2">
+          {DURATIONS.map((d) => (
+            <button
+              key={d}
+              onClick={() => setSessionMinutes(d)}
+              className={`flex-1 rounded-xl py-2.5 text-sm ${
+                d === sessionMinutes
+                  ? "bg-accent/15 text-accent border border-accent"
+                  : "border border-border bg-surface text-muted"
+              }`}
+            >
+              {d} min
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+          Précisions (optionnel)
+        </h2>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Ex. je veux insister sur les épaules, j'ai mal au genou droit, pas de squat…"
+          rows={3}
+          className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+        />
+      </section>
+
+      {error && (
+        <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
+          {error}
+        </div>
+      )}
+
+      <button
+        onClick={generate}
+        disabled={generating || !locationId}
+        className="rounded-xl bg-accent py-4 font-semibold text-black disabled:opacity-50"
+      >
+        {generating ? "🤖 Génération en cours…" : "✨ Générer mon programme"}
+      </button>
+      {generating && (
+        <p className="text-center text-xs text-muted">
+          Cela peut prendre 10 à 30 secondes selon le modèle choisi.
+        </p>
+      )}
+    </div>
+  );
+}
