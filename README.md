@@ -39,7 +39,29 @@ Application web mobile-first de programmes de fitness générés par IA.
 - [Kie.ai](https://kie.ai) GPT Image 2 (images d'exercices)
 - Web Speech API (dictée et annonces vocales, fr-FR)
 
-## Démarrage
+## Démarrage rapide avec Docker 🐳
+
+Le plus simple : l'app **et** la base PostgreSQL tournent dans Docker.
+
+```bash
+# Clés API optionnelles (ou saisis-les ensuite dans Réglages)
+export KIE_API_KEY="ta-clé-kie"
+export OPENROUTER_API_KEY="sk-or-…"
+
+docker compose up -d --build
+```
+
+Puis ouvre <http://localhost:3000>. C'est tout : les migrations et le seed
+s'exécutent automatiquement au démarrage (service `migrate`), et les données
+sont persistées dans le volume `db-data`.
+
+- Changer le port : `APP_PORT=8080 docker compose up -d`
+- Mot de passe Postgres : `POSTGRES_PASSWORD=… docker compose up -d`
+- Mise à jour : `git pull && docker compose up -d --build` (les migrations
+  se rejouent automatiquement)
+- Arrêt : `docker compose down` (ajoute `-v` pour effacer les données)
+
+## Démarrage manuel (sans Docker)
 
 1. Crée une base PostgreSQL (gratuite chez [Neon](https://neon.tech) ou
    [Supabase](https://supabase.com)).
