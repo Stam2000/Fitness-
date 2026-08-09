@@ -38,7 +38,11 @@ const CATEGORIES = [
   "Accessoires",
 ];
 
-const ICONS = ["🏠", "🏋️", "🏢", "🏨", "🌳", "🏖️", "⛰️", "📍"];
+const ICONS = [
+  "🏠", "🏡", "🏢", "🏬", "🏨", "🏫", "🏟️", "🏋️",
+  "💪", "🤸", "🧘", "🥊", "🏊", "🚴", "⚽", "🎾",
+  "🌳", "🏞️", "🏖️", "⛰️", "🏕️", "🌆", "🌃", "📍",
+];
 
 function LocationForm({
   initialName = "",
