@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getSettings } from "@/lib/settings";
 import ProgramDetail from "@/components/ProgramDetail";
 
 export const dynamic = "force-dynamic";
@@ -10,20 +11,30 @@ export default async function ProgramPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const program = await prisma.program.findUnique({
-    where: { id },
-    include: {
-      location: true,
-      days: {
-        orderBy: { dayIndex: "asc" },
-        include: { exercises: { orderBy: { order: "asc" } } },
+  const [program, locations, settings] = await Promise.all([
+    prisma.program.findUnique({
+      where: { id },
+      include: {
+        location: true,
+        days: {
+          orderBy: { dayIndex: "asc" },
+          include: { exercises: { orderBy: { order: "asc" } } },
+        },
       },
-    },
-  });
+    }),
+    prisma.location.findMany({ orderBy: { createdAt: "asc" } }),
+    getSettings(),
+  ]);
   if (!program) notFound();
 
   return (
     <ProgramDetail
+      locations={locations.map((l) => ({
+        id: l.id,
+        name: l.name,
+        icon: l.icon,
+      }))}
+      hasOpenrouterKey={Boolean(settings.openrouterApiKey)}
       program={{
         id: program.id,
         name: program.name,

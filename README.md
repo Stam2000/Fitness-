@@ -22,6 +22,12 @@ Application web mobile-first de programmes de fitness générés par IA.
   suggestions de surcharge progressive pendant la séance.
 - **Coach IA post-séance** : analyse de ta séance (charges, séries manquées,
   conseils) générée par le modèle OpenRouter de ton choix.
+- **IA en séance** : remplace un exercice à la volée (machine occupée,
+  douleur…) par une alternative équivalente, échauffement sur mesure généré
+  pour la séance du jour.
+- **Gestion des programmes** : duplication en un clic et **adaptation IA d'un
+  programme à un autre contexte** (ex. ton programme salle converti pour la
+  maison avec ton équipement).
 - **Images d'exercices** générées avec **GPT Image 2** via [Kie.ai](https://kie.ai).
 
 ## Stack

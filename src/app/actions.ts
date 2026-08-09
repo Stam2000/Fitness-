@@ -211,6 +211,49 @@ export async function updateProgram(programId: string, payload: ProgramUpdatePay
   revalidatePath("/");
 }
 
+export async function duplicateProgram(id: string): Promise<string> {
+  const program = await prisma.program.findUniqueOrThrow({
+    where: { id },
+    include: {
+      days: {
+        orderBy: { dayIndex: "asc" },
+        include: { exercises: { orderBy: { order: "asc" } } },
+      },
+    },
+  });
+  const copy = await prisma.program.create({
+    data: {
+      name: `${program.name} (copie)`,
+      description: program.description,
+      goal: program.goal,
+      level: program.level,
+      locationId: program.locationId,
+      days: {
+        create: program.days.map((day) => ({
+          dayIndex: day.dayIndex,
+          name: day.name,
+          focus: day.focus,
+          exercises: {
+            create: day.exercises.map((ex) => ({
+              order: ex.order,
+              name: ex.name,
+              sets: ex.sets,
+              reps: ex.reps,
+              restSeconds: ex.restSeconds,
+              weightHint: ex.weightHint,
+              equipment: ex.equipment,
+              notes: ex.notes,
+              imageUrl: ex.imageUrl,
+            })),
+          },
+        })),
+      },
+    },
+  });
+  revalidatePath("/");
+  return copy.id;
+}
+
 export async function deleteProgram(id: string) {
   await prisma.program.delete({ where: { id } });
   revalidatePath("/");

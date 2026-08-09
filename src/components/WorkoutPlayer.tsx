@@ -153,6 +153,15 @@ export default function WorkoutPlayer({
     target: number;
   } | null>(null);
   const [finished, setFinished] = useState(completed);
+  const [showSubstitute, setShowSubstitute] = useState(false);
+  const [substituteReason, setSubstituteReason] = useState("");
+  const [substituting, setSubstituting] = useState(false);
+  const [substituteError, setSubstituteError] = useState<string | null>(null);
+  const [aiWarmup, setAiWarmup] = useState<
+    { name: string; seconds: number }[] | null
+  >(null);
+  const [aiWarmupLoading, setAiWarmupLoading] = useState(false);
+  const [aiWarmupError, setAiWarmupError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
@@ -433,6 +442,62 @@ export default function WorkoutPlayer({
     setFinished(true);
   }
 
+  async function loadAiWarmup() {
+    setAiWarmupLoading(true);
+    setAiWarmupError(null);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/warmup`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setAiWarmupError(json.error ?? "Erreur");
+        return;
+      }
+      setAiWarmup(json.moves);
+      const total = json.moves.reduce(
+        (acc: number, m: { seconds: number }) => acc + m.seconds,
+        0
+      );
+      startWarmup(total);
+      speak(
+        `Échauffement personnalisé : ${json.moves
+          .map((m: { name: string; seconds: number }) => `${m.name}, ${m.seconds} secondes`)
+          .join(". ")}`
+      );
+    } catch {
+      setAiWarmupError("Erreur réseau. Réessaie.");
+    } finally {
+      setAiWarmupLoading(false);
+    }
+  }
+
+  async function substituteExercise() {
+    setSubstituting(true);
+    setSubstituteError(null);
+    try {
+      const res = await fetch(`/api/exercises/${exercise.id}/substitute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: substituteReason.trim() || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setSubstituteError(json.error ?? "Erreur");
+        return;
+      }
+      // Recharge la séance : l'exercice, ses cibles et le nombre de
+      // séries peuvent avoir changé.
+      window.location.reload();
+    } catch {
+      setSubstituteError("Erreur réseau. Réessaie.");
+    } finally {
+      setSubstituting(false);
+    }
+  }
+
   async function loadFeedback() {
     setFeedbackLoading(true);
     setFeedbackError(null);
@@ -626,7 +691,7 @@ export default function WorkoutPlayer({
               <p className="text-sm font-semibold text-orange-300">
                 🔥 Échauffement avant de commencer ?
               </p>
-              <div className="mt-3 flex justify-center gap-2">
+              <div className="mt-3 flex flex-wrap justify-center gap-2">
                 {[2, 5, 10].map((min) => (
                   <button
                     key={min}
@@ -636,6 +701,15 @@ export default function WorkoutPlayer({
                     {min} min
                   </button>
                 ))}
+                {hasOpenrouterKey && (
+                  <button
+                    onClick={loadAiWarmup}
+                    disabled={aiWarmupLoading}
+                    className="rounded-lg border border-orange-400/40 px-4 py-2.5 text-sm font-semibold text-orange-300 disabled:opacity-50"
+                  >
+                    {aiWarmupLoading ? "🤖 Génération…" : "🤖 Sur mesure"}
+                  </button>
+                )}
                 <button
                   onClick={skipWarmup}
                   className="rounded-lg border border-border px-4 py-2.5 text-sm text-muted"
@@ -643,6 +717,9 @@ export default function WorkoutPlayer({
                   Passer
                 </button>
               </div>
+              {aiWarmupError && (
+                <p className="mt-2 text-xs text-danger">{aiWarmupError}</p>
+              )}
             </>
           ) : (
             <>
@@ -653,6 +730,16 @@ export default function WorkoutPlayer({
                 {Math.floor(warmupLeft / 60)}:
                 {String(warmupLeft % 60).padStart(2, "0")}
               </p>
+              {aiWarmup && (
+                <ul className="mx-auto mb-2 max-w-xs text-left text-sm text-muted">
+                  {aiWarmup.map((m) => (
+                    <li key={m.name} className="flex justify-between gap-2">
+                      <span>{m.name}</span>
+                      <span className="shrink-0 tabular-nums">{m.seconds} s</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <div className="flex justify-center gap-2">
                 <button
                   onClick={() => setWarmupLeft((w) => (w !== null ? w + 30 : w))}
@@ -682,10 +769,73 @@ export default function WorkoutPlayer({
           />
         )}
         <div className="p-4">
-          <p className="text-xs text-muted">
-            Exercice {current + 1}/{exercises.length}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-muted">
+              Exercice {current + 1}/{exercises.length}
+            </p>
+            {hasOpenrouterKey && (
+              <button
+                onClick={() => setShowSubstitute((v) => !v)}
+                className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs text-muted"
+              >
+                🔄 Remplacer
+              </button>
+            )}
+          </div>
           <h1 className="mt-0.5 text-xl font-bold">{exercise.name}</h1>
+          {showSubstitute && (
+            <div className="mt-2 rounded-xl bg-surface-2 p-3">
+              <p className="text-xs font-semibold text-muted">
+                Pourquoi remplacer cet exercice ?
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {[
+                  "Machine occupée",
+                  "Douleur",
+                  "Trop dur",
+                  "Trop facile",
+                ].map((r) => (
+                  <button
+                    key={r}
+                    onClick={() =>
+                      setSubstituteReason(substituteReason === r ? "" : r)
+                    }
+                    className={`rounded-full border px-3 py-1.5 text-xs ${
+                      substituteReason === r
+                        ? "border-accent bg-accent/15 text-accent"
+                        : "border-border text-muted"
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <input
+                value={
+                  ["Machine occupée", "Douleur", "Trop dur", "Trop facile"].includes(
+                    substituteReason
+                  )
+                    ? ""
+                    : substituteReason
+                }
+                onChange={(e) => setSubstituteReason(e.target.value)}
+                placeholder="Ou précise ta raison…"
+                className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+              {substituteError && (
+                <p className="mt-2 text-xs text-danger">{substituteError}</p>
+              )}
+              <button
+                onClick={substituteExercise}
+                disabled={substituting}
+                className="mt-2 w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-black disabled:opacity-50"
+              >
+                {substituting
+                  ? "🤖 Recherche d'une alternative…"
+                  : "Remplacer par une alternative IA"}
+              </button>
+            </div>
+          )}
           <p className="mt-1 text-accent">
             {exercise.sets} × {exercise.reps}
             <span className="text-muted">

@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ProgramEditor, { type EditableProgram } from "@/components/ProgramEditor";
-import { deleteProgram, startSession, updateProgram } from "@/app/actions";
+import {
+  deleteProgram,
+  duplicateProgram,
+  startSession,
+  updateProgram,
+} from "@/app/actions";
 
 type ExerciseView = {
   id: string;
@@ -35,11 +40,24 @@ type ProgramView = {
 
 type ImageState = { status: "idle" | "generating" | "done" | "error"; url?: string; error?: string };
 
-export default function ProgramDetail({ program }: { program: ProgramView }) {
+export default function ProgramDetail({
+  program,
+  locations,
+  hasOpenrouterKey,
+}: {
+  program: ProgramView;
+  locations: { id: string; name: string; icon: string | null }[];
+  hasOpenrouterKey: boolean;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [openDay, setOpenDay] = useState(0);
+  const [duplicating, setDuplicating] = useState(false);
+  const [showConvert, setShowConvert] = useState(false);
+  const [convertTarget, setConvertTarget] = useState<string | null>(null);
+  const [converting, setConverting] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
   const [images, setImages] = useState<Record<string, ImageState>>(() => {
     const init: Record<string, ImageState> = {};
     for (const day of program.days) {
@@ -325,6 +343,88 @@ export default function ProgramDetail({ program }: { program: ProgramView }) {
           )}
         </section>
       ))}
+
+      <div className="flex gap-2">
+        <button
+          onClick={async () => {
+            setDuplicating(true);
+            try {
+              const id = await duplicateProgram(program.id);
+              router.push(`/programs/${id}`);
+            } finally {
+              setDuplicating(false);
+            }
+          }}
+          disabled={duplicating}
+          className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold disabled:opacity-50"
+        >
+          {duplicating ? "Duplication…" : "📋 Dupliquer"}
+        </button>
+        {hasOpenrouterKey && locations.length > 1 && (
+          <button
+            onClick={() => setShowConvert((v) => !v)}
+            className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold"
+          >
+            🔄 Adapter à un contexte
+          </button>
+        )}
+      </div>
+
+      {showConvert && (
+        <div className="rounded-2xl border border-border bg-surface p-3">
+          <p className="text-sm font-semibold">
+            Adapter ce programme à l&apos;équipement de :
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {locations.map((l) => (
+              <button
+                key={l.id}
+                onClick={() => setConvertTarget(l.id)}
+                className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${
+                  convertTarget === l.id
+                    ? "bg-accent text-black"
+                    : "border border-border"
+                }`}
+              >
+                {l.icon} {l.name}
+              </button>
+            ))}
+          </div>
+          {convertError && (
+            <p className="mt-2 text-sm text-danger">{convertError}</p>
+          )}
+          <button
+            onClick={async () => {
+              if (!convertTarget) return;
+              setConverting(true);
+              setConvertError(null);
+              try {
+                const res = await fetch(`/api/programs/${program.id}/convert`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ locationId: convertTarget }),
+                });
+                const json = await res.json();
+                if (!res.ok) {
+                  setConvertError(json.error ?? "Erreur");
+                  return;
+                }
+                router.push(`/programs/${json.programId}`);
+              } catch {
+                setConvertError("Erreur réseau. Réessaie.");
+              } finally {
+                setConverting(false);
+              }
+            }}
+            disabled={!convertTarget || converting}
+            className="mt-3 w-full rounded-xl bg-accent py-3 text-sm font-semibold text-black disabled:opacity-50"
+          >
+            {converting
+              ? "🤖 Adaptation en cours… (10-30 s)"
+              : "Créer le programme adapté"}
+          </button>
+        </div>
+      )}
 
       <button
         onClick={() => {
