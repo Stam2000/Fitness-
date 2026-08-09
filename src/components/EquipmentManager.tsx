@@ -144,9 +144,11 @@ export default function EquipmentManager({
   );
   const pollers = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
-  // Un contexte vient d'être créé ou supprimé côté serveur :
-  // garder une sélection valide.
-  useEffect(() => {
+  // Un contexte vient d'être créé ou supprimé côté serveur : garder une
+  // sélection valide (ajustement d'état pendant le rendu, cf. docs React).
+  const [prevLocations, setPrevLocations] = useState(locations);
+  if (prevLocations !== locations) {
+    setPrevLocations(locations);
     if (!activeId || !locations.some((l) => l.id === activeId)) {
       setActiveId(locations[0]?.id ?? null);
     }
@@ -157,7 +159,7 @@ export default function EquipmentManager({
       }
       return next;
     });
-  }, [locations, activeId]);
+  }
 
   const byCategory = useMemo(() => {
     const map = new Map<string, EquipmentView[]>();
