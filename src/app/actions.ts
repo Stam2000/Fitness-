@@ -13,6 +13,16 @@ export async function createLocation(name: string, icon: string) {
   revalidatePath("/equipment");
 }
 
+export async function updateLocation(id: string, name: string, icon: string) {
+  if (!name.trim()) return;
+  await prisma.location.update({
+    where: { id },
+    data: { name: name.trim(), icon },
+  });
+  revalidatePath("/equipment");
+  revalidatePath("/");
+}
+
 export async function deleteLocation(id: string) {
   await prisma.location.delete({ where: { id } });
   revalidatePath("/equipment");

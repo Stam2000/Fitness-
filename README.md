@@ -4,8 +4,9 @@ Application web mobile-first de programmes de fitness générés par IA.
 
 ## Fonctionnalités
 
-- **Contextes d'entraînement** : définis ton équipement disponible par lieu
-  (« Maison », « Salle », …) — haltères, machines, cardio, accessoires.
+- **Contextes d'entraînement dynamiques** : crée tes propres lieux
+  (« Maison », « Gym X », « Gym Y », …) et coche l'équipement disponible dans
+  chacun — haltères, machines, cardio, accessoires.
 - **Génération par IA (OpenRouter)** : choisis ton modèle d'IA, ton objectif,
   ton niveau, le nombre de séances par semaine — l'IA propose un programme
   qui n'utilise que ton équipement. Tu peux le modifier avant de l'enregistrer.
@@ -39,7 +40,7 @@ Application web mobile-first de programmes de fitness générés par IA.
 ```bash
 npm install
 npx prisma migrate deploy   # crée les tables
-npx prisma db seed          # équipements + contextes Maison/Salle
+npx prisma db seed          # catalogue d'équipements
 npm run dev
 ```
 

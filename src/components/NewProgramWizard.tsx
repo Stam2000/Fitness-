@@ -101,6 +101,28 @@ export default function NewProgramWizard({
     }
   }
 
+  if (locations.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-6 text-center">
+        <p className="text-4xl">📍</p>
+        <h2 className="mt-3 text-lg font-semibold">
+          Commence par créer un contexte
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Un contexte est un endroit où tu t&apos;entraînes (Maison, Gym X…)
+          avec son équipement. L&apos;IA s&apos;en sert pour bâtir ton
+          programme.
+        </p>
+        <Link
+          href="/equipment"
+          className="mt-4 inline-block rounded-xl bg-accent px-5 py-3 font-semibold text-black"
+        >
+          Créer mon premier contexte
+        </Link>
+      </div>
+    );
+  }
+
   if (draft) {
     return (
       <div className="flex flex-col gap-4">

@@ -6,6 +6,7 @@ import {
   createLocation,
   deleteLocation,
   toggleLocationEquipment,
+  updateLocation,
 } from "@/app/actions";
 
 type LocationView = {
@@ -36,6 +37,74 @@ const CATEGORIES = [
   "Cardio",
   "Accessoires",
 ];
+
+const ICONS = ["🏠", "🏋️", "🏢", "🏨", "🌳", "🏖️", "⛰️", "📍"];
+
+function LocationForm({
+  initialName = "",
+  initialIcon = "🏠",
+  submitLabel,
+  onSubmit,
+  onCancel,
+}: {
+  initialName?: string;
+  initialIcon?: string;
+  submitLabel: string;
+  onSubmit: (name: string, icon: string) => void;
+  onCancel?: () => void;
+}) {
+  const [name, setName] = useState(initialName);
+  const [icon, setIcon] = useState(initialIcon);
+  return (
+    <form
+      className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!name.trim()) return;
+        onSubmit(name.trim(), icon);
+      }}
+    >
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Nom du contexte (ex. Gym Basic-Fit, Maison…)"
+        autoFocus
+        className="rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
+      />
+      <div className="flex flex-wrap gap-1.5">
+        {ICONS.map((i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => setIcon(i)}
+            className={`flex h-10 w-10 items-center justify-center rounded-lg border text-lg ${
+              i === icon ? "border-accent bg-accent/15" : "border-border"
+            }`}
+          >
+            {i}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          className="flex-1 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-black"
+        >
+          {submitLabel}
+        </button>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-xl border border-border px-4 py-2.5 text-sm text-muted"
+          >
+            Annuler
+          </button>
+        )}
+      </div>
+    </form>
+  );
+}
 
 export default function EquipmentManager({
   locations,
@@ -68,12 +137,27 @@ export default function EquipmentManager({
   const [imageError, setImageError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const [showNewLocation, setShowNewLocation] = useState(false);
-  const [newLocationName, setNewLocationName] = useState("");
+  const [editingLocation, setEditingLocation] = useState(false);
   const [newEquipmentName, setNewEquipmentName] = useState("");
   const [newEquipmentCategory, setNewEquipmentCategory] = useState(
     "Accessoires"
   );
   const pollers = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+
+  // Un contexte vient d'être créé ou supprimé côté serveur :
+  // garder une sélection valide.
+  useEffect(() => {
+    if (!activeId || !locations.some((l) => l.id === activeId)) {
+      setActiveId(locations[0]?.id ?? null);
+    }
+    setChecked((prev) => {
+      const next = { ...prev };
+      for (const l of locations) {
+        if (!next[l.id]) next[l.id] = new Set(l.equipmentIds);
+      }
+      return next;
+    });
+  }, [locations, activeId]);
 
   const byCategory = useMemo(() => {
     const map = new Map<string, EquipmentView[]>();
@@ -170,7 +254,8 @@ export default function EquipmentManager({
   const active = locations.find((l) => l.id === activeId);
   const activeChecked = activeId ? checked[activeId] ?? new Set() : new Set();
   const missingImages = equipment.filter(
-    (e) => images[e.id]?.status !== "done" && images[e.id]?.status !== "generating"
+    (e) =>
+      images[e.id]?.status !== "done" && images[e.id]?.status !== "generating"
   ).length;
   const generatingCount = Object.values(images).filter(
     (s) => s.status === "generating"
@@ -190,13 +275,43 @@ export default function EquipmentManager({
     startTransition(() => toggleLocationEquipment(activeId, equipmentId, on));
   }
 
+  // ---------- Aucun contexte : invite à créer le premier ----------
+  if (locations.length === 0) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="rounded-2xl border border-border bg-surface p-6 text-center">
+          <p className="text-4xl">📍</p>
+          <h2 className="mt-3 text-lg font-semibold">
+            Crée ton premier contexte
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Un contexte est un endroit où tu t&apos;entraînes : chez toi, ta
+            salle de sport, un parc… Tu cocheras ensuite l&apos;équipement
+            disponible dans chacun.
+          </p>
+        </div>
+        <LocationForm
+          submitLabel="Créer le contexte"
+          onSubmit={(name, icon) =>
+            startTransition(async () => {
+              await createLocation(name, icon);
+            })
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-2">
         {locations.map((l) => (
           <button
             key={l.id}
-            onClick={() => setActiveId(l.id)}
+            onClick={() => {
+              setActiveId(l.id);
+              setEditingLocation(false);
+            }}
             className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${
               l.id === activeId
                 ? "bg-accent text-black"
@@ -218,32 +333,48 @@ export default function EquipmentManager({
       </div>
 
       {showNewLocation && (
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const name = newLocationName.trim();
-            if (!name) return;
+        <LocationForm
+          submitLabel="Créer le contexte"
+          onSubmit={(name, icon) =>
             startTransition(async () => {
-              await createLocation(name, "📍");
-              setNewLocationName("");
+              await createLocation(name, icon);
               setShowNewLocation(false);
-            });
-          }}
-        >
-          <input
-            value={newLocationName}
-            onChange={(e) => setNewLocationName(e.target.value)}
-            placeholder="Ex. Hôtel, Parc, Bureau…"
-            className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-          />
+            })
+          }
+          onCancel={() => setShowNewLocation(false)}
+        />
+      )}
+
+      {active && !editingLocation && (
+        <div className="flex items-center justify-between gap-2 rounded-xl bg-surface px-3 py-2">
+          <p className="text-sm text-muted">
+            Équipement disponible à{" "}
+            <span className="font-semibold text-ink">
+              {active.icon} {active.name}
+            </span>
+          </p>
           <button
-            type="submit"
-            className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-black"
+            onClick={() => setEditingLocation(true)}
+            className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs"
           >
-            Ajouter
+            ✏️ Renommer
           </button>
-        </form>
+        </div>
+      )}
+
+      {active && editingLocation && (
+        <LocationForm
+          initialName={active.name}
+          initialIcon={active.icon ?? "📍"}
+          submitLabel="Enregistrer"
+          onSubmit={(name, icon) =>
+            startTransition(async () => {
+              await updateLocation(active.id, name, icon);
+              setEditingLocation(false);
+            })
+          }
+          onCancel={() => setEditingLocation(false)}
+        />
       )}
 
       {hasKieKey && missingImages > 0 && (
@@ -393,27 +524,25 @@ export default function EquipmentManager({
             </button>
           </form>
 
-          {locations.length > 1 && (
-            <button
-              onClick={() => {
-                if (
-                  confirm(
-                    `Supprimer le contexte « ${active.name} » ? Les programmes associés seront conservés.`
-                  )
-                ) {
-                  startTransition(async () => {
-                    await deleteLocation(active.id);
-                    setActiveId(
-                      locations.find((l) => l.id !== active.id)?.id ?? null
-                    );
-                  });
-                }
-              }}
-              className="text-sm text-danger"
-            >
-              Supprimer ce contexte
-            </button>
-          )}
+          <button
+            onClick={() => {
+              if (
+                confirm(
+                  `Supprimer le contexte « ${active.name} » ? Les programmes associés seront conservés.`
+                )
+              ) {
+                startTransition(async () => {
+                  await deleteLocation(active.id);
+                  setActiveId(
+                    locations.find((l) => l.id !== active.id)?.id ?? null
+                  );
+                });
+              }
+            }}
+            className="text-sm text-danger"
+          >
+            Supprimer ce contexte
+          </button>
         </>
       )}
     </div>

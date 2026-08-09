@@ -77,15 +77,9 @@ const EQUIPMENT: { category: string; items: string[] }[] = [
   },
 ];
 
-const HOME_EQUIPMENT = [
-  "Tapis de sol",
-  "Élastiques de résistance",
-  "Haltères ajustables",
-  "Barre de traction",
-  "Corde à sauter",
-];
-
 async function main() {
+  // Seul le catalogue d'équipements est seedé : les contextes
+  // d'entraînement (Maison, Gym X…) sont créés par l'utilisateur.
   for (const group of EQUIPMENT) {
     for (const name of group.items) {
       await prisma.equipment.upsert({
@@ -94,28 +88,6 @@ async function main() {
         create: { name, category: group.category },
       });
     }
-  }
-
-  const count = await prisma.location.count();
-  if (count === 0) {
-    const home = await prisma.location.create({
-      data: { name: "Maison", icon: "🏠" },
-    });
-    const gym = await prisma.location.create({
-      data: { name: "Salle", icon: "🏋️" },
-    });
-
-    const homeEq = await prisma.equipment.findMany({
-      where: { name: { in: HOME_EQUIPMENT } },
-    });
-    await prisma.locationEquipment.createMany({
-      data: homeEq.map((e) => ({ locationId: home.id, equipmentId: e.id })),
-    });
-
-    const allEq = await prisma.equipment.findMany();
-    await prisma.locationEquipment.createMany({
-      data: allEq.map((e) => ({ locationId: gym.id, equipmentId: e.id })),
-    });
   }
 
   await prisma.settings.upsert({
