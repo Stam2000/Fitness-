@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { getHistoricalMaxByName, suggestNextWeight } from "@/lib/progress";
 import WorkoutPlayer from "@/components/WorkoutPlayer";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +33,30 @@ export default async function WorkoutPage({
     include: { setLogs: true },
   });
 
-  const settings = await getSettings();
+  const [settings, historicalMax] = await Promise.all([
+    getSettings(),
+    getHistoricalMaxByName(session.id),
+  ]);
+
+  const suggestions: Record<
+    string,
+    { lastWeight: number; suggestion: number }
+  > = {};
+  if (lastCompleted) {
+    for (const ex of session.day.exercises) {
+      const s = suggestNextWeight(
+        lastCompleted.setLogs.filter((l) => l.exerciseId === ex.id),
+        ex.reps
+      );
+      if (s) suggestions[ex.id] = s;
+    }
+  }
+
+  const maxByExercise: Record<string, number> = {};
+  for (const ex of session.day.exercises) {
+    if (historicalMax[ex.name] != null)
+      maxByExercise[ex.id] = historicalMax[ex.name];
+  }
 
   return (
     <WorkoutPlayer
@@ -67,6 +91,9 @@ export default async function WorkoutPage({
       }))}
       voiceInput={settings.voiceInput}
       voiceAnnounce={settings.voiceAnnounce}
+      suggestions={suggestions}
+      historicalMax={maxByExercise}
+      hasOpenrouterKey={Boolean(settings.openrouterApiKey)}
     />
   );
 }

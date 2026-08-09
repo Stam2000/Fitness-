@@ -82,6 +82,9 @@ export default function WorkoutPlayer({
   previousLogs,
   voiceInput,
   voiceAnnounce,
+  suggestions,
+  historicalMax,
+  hasOpenrouterKey,
 }: {
   sessionId: string;
   programName: string;
@@ -92,6 +95,9 @@ export default function WorkoutPlayer({
   previousLogs: LogEntry[];
   voiceInput: boolean;
   voiceAnnounce: boolean;
+  suggestions: Record<string, { lastWeight: number; suggestion: number }>;
+  historicalMax: Record<string, number>;
+  hasOpenrouterKey: boolean;
 }) {
   const [current, setCurrent] = useState(() => {
     // Reprendre au premier exercice incomplet.
@@ -122,6 +128,9 @@ export default function WorkoutPlayer({
   });
   const [restLeft, setRestLeft] = useState<number | null>(null);
   const [finished, setFinished] = useState(completed);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [voiceMessage, setVoiceMessage] = useState<string | null>(null);
   const restInterval = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -296,6 +305,26 @@ export default function WorkoutPlayer({
     setFinished(true);
   }
 
+  async function loadFeedback() {
+    setFeedbackLoading(true);
+    setFeedbackError(null);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/feedback`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setFeedbackError(json.error ?? "Erreur");
+        return;
+      }
+      setFeedback(json.feedback);
+    } catch {
+      setFeedbackError("Erreur réseau. Réessaie.");
+    } finally {
+      setFeedbackLoading(false);
+    }
+  }
+
   // ---------- Résumé ----------
   if (finished) {
     const allStates = Object.entries(logs);
@@ -305,6 +334,27 @@ export default function WorkoutPlayer({
       const r = parseInt(s.reps, 10);
       return acc + (isNaN(w) || isNaN(r) ? 0 : w * r);
     }, 0);
+    // Records personnels battus pendant cette séance.
+    const prs = exercises
+      .map((ex) => {
+        const sessionMax = Array.from({ length: ex.sets }, (_, i) =>
+          logs[`${ex.id}:${i}`]
+        )
+          .filter((s) => s?.done)
+          .reduce((acc, s) => {
+            const w = parseFloat(s.weightKg);
+            return isNaN(w) ? acc : Math.max(acc, w);
+          }, 0);
+        const previous = historicalMax[ex.id];
+        return sessionMax > 0 && (previous == null || sessionMax > previous)
+          ? { name: ex.name, weight: sessionMax, previous: previous ?? null }
+          : null;
+      })
+      .filter(Boolean) as {
+      name: string;
+      weight: number;
+      previous: number | null;
+    }[];
     return (
       <main className="flex min-h-[70vh] flex-col items-center justify-center gap-4 text-center">
         <p className="text-6xl">🎉</p>
@@ -324,6 +374,50 @@ export default function WorkoutPlayer({
             <p className="text-xs text-muted">kg soulevés (volume)</p>
           </div>
         </div>
+        {prs.length > 0 && (
+          <div className="w-full rounded-2xl border border-accent/40 bg-accent/10 p-4 text-left">
+            <p className="text-sm font-semibold text-accent">
+              ★ Nouveau record personnel !
+            </p>
+            {prs.map((pr) => (
+              <p key={pr.name} className="mt-1 text-sm">
+                {pr.name} : <span className="font-semibold">{pr.weight} kg</span>
+                {pr.previous != null && (
+                  <span className="text-muted"> (avant : {pr.previous} kg)</span>
+                )}
+              </p>
+            ))}
+          </div>
+        )}
+
+        {hasOpenrouterKey && (
+          <div className="w-full">
+            {feedback ? (
+              <div className="rounded-2xl border border-border bg-surface p-4 text-left">
+                <p className="text-sm font-semibold text-accent">
+                  🤖 Analyse du coach
+                </p>
+                <p className="mt-2 whitespace-pre-line text-sm text-muted">
+                  {feedback}
+                </p>
+              </div>
+            ) : (
+              <button
+                onClick={loadFeedback}
+                disabled={feedbackLoading}
+                className="w-full rounded-xl border border-accent/50 bg-accent/10 py-3 text-sm font-semibold text-accent disabled:opacity-60"
+              >
+                {feedbackLoading
+                  ? "🤖 Le coach analyse ta séance…"
+                  : "🤖 Demander l'analyse du coach"}
+              </button>
+            )}
+            {feedbackError && (
+              <p className="mt-2 text-sm text-danger">{feedbackError}</p>
+            )}
+          </div>
+        )}
+
         <div className="mt-4 flex flex-col gap-2">
           <Link
             href="/history"
@@ -420,6 +514,15 @@ export default function WorkoutPlayer({
           </p>
           {exercise.weightHint && (
             <p className="mt-1 text-sm text-muted">⚖️ {exercise.weightHint}</p>
+          )}
+          {suggestions[exercise.id] && (
+            <p className="mt-1 rounded-lg bg-accent/10 px-2 py-1.5 text-sm text-accent">
+              📊 Dernière fois : {suggestions[exercise.id].lastWeight} kg —{" "}
+              {suggestions[exercise.id].suggestion >
+              suggestions[exercise.id].lastWeight
+                ? `essaie ${suggestions[exercise.id].suggestion} kg 💪`
+                : "consolide cette charge"}
+            </p>
           )}
           {exercise.equipment.length > 0 && (
             <p className="mt-1 text-sm text-muted">

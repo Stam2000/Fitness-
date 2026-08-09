@@ -14,7 +14,11 @@ Application web mobile-first de programmes de fitness générés par IA.
   tu lances le programme maison, à la salle le programme salle.
 - **Lecteur de séance** : coche tes séries, saisis (ou **dicte à la voix** 🎤)
   tes poids et répétitions, chrono de repos automatique avec annonces vocales.
-- **Historique** : volume soulevé, séries, durée de chaque séance.
+- **Historique & progression** : volume soulevé, séries, durée de chaque
+  séance ; courbes de progression par exercice avec records personnels (★) et
+  suggestions de surcharge progressive pendant la séance.
+- **Coach IA post-séance** : analyse de ta séance (charges, séries manquées,
+  conseils) générée par le modèle OpenRouter de ton choix.
 - **Images d'exercices** générées avec **GPT Image 2** via [Kie.ai](https://kie.ai).
 
 ## Stack

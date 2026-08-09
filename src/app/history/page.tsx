@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { getExerciseProgress } from "@/lib/progress";
+import HistoryTabs from "@/components/HistoryTabs";
+import ProgressCharts from "@/components/ProgressCharts";
 
 export const dynamic = "force-dynamic";
 
@@ -13,31 +16,26 @@ function formatDate(d: Date) {
 }
 
 export default async function HistoryPage() {
-  const sessions = await prisma.workoutSession.findMany({
-    where: { completedAt: { not: null } },
-    orderBy: { completedAt: "desc" },
-    take: 50,
-    include: {
-      setLogs: { orderBy: { setIndex: "asc" } },
-      day: {
-        include: {
-          program: true,
-          exercises: { orderBy: { order: "asc" } },
+  const [sessions, progress] = await Promise.all([
+    prisma.workoutSession.findMany({
+      where: { completedAt: { not: null } },
+      orderBy: { completedAt: "desc" },
+      take: 50,
+      include: {
+        setLogs: { orderBy: { setIndex: "asc" } },
+        day: {
+          include: {
+            program: true,
+            exercises: { orderBy: { order: "asc" } },
+          },
         },
       },
-    },
-  });
+    }),
+    getExerciseProgress(),
+  ]);
 
-  return (
-    <main className="flex flex-col gap-4">
-      <header className="pt-2">
-        <h1 className="text-2xl font-bold">Historique</h1>
-        <p className="text-sm text-muted">
-          {sessions.length} séance{sessions.length > 1 ? "s" : ""} terminée
-          {sessions.length > 1 ? "s" : ""}
-        </p>
-      </header>
-
+  const sessionList = (
+    <div className="flex flex-col gap-3">
       {sessions.length === 0 && (
         <div className="rounded-2xl border border-border bg-surface p-6 text-center">
           <p className="text-4xl">📈</p>
@@ -108,10 +106,36 @@ export default async function HistoryPage() {
                   </div>
                 );
               })}
+              {session.aiFeedback && (
+                <div className="mt-1 rounded-xl bg-surface-2 p-3">
+                  <p className="text-xs font-semibold text-accent">
+                    🤖 Analyse du coach
+                  </p>
+                  <p className="mt-1 whitespace-pre-line text-xs text-muted">
+                    {session.aiFeedback}
+                  </p>
+                </div>
+              )}
             </div>
           </details>
         );
       })}
+    </div>
+  );
+
+  return (
+    <main className="flex flex-col gap-4">
+      <header className="pt-2">
+        <h1 className="text-2xl font-bold">Historique</h1>
+        <p className="text-sm text-muted">
+          {sessions.length} séance{sessions.length > 1 ? "s" : ""} terminée
+          {sessions.length > 1 ? "s" : ""}
+        </p>
+      </header>
+      <HistoryTabs
+        sessions={sessionList}
+        progress={<ProgressCharts exercises={progress} />}
+      />
     </main>
   );
 }
