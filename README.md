@@ -13,7 +13,10 @@ Application web mobile-first de programmes de fitness générés par IA.
 - **Plusieurs programmes** enregistrés, démarrables jour par jour : à la maison
   tu lances le programme maison, à la salle le programme salle.
 - **Lecteur de séance** : coche tes séries, saisis (ou **dicte à la voix** 🎤)
-  tes poids et répétitions, chrono de repos automatique avec annonces vocales.
+  tes poids et répétitions, chrono de repos automatique avec annonces vocales,
+  **minuteur d'échauffement** (2/5/10 min) et **chrono intégré** pour les
+  exercices en secondes (planche, corde à sauter…) avec validation automatique
+  de la série.
 - **Historique & progression** : volume soulevé, séries, durée de chaque
   séance ; courbes de progression par exercice avec records personnels (★) et
   suggestions de surcharge progressive pendant la séance.

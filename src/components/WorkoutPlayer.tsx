@@ -26,6 +26,20 @@ type LogEntry = {
 
 type SetState = { reps: string; weightKg: string; done: boolean };
 
+// « 30 s », « 45-60 s », « 1 min », « 1:30 », « 60 secondes » → secondes ;
+// sinon null (exercice à répétitions classique).
+export function parseDurationSeconds(reps: string): number | null {
+  const text = reps.trim().toLowerCase();
+  const colon = text.match(/^(\d+):(\d{2})$/);
+  if (colon) return parseInt(colon[1], 10) * 60 + parseInt(colon[2], 10);
+  const range = text.match(
+    /^(?:\d+\s*-\s*)?(\d+)\s*(s|sec|secs|secondes?|min|minutes?)\.?$/
+  );
+  if (!range) return null;
+  const value = parseInt(range[1], 10);
+  return range[2].startsWith("min") ? value * 60 : value;
+}
+
 // « 80 kilos 10 répétitions », « 10 reps à 82,5 kg », « 12 fois 20 kilos »…
 export function parseVoiceEntry(transcript: string): {
   weightKg: number | null;
@@ -127,6 +141,17 @@ export default function WorkoutPlayer({
     return map;
   });
   const [restLeft, setRestLeft] = useState<number | null>(null);
+  // Échauffement proposé tant qu'aucune série n'est faite.
+  const [warmupDone, setWarmupDone] = useState(() =>
+    initialLogs.some((l) => l.done)
+  );
+  const [warmupLeft, setWarmupLeft] = useState<number | null>(null);
+  // Chrono d'une série d'exercice « en secondes » (planche, gainage…).
+  const [setTimer, setSetTimer] = useState<{
+    setIndex: number;
+    left: number;
+    target: number;
+  } | null>(null);
   const [finished, setFinished] = useState(completed);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
@@ -134,10 +159,40 @@ export default function WorkoutPlayer({
   const [listening, setListening] = useState(false);
   const [voiceMessage, setVoiceMessage] = useState<string | null>(null);
   const restInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const warmupInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const setTimerInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
 
   const exercise = exercises[current];
+  const exerciseDuration = parseDurationSeconds(exercise.reps);
+
+  // Double bip court (fin de chrono), indépendant des annonces vocales.
+  const beep = useCallback(() => {
+    try {
+      type AudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
+      const w = window as AudioWindow;
+      const Ctx = window.AudioContext ?? w.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      [0, 0.25].forEach((delay) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.2, ctx.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(
+          0.001,
+          ctx.currentTime + delay + 0.18
+        );
+        osc.start(ctx.currentTime + delay);
+        osc.stop(ctx.currentTime + delay + 0.2);
+      });
+    } catch {
+      // audio indisponible : tant pis pour le bip
+    }
+  }, []);
 
   const speak = useCallback(
     (text: string) => {
@@ -193,9 +248,82 @@ export default function WorkoutPlayer({
   useEffect(() => {
     return () => {
       if (restInterval.current) clearInterval(restInterval.current);
+      if (warmupInterval.current) clearInterval(warmupInterval.current);
+      if (setTimerInterval.current) clearInterval(setTimerInterval.current);
       recognitionRef.current?.abort?.();
     };
   }, []);
+
+  function startWarmup(seconds: number) {
+    if (warmupInterval.current) clearInterval(warmupInterval.current);
+    setWarmupLeft(seconds);
+    warmupInterval.current = setInterval(() => {
+      setWarmupLeft((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          if (warmupInterval.current) clearInterval(warmupInterval.current);
+          beep();
+          speak("Échauffement terminé, au travail !");
+          setWarmupDone(true);
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
+  function skipWarmup() {
+    if (warmupInterval.current) clearInterval(warmupInterval.current);
+    setWarmupLeft(null);
+    setWarmupDone(true);
+  }
+
+  function completeTimedSet(setIndex: number, seconds: number) {
+    const key = `${exercise.id}:${setIndex}`;
+    setLogs((prev) => {
+      const nextState: SetState = {
+        weightKg: prev[key]?.weightKg ?? "",
+        reps: String(seconds),
+        done: true,
+      };
+      saveLog(exercise.id, setIndex, nextState);
+      return { ...prev, [key]: nextState };
+    });
+    const isLastSet = setIndex === exercise.sets - 1;
+    const isLastExercise = current === exercises.length - 1;
+    if (!(isLastSet && isLastExercise)) startRest(exercise.restSeconds);
+  }
+
+  function startSetTimer(setIndex: number) {
+    if (exerciseDuration === null) return;
+    if (setTimerInterval.current) clearInterval(setTimerInterval.current);
+    setSetTimer({ setIndex, left: exerciseDuration, target: exerciseDuration });
+    setTimerInterval.current = setInterval(() => {
+      setSetTimer((prev) => {
+        if (prev === null) return null;
+        if (prev.left <= 1) {
+          if (setTimerInterval.current)
+            clearInterval(setTimerInterval.current);
+          beep();
+          speak("Série terminée !");
+          completeTimedSet(prev.setIndex, prev.target);
+          return null;
+        }
+        return { ...prev, left: prev.left - 1 };
+      });
+    }, 1000);
+  }
+
+  // Arrêt anticipé : on enregistre le temps réellement tenu.
+  function stopSetTimer() {
+    if (setTimerInterval.current) clearInterval(setTimerInterval.current);
+    setSetTimer((prev) => {
+      if (prev !== null) {
+        completeTimedSet(prev.setIndex, Math.max(1, prev.target - prev.left));
+      }
+      return null;
+    });
+  }
 
   function patchSet(
     exerciseId: string,
@@ -491,6 +619,59 @@ export default function WorkoutPlayer({
         </div>
       )}
 
+      {!warmupDone && (
+        <div className="rounded-2xl border border-orange-400/40 bg-orange-400/10 p-4 text-center">
+          {warmupLeft === null ? (
+            <>
+              <p className="text-sm font-semibold text-orange-300">
+                🔥 Échauffement avant de commencer ?
+              </p>
+              <div className="mt-3 flex justify-center gap-2">
+                {[2, 5, 10].map((min) => (
+                  <button
+                    key={min}
+                    onClick={() => startWarmup(min * 60)}
+                    className="rounded-lg border border-orange-400/40 px-4 py-2.5 text-sm font-semibold text-orange-300"
+                  >
+                    {min} min
+                  </button>
+                ))}
+                <button
+                  onClick={skipWarmup}
+                  className="rounded-lg border border-border px-4 py-2.5 text-sm text-muted"
+                >
+                  Passer
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-xs font-semibold uppercase tracking-wide text-orange-300">
+                🔥 Échauffement
+              </p>
+              <p className="my-1 text-5xl font-bold tabular-nums">
+                {Math.floor(warmupLeft / 60)}:
+                {String(warmupLeft % 60).padStart(2, "0")}
+              </p>
+              <div className="flex justify-center gap-2">
+                <button
+                  onClick={() => setWarmupLeft((w) => (w !== null ? w + 30 : w))}
+                  className="rounded-lg border border-border px-4 py-2 text-sm"
+                >
+                  +30 s
+                </button>
+                <button
+                  onClick={skipWarmup}
+                  className="rounded-lg bg-orange-400 px-4 py-2 text-sm font-semibold text-black"
+                >
+                  Terminer
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       <section className="overflow-hidden rounded-2xl border border-border bg-surface">
         {exercise.imageUrl && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -580,20 +761,47 @@ export default function WorkoutPlayer({
                   className="mt-0.5 w-full rounded-lg border border-border bg-surface-2 px-2 py-2.5 text-base text-ink outline-none focus:border-accent"
                 />
               </label>
-              <label className="flex min-w-0 flex-1 flex-col text-xs text-muted">
-                Reps
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={state.reps}
-                  placeholder={prev?.reps != null ? String(prev.reps) : "—"}
-                  onChange={(e) =>
-                    patchSet(exercise.id, i, { reps: e.target.value })
-                  }
-                  onBlur={() => saveLog(exercise.id, i, logs[key])}
-                  className="mt-0.5 w-full rounded-lg border border-border bg-surface-2 px-2 py-2.5 text-base text-ink outline-none focus:border-accent"
-                />
-              </label>
+              {exerciseDuration !== null ? (
+                <div className="flex min-w-0 flex-1 flex-col text-xs text-muted">
+                  Durée
+                  {setTimer?.setIndex === i ? (
+                    <button
+                      onClick={stopSetTimer}
+                      className="mt-0.5 w-full rounded-lg border border-accent bg-accent/15 px-2 py-2.5 text-base font-bold tabular-nums text-accent"
+                    >
+                      {Math.floor(setTimer.left / 60)}:
+                      {String(setTimer.left % 60).padStart(2, "0")} ■ Stop
+                    </button>
+                  ) : state.done ? (
+                    <p className="mt-0.5 w-full rounded-lg border border-border bg-surface-2 px-2 py-2.5 text-base text-ink">
+                      {state.reps || exerciseDuration} s ✓
+                    </p>
+                  ) : (
+                    <button
+                      onClick={() => startSetTimer(i)}
+                      disabled={setTimer !== null}
+                      className="mt-0.5 w-full rounded-lg border border-accent/50 bg-accent/10 px-2 py-2.5 text-base font-semibold text-accent disabled:opacity-40"
+                    >
+                      ▶ {exerciseDuration} s
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <label className="flex min-w-0 flex-1 flex-col text-xs text-muted">
+                  Reps
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={state.reps}
+                    placeholder={prev?.reps != null ? String(prev.reps) : "—"}
+                    onChange={(e) =>
+                      patchSet(exercise.id, i, { reps: e.target.value })
+                    }
+                    onBlur={() => saveLog(exercise.id, i, logs[key])}
+                    className="mt-0.5 w-full rounded-lg border border-border bg-surface-2 px-2 py-2.5 text-base text-ink outline-none focus:border-accent"
+                  />
+                </label>
+              )}
             </div>
           );
         })}
