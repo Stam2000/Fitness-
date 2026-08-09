@@ -17,6 +17,10 @@ Application web mobile-first de programmes de fitness générés par IA.
   **minuteur d'échauffement** (2/5/10 min) et **chrono intégré** pour les
   exercices en secondes (planche, corde à sauter…) avec validation automatique
   de la série.
+- **Suivi d'activité** 🗓️ : calendrier mensuel de tes jours d'entraînement
+  (tape un jour pour voir les séances faites), série de semaines consécutives,
+  séances par semaine sur 12 semaines, répartition par type de séance, temps
+  et volume cumulés.
 - **Historique & progression** : volume soulevé, séries, durée de chaque
   séance ; courbes de progression par exercice avec records personnels (★) et
   suggestions de surcharge progressive pendant la séance.
@@ -90,6 +94,24 @@ est pensée mobile, ajoutable à l'écran d'accueil en PWA).
 3. Après le premier déploiement, exécute les migrations :
    `npx prisma migrate deploy && npx prisma db seed` (en local, pointé sur la
    base de production).
+
+## Générer toutes les images en une commande 🎨
+
+Plutôt que d'appuyer sur les boutons un par un, tu peux générer d'un coup
+toutes les images manquantes (équipements + exercices) avec GPT Image 2 :
+
+```bash
+npm run images:generate                 # tout ce qui manque
+npm run images:generate -- --equipment  # équipements uniquement
+npm run images:generate -- --exercises  # exercices uniquement
+npm run images:generate -- --force      # régénère aussi celles déjà présentes
+```
+
+Avec Docker : `docker compose run --rm migrate npm run images:generate`.
+
+Le script génère 3 images en parallèle, attend le résultat de chaque tâche et
+enregistre les URLs en base ; les exercices de même nom partagent la même
+image. Relance la commande pour rattraper les échecs éventuels.
 
 ## Notes
 

@@ -7,7 +7,7 @@ const TABS = [
   { href: "/", label: "Accueil", icon: "🏠" },
   { href: "/programs/new", label: "Créer", icon: "✨" },
   { href: "/equipment", label: "Matériel", icon: "🏋️" },
-  { href: "/history", label: "Historique", icon: "📈" },
+  { href: "/history", label: "Suivi", icon: "🗓️" },
   { href: "/settings", label: "Réglages", icon: "⚙️" },
 ];
 

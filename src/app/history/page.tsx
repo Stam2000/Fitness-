@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { getExerciseProgress } from "@/lib/progress";
+import { getActivityStats } from "@/lib/activity";
 import HistoryTabs from "@/components/HistoryTabs";
 import ProgressCharts from "@/components/ProgressCharts";
+import ActivityCalendar from "@/components/ActivityCalendar";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +18,7 @@ function formatDate(d: Date) {
 }
 
 export default async function HistoryPage() {
-  const [sessions, progress] = await Promise.all([
+  const [sessions, progress, activity] = await Promise.all([
     prisma.workoutSession.findMany({
       where: { completedAt: { not: null } },
       orderBy: { completedAt: "desc" },
@@ -32,6 +34,7 @@ export default async function HistoryPage() {
       },
     }),
     getExerciseProgress(),
+    getActivityStats(),
   ]);
 
   const sessionList = (
@@ -126,13 +129,14 @@ export default async function HistoryPage() {
   return (
     <main className="flex flex-col gap-4">
       <header className="pt-2">
-        <h1 className="text-2xl font-bold">Historique</h1>
+        <h1 className="text-2xl font-bold">Mon suivi</h1>
         <p className="text-sm text-muted">
           {sessions.length} séance{sessions.length > 1 ? "s" : ""} terminée
           {sessions.length > 1 ? "s" : ""}
         </p>
       </header>
       <HistoryTabs
+        activity={<ActivityCalendar stats={activity} />}
         sessions={sessionList}
         progress={<ProgressCharts exercises={progress} />}
       />

@@ -37,6 +37,8 @@ services:
       DATABASE_URL: postgresql://fitness:${POSTGRES_PASSWORD:-fitness}@db:5432/fitness
       KIE_API_KEY: ${KIE_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Le calendrier de suivi utilise la date locale du serveur.
+      TZ: ${TZ:-Europe/Paris}
     depends_on:
       db:
         condition: service_healthy
