@@ -162,7 +162,9 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-2">
+      {/* 2 + 3 tuiles sur téléphone, une seule rangée de 5 dès md */}
+      <div className="flex flex-col gap-2 md:grid md:grid-cols-5 md:gap-3">
+      <div className="flex gap-2 md:contents">
         <StatTile
           value={`${stats.currentStreakWeeks}`}
           label={
@@ -186,7 +188,7 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
           }
         />
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-2 md:contents">
         <StatTile value={`${stats.totalSessions}`} label="séances au total" />
         <StatTile
           value={hours > 0 ? `${hours} h` : `${stats.totalMinutes} min`}
@@ -197,7 +199,9 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
           label="volume soulevé"
         />
       </div>
+      </div>
 
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start">
       <section className="rounded-2xl border border-border bg-surface p-4">
         <div className="flex items-center justify-between">
           <button
@@ -225,7 +229,7 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
           </button>
         </div>
 
-        <div className="mt-3 grid grid-cols-7 gap-1">
+        <div className="mx-auto mt-3 grid max-w-md grid-cols-7 gap-1">
           {WEEKDAYS.map((d, i) => (
             <div
               key={`${d}-${i}`}
@@ -289,10 +293,11 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
         )}
       </section>
 
+      <div className="flex flex-col gap-4">
       <section className="rounded-2xl border border-border bg-surface p-4">
         <h2 className="text-sm font-semibold">Séances par semaine</h2>
         <p className="text-xs text-muted">12 dernières semaines</p>
-        <div className="mt-2">
+        <div className="mt-2 max-w-xl">
           <WeeklyChart weeks={stats.weeklyCounts} />
         </div>
       </section>
@@ -323,6 +328,8 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
           </div>
         </section>
       )}
+      </div>
+      </div>
     </div>
   );
 }

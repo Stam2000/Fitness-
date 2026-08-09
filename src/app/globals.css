@@ -34,8 +34,15 @@ input[type="number"] {
   appearance: textfield;
 }
 
+/* Place réservée à la barre du bas (téléphone uniquement). */
 .safe-bottom {
   padding-bottom: calc(env(safe-area-inset-bottom) + 4.5rem);
+}
+
+@media (min-width: 768px) {
+  .safe-bottom {
+    padding-bottom: 2.5rem;
+  }
 }
 
 @keyframes pulse-ring {

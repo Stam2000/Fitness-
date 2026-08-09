@@ -160,7 +160,7 @@ export default function ProgressCharts({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="grid gap-3 md:grid-cols-2">
       {exercises.map((ex) => {
         const last = ex.points[ex.points.length - 1];
         return (
@@ -198,7 +198,7 @@ export default function ProgressCharts({
                 </div>
               )}
             </div>
-            <div className="mt-2">
+            <div className="mt-2 max-w-xl">
               <Chart exercise={ex} />
             </div>
           </section>

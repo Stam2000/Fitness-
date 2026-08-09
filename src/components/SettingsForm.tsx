@@ -57,7 +57,7 @@ export default function SettingsForm({
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex max-w-2xl flex-col gap-5">
       <section className="rounded-2xl border border-border bg-surface p-4">
         <h2 className="font-semibold">Clé OpenRouter</h2>
         <p className="mt-1 text-xs text-muted">

@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import "./globals.css";
-import BottomNav from "@/components/BottomNav";
+import AppNav from "@/components/AppNav";
 
 export const metadata: Metadata = {
   title: "Mon Coach Fitness",
@@ -30,10 +30,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <div className="mx-auto w-full max-w-lg flex-1 px-4 pt-4 safe-bottom">
-          {children}
+        <AppNav />
+        {/* Décalage réservé à la barre latérale à partir de md */}
+        <div className="flex-1 md:pl-[4.5rem] lg:pl-60">
+          <div className="mx-auto w-full max-w-lg px-4 pt-4 safe-bottom md:max-w-3xl md:px-6 md:pt-8 xl:max-w-5xl lg:px-8">
+            {children}
+          </div>
         </div>
-        <BottomNav />
       </body>
     </html>
   );

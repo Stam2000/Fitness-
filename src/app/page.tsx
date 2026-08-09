@@ -97,6 +97,7 @@ export default async function HomePage() {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
             {group.label}
           </h2>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {group.programs.map((program) => (
             <div
               key={program.id}
@@ -138,6 +139,7 @@ export default async function HomePage() {
               </div>
             </div>
           ))}
+          </div>
         </section>
       ))}
 

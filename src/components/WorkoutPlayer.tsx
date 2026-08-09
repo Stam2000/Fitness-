@@ -631,7 +631,7 @@ export default function WorkoutPlayer({
 
   return (
     <main className="flex flex-col gap-4 pb-6">
-      <header className="sticky top-0 z-30 -mx-4 flex items-center gap-3 border-b border-border bg-bg/95 px-4 py-3 backdrop-blur">
+      <header className="sticky top-0 z-30 -mx-4 flex items-center gap-3 border-b border-border bg-bg/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
         <button
           onClick={() => {
             if (confirm("Abandonner la séance ? Les saisies seront perdues.")) {
@@ -656,6 +656,9 @@ export default function WorkoutPlayer({
         </span>
       </header>
 
+      {/* Deux colonnes sur grand écran : fiche exercice à gauche, saisie à droite */}
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6">
+      <div className="flex flex-col gap-4">
       {restLeft !== null && (
         <div className="rounded-2xl border border-accent/40 bg-accent/10 p-4 text-center">
           <p className="text-xs font-semibold uppercase tracking-wide text-accent">
@@ -867,7 +870,9 @@ export default function WorkoutPlayer({
           )}
         </div>
       </section>
+      </div>
 
+      <div className="flex flex-col gap-4">
       <section className="flex flex-col gap-2">
         {Array.from({ length: exercise.sets }, (_, i) => {
           const key = `${exercise.id}:${i}`;
@@ -1012,6 +1017,8 @@ export default function WorkoutPlayer({
           Terminer la séance maintenant
         </button>
       )}
+      </div>
+      </div>
     </main>
   );
 }

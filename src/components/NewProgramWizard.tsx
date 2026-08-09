@@ -151,7 +151,7 @@ export default function NewProgramWizard({
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex max-w-2xl flex-col gap-5">
       {!hasOpenrouterKey && (
         <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm">
           ⚠️ Aucune clé OpenRouter configurée.{" "}
@@ -183,6 +183,12 @@ export default function NewProgramWizard({
               </span>
             </button>
           ))}
+          <Link
+            href="/equipment"
+            className="rounded-xl border border-accent/60 bg-accent/10 px-4 py-3 text-sm font-semibold text-accent"
+          >
+            ＋ Ajouter un contexte
+          </Link>
         </div>
         <p className="mt-1.5 text-xs text-muted">
           L&apos;équipement coché dans « Matériel » pour ce contexte sera

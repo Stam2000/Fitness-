@@ -255,6 +255,7 @@ export default function ProgramDetail({
 
           {openDay === di && (
             <div className="flex flex-col gap-3 border-t border-border p-3">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {day.exercises.map((ex) => {
                 const img = images[ex.id];
                 return (
@@ -330,6 +331,7 @@ export default function ProgramDetail({
                   </div>
                 );
               })}
+              </div>
 
               <form action={startSession.bind(null, day.id)}>
                 <button

@@ -142,6 +142,7 @@ export default function EquipmentManager({
   const [, startTransition] = useTransition();
   const [showNewLocation, setShowNewLocation] = useState(false);
   const [editingLocation, setEditingLocation] = useState(false);
+  const [createdNotice, setCreatedNotice] = useState<string | null>(null);
   const [newEquipmentName, setNewEquipmentName] = useState("");
   const [newEquipmentCategory, setNewEquipmentCategory] = useState(
     "Accessoires"
@@ -153,6 +154,8 @@ export default function EquipmentManager({
   const [prevLocations, setPrevLocations] = useState(locations);
   if (prevLocations !== locations) {
     setPrevLocations(locations);
+    // Le contexte fraîchement créé est déjà sélectionné par createNewLocation :
+    // on ne réinitialise que si la sélection n'existe plus.
     if (!activeId || !locations.some((l) => l.id === activeId)) {
       setActiveId(locations[0]?.id ?? null);
     }
@@ -257,6 +260,21 @@ export default function EquipmentManager({
     setGeneratingAll(false);
   }
 
+  // Crée un contexte puis le sélectionne : sans cela l'écran reste sur
+  // l'ancien contexte et la création semble sans effet.
+  function createNewLocation(name: string, icon: string) {
+    startTransition(async () => {
+      const id = await createLocation(name, icon);
+      if (id) {
+        setActiveId(id);
+        setChecked((prev) => ({ ...prev, [id]: new Set<string>() }));
+        setCreatedNotice(name);
+        setTimeout(() => setCreatedNotice(null), 6000);
+      }
+      setShowNewLocation(false);
+    });
+  }
+
   const active = locations.find((l) => l.id === activeId);
   const activeChecked = activeId ? checked[activeId] ?? new Set() : new Set();
   const missingImages = equipment.filter(
@@ -296,14 +314,7 @@ export default function EquipmentManager({
             disponible dans chacun.
           </p>
         </div>
-        <LocationForm
-          submitLabel="Créer le contexte"
-          onSubmit={(name, icon) =>
-            startTransition(async () => {
-              await createLocation(name, icon);
-            })
-          }
-        />
+        <LocationForm submitLabel="Créer le contexte" onSubmit={createNewLocation} />
       </div>
     );
   }
@@ -332,23 +343,25 @@ export default function EquipmentManager({
         ))}
         <button
           onClick={() => setShowNewLocation((v) => !v)}
-          className="rounded-xl border border-dashed border-border px-4 py-2.5 text-sm text-muted"
+          className="rounded-xl border border-accent/60 bg-accent/10 px-4 py-2.5 text-sm font-semibold text-accent"
         >
-          + Contexte
+          ＋ Nouveau contexte
         </button>
       </div>
 
       {showNewLocation && (
         <LocationForm
           submitLabel="Créer le contexte"
-          onSubmit={(name, icon) =>
-            startTransition(async () => {
-              await createLocation(name, icon);
-              setShowNewLocation(false);
-            })
-          }
+          onSubmit={createNewLocation}
           onCancel={() => setShowNewLocation(false)}
         />
+      )}
+
+      {createdNotice && (
+        <p className="rounded-xl border border-accent/40 bg-accent/10 p-3 text-sm text-accent">
+          ✓ Contexte « {createdNotice} » créé — coche ci-dessous l&apos;équipement
+          qui s&apos;y trouve.
+        </p>
       )}
 
       {active && !editingLocation && (
@@ -413,7 +426,7 @@ export default function EquipmentManager({
               <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
                 {category}
               </h2>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
                 {items.map((eq) => {
                   const on = activeChecked.has(eq.id);
                   const img = images[eq.id];

@@ -7,10 +7,20 @@ import { redirect } from "next/navigation";
 
 // ---------- Contextes & équipement ----------
 
-export async function createLocation(name: string, icon: string) {
-  if (!name.trim()) return;
-  await prisma.location.create({ data: { name: name.trim(), icon } });
+// Renvoie l'id du contexte créé pour que l'interface puisse le sélectionner
+// aussitôt (sans quoi la création passe inaperçue).
+export async function createLocation(
+  name: string,
+  icon: string
+): Promise<string | null> {
+  if (!name.trim()) return null;
+  const location = await prisma.location.create({
+    data: { name: name.trim(), icon },
+  });
   revalidatePath("/equipment");
+  revalidatePath("/programs/new");
+  revalidatePath("/");
+  return location.id;
 }
 
 export async function updateLocation(id: string, name: string, icon: string) {

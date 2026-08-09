@@ -38,9 +38,9 @@ export default async function HistoryPage() {
   ]);
 
   const sessionList = (
-    <div className="flex flex-col gap-3">
+    <div className="grid gap-3 md:grid-cols-2 md:items-start">
       {sessions.length === 0 && (
-        <div className="rounded-2xl border border-border bg-surface p-6 text-center">
+        <div className="rounded-2xl border border-border bg-surface p-6 text-center md:col-span-2">
           <p className="text-4xl">📈</p>
           <p className="mt-3 text-sm text-muted">
             Aucune séance terminée pour l&apos;instant. Lance ta première

@@ -1,6 +1,9 @@
 # Mon Coach Fitness 💪
 
-Application web mobile-first de programmes de fitness générés par IA.
+Application web de programmes de fitness générés par IA, adaptée au téléphone,
+à la tablette et à l'ordinateur : barre de navigation en bas sur mobile, barre
+latérale (icônes seules sur tablette, icônes + libellés sur ordinateur), et
+mises en page multi-colonnes sur grand écran.
 
 ## Fonctionnalités
 
