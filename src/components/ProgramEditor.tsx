@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 // Variante d'un exercice (mêmes muscles), jouée en alternance selon les
 // passages. Non éditable ici : simple passthrough conservé à l'enregistrement.
@@ -158,14 +159,12 @@ export default function ProgramEditor({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-2xl border border-border bg-surface p-3">
-        <label className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Nom du programme
-        </label>
+      <div className="card p-3.5">
+        <label className="overline-label">Nom du programme</label>
         <input
           value={program.name}
           onChange={(e) => setProgram((p) => ({ ...p, name: e.target.value }))}
-          className="mt-1 w-full rounded-xl border border-border bg-surface-2 px-3 py-2.5 font-semibold outline-none focus:border-accent"
+          className="mt-1.5 w-full rounded-full border-[1.5px] border-border bg-surface-2 px-4 py-2.5 font-semibold outline-none focus:border-accent"
         />
         <textarea
           value={program.description ?? ""}
@@ -174,44 +173,50 @@ export default function ProgramEditor({
           }
           placeholder="Description (optionnelle)"
           rows={2}
-          className="mt-2 w-full rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
+          className="mt-2 w-full rounded-[18px] border-[1.5px] border-border bg-surface-2 px-4 py-2.5 text-sm outline-none focus:border-accent"
         />
       </div>
 
       {program.days.map((day, di) => (
-        <div
-          key={day.id ?? `new-${di}`}
-          className="rounded-2xl border border-border bg-surface"
-        >
+        <div key={day.id ?? `new-${di}`} className="card">
           <button
             onClick={() => setOpenDay(openDay === di ? -1 : di)}
-            className="flex w-full items-center justify-between p-3.5 text-left"
+            className="flex w-full items-center gap-3 p-3.5 text-left"
           >
-            <div className="min-w-0">
-              <p className="truncate font-semibold">{day.name}</p>
-              <p className="text-xs text-muted">
+            <span
+              className={`font-mono text-[22px] font-extrabold ${
+                openDay === di ? "text-accent" : "text-muted/60"
+              }`}
+            >
+              {String(di + 1).padStart(2, "0")}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[15.5px] font-extrabold">{day.name}</p>
+              <p className="text-[12.5px] text-muted-2">
                 {day.focus ? `${day.focus} · ` : ""}
                 {day.exercises.length} exercice
                 {day.exercises.length > 1 ? "s" : ""}
               </p>
             </div>
-            <span className="text-muted">{openDay === di ? "▾" : "▸"}</span>
+            <span className={openDay === di ? "text-accent" : "text-muted-2"}>
+              {openDay === di ? "▾" : "▸"}
+            </span>
           </button>
 
           {openDay === di && (
-            <div className="flex flex-col gap-3 border-t border-border p-3">
+            <div className="flex flex-col gap-3 border-t border-card-border p-3">
               <div className="flex gap-2">
                 <input
                   value={day.name}
                   onChange={(e) => patchDay(di, { name: e.target.value })}
                   placeholder="Nom du jour"
-                  className="min-w-0 flex-1 rounded-xl border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+                  className="min-w-0 flex-1 rounded-full border-[1.5px] border-border bg-surface-2 px-4 py-2 text-sm outline-none focus:border-accent"
                 />
                 <input
                   value={day.focus ?? ""}
                   onChange={(e) => patchDay(di, { focus: e.target.value })}
                   placeholder="Focus"
-                  className="w-28 rounded-xl border border-border bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+                  className="w-28 rounded-full border-[1.5px] border-border bg-surface-2 px-4 py-2 text-sm outline-none focus:border-accent"
                 />
               </div>
 
@@ -330,14 +335,14 @@ export default function ProgramEditor({
               <div className="flex gap-2">
                 <button
                   onClick={() => addExercise(di)}
-                  className="flex-1 rounded-xl border border-dashed border-border py-2.5 text-sm text-muted"
+                  className="min-h-[44px] flex-1 rounded-full border-[1.5px] border-dashed border-border text-sm font-semibold text-muted-2"
                 >
                   + Exercice
                 </button>
                 {program.days.length > 1 && (
                   <button
                     onClick={() => removeDay(di)}
-                    className="rounded-xl border border-border px-3 py-2.5 text-sm text-danger"
+                    className="min-h-[44px] rounded-full border-[1.5px] border-border px-4 text-sm font-semibold text-danger"
                   >
                     Supprimer le jour
                   </button>
@@ -350,18 +355,19 @@ export default function ProgramEditor({
 
       <button
         onClick={addDay}
-        className="rounded-xl border border-dashed border-border py-3 text-sm text-muted"
+        className="min-h-[48px] rounded-full border-[1.5px] border-dashed border-border text-sm font-semibold text-muted-2"
       >
         + Ajouter un jour
       </button>
 
-      <button
+      <Button
         onClick={() => onSave(program)}
         disabled={!valid || saving}
-        className="rounded-xl bg-accent py-3.5 font-semibold text-black disabled:opacity-50"
+        variant="primary"
+        size="lg"
       >
         {saving ? "Enregistrement…" : saveLabel}
-      </button>
+      </Button>
     </div>
   );
 }

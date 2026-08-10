@@ -148,10 +148,10 @@ export default function ModelPicker({
             <button
               key={id}
               onClick={() => onChange(id)}
-              className={`rounded-full px-3 py-1.5 text-xs ${
+              className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
                 id === current
-                  ? "border border-accent bg-accent/15 text-accent"
-                  : "border border-border bg-surface text-muted"
+                  ? "border-[1.5px] border-accent bg-accent/15 text-accent"
+                  : "border-[1.5px] border-border bg-surface text-muted-2"
               }`}
             >
               {labelOf(id)}
@@ -169,13 +169,13 @@ export default function ModelPicker({
           autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}
-          className={`w-full rounded-xl border border-border px-3 py-2.5 text-sm outline-none focus:border-accent ${inputClassName}`}
+          className={`w-full rounded-full border-[1.5px] border-border px-4 py-3 font-mono text-sm outline-none focus:border-accent ${inputClassName}`}
         />
       ) : (
         <select
           value={current}
           onChange={(e) => onChange(e.target.value)}
-          className={`w-full rounded-xl border border-border px-3 py-2.5 text-sm outline-none focus:border-accent ${inputClassName}`}
+          className={`w-full rounded-full border-[1.5px] border-border px-4 py-3 text-sm font-semibold outline-none focus:border-accent ${inputClassName}`}
         >
           {!listed && <option value={current}>{labelOf(current)}</option>}
           {groups.map((g) => (

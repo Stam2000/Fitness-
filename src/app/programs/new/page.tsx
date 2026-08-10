@@ -16,9 +16,11 @@ export default async function NewProgramPage() {
   return (
     <main className="flex flex-col gap-4">
       <header className="pt-2">
-        <h1 className="text-2xl font-bold">Nouveau programme</h1>
-        <p className="text-sm text-muted">
-          L&apos;IA crée un programme avec l&apos;équipement de ton contexte.
+        <h1 className="text-2xl font-extrabold italic tracking-tight">
+          Créer un programme ✨
+        </h1>
+        <p className="text-sm text-muted-2">
+          L&apos;IA le bâtit avec ton équipement.
         </p>
       </header>
       <NewProgramWizard

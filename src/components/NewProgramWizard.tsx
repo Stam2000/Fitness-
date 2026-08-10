@@ -6,6 +6,8 @@ import Link from "next/link";
 import ProgramEditor, { type EditableProgram } from "@/components/ProgramEditor";
 import ModelPicker from "@/components/ModelPicker";
 import { saveProgram, setDefaultModel } from "@/app/actions";
+import { btn, Button } from "@/components/ui/button";
+import Chip from "@/components/ui/Chip";
 
 const GOALS = [
   "Prise de muscle",
@@ -127,20 +129,17 @@ export default function NewProgramWizard({
 
   if (locations.length === 0) {
     return (
-      <div className="rounded-2xl border border-border bg-surface p-6 text-center">
+      <div className="card p-6 text-center">
         <p className="text-4xl">📍</p>
-        <h2 className="mt-3 text-lg font-semibold">
+        <h2 className="mt-3 text-lg font-extrabold italic">
           Commence par créer un contexte
         </h2>
-        <p className="mt-1 text-sm text-muted">
+        <p className="mt-1 text-sm text-muted-2">
           Un contexte est un endroit où tu t&apos;entraînes (Maison, Gym X…)
           avec son équipement. L&apos;IA s&apos;en sert pour bâtir ton
           programme.
         </p>
-        <Link
-          href="/equipment"
-          className="mt-4 inline-block rounded-xl bg-accent px-5 py-3 font-semibold text-black"
-        >
+        <Link href="/equipment" className={btn("primary", "lg", "mt-4")}>
           Créer mon premier contexte
         </Link>
       </div>
@@ -150,11 +149,11 @@ export default function NewProgramWizard({
   if (draft) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="rounded-2xl border border-accent/40 bg-accent/10 p-3 text-sm">
+        <div className="rounded-2xl border-[1.5px] border-accent/50 bg-accent/10 p-3.5 text-sm font-semibold text-accent">
           ✨ Programme généré ! Modifie-le si besoin puis enregistre-le.
         </div>
         {error && (
-          <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
+          <div className="rounded-2xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
             {error}
           </div>
         )}
@@ -166,7 +165,7 @@ export default function NewProgramWizard({
         />
         <button
           onClick={() => setDraft(null)}
-          className="pb-2 text-sm text-muted"
+          className="pb-2 text-sm font-semibold text-muted"
         >
           ← Revenir au formulaire et régénérer
         </button>
@@ -177,7 +176,7 @@ export default function NewProgramWizard({
   return (
     <div className="flex max-w-2xl flex-col gap-5">
       {!hasOpenrouterKey && (
-        <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm">
+        <div className="rounded-2xl border border-danger/40 bg-danger/10 p-3.5 text-sm">
           ⚠️ Aucune clé OpenRouter configurée.{" "}
           <Link href="/settings" className="font-semibold underline">
             Ajoute ta clé dans Réglages
@@ -187,31 +186,23 @@ export default function NewProgramWizard({
       )}
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
-          Où t&apos;entraînes-tu ?
-        </h2>
+        <h2 className="overline-label mb-2.5">Où t&apos;entraînes-tu ?</h2>
         <div className="flex flex-wrap gap-2">
           {locations.map((l) => (
-            <button
+            <Chip
               key={l.id}
+              active={l.id === locationId}
+              activeStyle="solid"
               onClick={() => setLocationId(l.id)}
-              className={`rounded-xl px-4 py-3 text-sm font-semibold ${
-                l.id === locationId
-                  ? "bg-accent text-black"
-                  : "border border-border bg-surface"
-              }`}
             >
               {l.icon} {l.name}
-              <span className="ml-1.5 text-xs opacity-70">
+              <span className="text-xs font-bold opacity-70">
                 {l.equipmentCount} équip.
               </span>
-            </button>
+            </Chip>
           ))}
-          <Link
-            href="/equipment"
-            className="rounded-xl border border-accent/60 bg-accent/10 px-4 py-3 text-sm font-semibold text-accent"
-          >
-            ＋ Ajouter un contexte
+          <Link href="/equipment" className={btn("tint", "md")}>
+            ＋ Ajouter
           </Link>
         </div>
         <p className="mt-1.5 text-xs text-muted">
@@ -221,26 +212,21 @@ export default function NewProgramWizard({
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
-          Objectifs
-        </h2>
+        <h2 className="overline-label mb-2.5">Objectifs · Jusqu&apos;à 2</h2>
         <div className="flex flex-wrap gap-2">
           {GOALS.map((g) => {
             const selected = goals.includes(g);
             const full = goals.length >= 2 && !selected;
             return (
-              <button
+              <Chip
                 key={g}
+                active={selected}
+                dimmed={full}
                 onClick={() => toggleGoal(g)}
-                className={`rounded-full px-3.5 py-2 text-sm ${
-                  selected
-                    ? "bg-accent/15 text-accent border border-accent"
-                    : `border border-border bg-surface text-muted ${full ? "opacity-40" : ""}`
-                }`}
               >
                 {selected && goals.length > 1 ? "✓ " : ""}
                 {g}
-              </button>
+              </Chip>
             );
           })}
         </div>
@@ -251,28 +237,23 @@ export default function NewProgramWizard({
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
-          Niveau
-        </h2>
+        <h2 className="overline-label mb-2.5">Niveau</h2>
         <div className="flex gap-2">
           {LEVELS.map((l) => (
-            <button
+            <Chip
               key={l}
+              active={l === level}
               onClick={() => setLevel(l)}
-              className={`flex-1 rounded-xl py-2.5 text-sm ${
-                l === level
-                  ? "bg-accent/15 text-accent border border-accent"
-                  : "border border-border bg-surface text-muted"
-              }`}
+              className="flex-1"
             >
               {l}
-            </button>
+            </Chip>
           ))}
         </div>
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+        <h2 className="overline-label mb-2.5">
           Séances par semaine : {daysPerWeek}
         </h2>
         <input
@@ -281,45 +262,43 @@ export default function NewProgramWizard({
           max={7}
           value={daysPerWeek}
           onChange={(e) => setDaysPerWeek(Number(e.target.value))}
-          className="w-full accent-[#a3e635]"
+          className="w-full accent-accent"
         />
-        <div className="flex justify-between text-xs text-muted">
+        <div className="flex justify-between font-mono text-xs text-muted">
           {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-            <span key={n}>{n}</span>
+            <span
+              key={n}
+              className={n === daysPerWeek ? "font-bold text-accent" : ""}
+            >
+              {n}
+            </span>
           ))}
         </div>
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
-          Durée de séance
-        </h2>
+        <h2 className="overline-label mb-2.5">Durée de séance</h2>
         <div className="flex gap-2">
           {DURATIONS.map((d) => (
-            <button
+            <Chip
               key={d}
+              active={d === sessionMinutes}
               onClick={() => setSessionMinutes(d)}
-              className={`flex-1 rounded-xl py-2.5 text-sm ${
-                d === sessionMinutes
-                  ? "bg-accent/15 text-accent border border-accent"
-                  : "border border-border bg-surface text-muted"
-              }`}
+              className="flex-1"
             >
-              {d} min
-            </button>
+              {d === sessionMinutes ? `${d} min` : d}
+            </Chip>
           ))}
         </div>
       </section>
 
       <section>
-        <div className="mb-2 flex items-baseline justify-between gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-            Modèle d&apos;IA
-          </h2>
+        <div className="mb-2.5 flex items-baseline justify-between gap-2">
+          <h2 className="overline-label">Modèle d&apos;IA</h2>
           {model.trim() !== currentDefault && (
             <button
               onClick={() => setModel(currentDefault)}
-              className="text-xs text-accent"
+              className="text-xs font-semibold text-accent"
             >
               ↺ Revenir au défaut
             </button>
@@ -339,36 +318,34 @@ export default function NewProgramWizard({
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
-          Précisions (optionnel)
-        </h2>
+        <h2 className="overline-label mb-2.5">Précisions (optionnel)</h2>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Ex. je veux insister sur les épaules, j'ai mal au genou droit, pas de squat…"
           rows={3}
-          className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+          className="w-full rounded-[18px] border-[1.5px] border-border bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
         />
       </section>
 
       {error && (
-        <div className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
+        <div className="rounded-2xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
           {error}
         </div>
       )}
 
-      <button
+      <Button
         onClick={generate}
         disabled={generating || !locationId}
-        className="rounded-xl bg-accent py-4 font-semibold text-black disabled:opacity-50"
+        variant="primary"
+        size="lg"
+        className="text-[17px]"
       >
         {generating ? "🤖 Génération en cours…" : "✨ Générer mon programme"}
-      </button>
-      {generating && (
-        <p className="text-center text-xs text-muted">
-          Cela peut prendre 10 à 30 secondes selon le modèle choisi.
-        </p>
-      )}
+      </Button>
+      <p className="-mt-2 text-center text-xs text-muted">
+        🤖 10 à 30 secondes selon le modèle choisi
+      </p>
     </div>
   );
 }

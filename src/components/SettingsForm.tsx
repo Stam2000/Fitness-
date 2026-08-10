@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { saveSettings } from "@/app/actions";
 import ModelPicker from "@/components/ModelPicker";
+import { Button } from "@/components/ui/button";
+import Toggle from "@/components/ui/Toggle";
 
 export default function SettingsForm({
   initial,
@@ -42,12 +44,12 @@ export default function SettingsForm({
 
   return (
     <div className="flex max-w-2xl flex-col gap-5">
-      <section className="rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-semibold">Clé OpenRouter</h2>
-        <p className="mt-1 text-xs text-muted">
+      <section className="card p-4">
+        <h2 className="text-[15px] font-extrabold">Clé OpenRouter</h2>
+        <p className="mt-1 text-xs text-muted-2">
           Nécessaire pour générer les programmes.{" "}
           {initial.hasOpenrouterKey ? (
-            <span className="text-accent">✓ Une clé est configurée.</span>
+            <span className="font-bold text-accent">✓ Une clé est configurée.</span>
           ) : (
             <span className="text-danger">Aucune clé configurée.</span>
           )}
@@ -61,13 +63,13 @@ export default function SettingsForm({
               ? "Laisser vide pour conserver la clé actuelle"
               : "sk-or-…"
           }
-          className="mt-2 w-full rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
+          className="mt-2.5 w-full rounded-full border-[1.5px] border-border bg-surface-2 px-4 py-3 font-mono text-sm outline-none focus:border-accent"
         />
       </section>
 
-      <section className="rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-semibold">Modèle d&apos;IA par défaut</h2>
-        <p className="mt-1 mb-2 text-xs text-muted">
+      <section className="card p-4">
+        <h2 className="text-[15px] font-extrabold">Modèle d&apos;IA par défaut</h2>
+        <p className="mt-1 mb-2 text-xs text-muted-2">
           Utilisé pour les programmes, l&apos;échauffement, les substitutions
           d&apos;exercices et les adaptations. Épingle tes modèles favoris pour
           les retrouver en tête de liste ; le modèle enregistré ici est marqué
@@ -81,12 +83,12 @@ export default function SettingsForm({
         />
       </section>
 
-      <section className="rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-semibold">Clé Kie.ai</h2>
-        <p className="mt-1 text-xs text-muted">
+      <section className="card p-4">
+        <h2 className="text-[15px] font-extrabold">Clé Kie.ai</h2>
+        <p className="mt-1 text-xs text-muted-2">
           Nécessaire pour générer les images d&apos;exercices (GPT Image 2).{" "}
           {initial.hasKieKey ? (
-            <span className="text-accent">✓ Une clé est configurée.</span>
+            <span className="font-bold text-accent">✓ Une clé est configurée.</span>
           ) : (
             <span className="text-danger">Aucune clé configurée.</span>
           )}
@@ -100,43 +102,37 @@ export default function SettingsForm({
               ? "Laisser vide pour conserver la clé actuelle"
               : "Clé API kie.ai"
           }
-          className="mt-2 w-full rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
+          className="mt-2.5 w-full rounded-full border-[1.5px] border-border bg-surface-2 px-4 py-3 font-mono text-sm outline-none focus:border-accent"
         />
       </section>
 
-      <section className="rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-semibold">Voix</h2>
-        <label className="mt-3 flex items-center justify-between gap-3">
+      <section className="card p-4">
+        <h2 className="text-[15px] font-extrabold">Voix</h2>
+        <div className="mt-3 flex items-center justify-between gap-3 py-1.5">
           <span className="text-sm">
-            Dictée vocale (poids/reps à la voix)
+            🎤 Dictée vocale (poids/reps à la voix)
           </span>
-          <input
-            type="checkbox"
+          <Toggle
             checked={voiceInput}
-            onChange={(e) => setVoiceInput(e.target.checked)}
-            className="h-6 w-6 accent-[--color-accent]"
+            onChange={setVoiceInput}
+            aria-label="Dictée vocale"
           />
-        </label>
-        <label className="mt-3 flex items-center justify-between gap-3">
+        </div>
+        <div className="mt-1 flex items-center justify-between gap-3 py-1.5">
           <span className="text-sm">
-            Annonces vocales (exercices, fin de repos)
+            🔊 Annonces vocales (exercices, fin de repos)
           </span>
-          <input
-            type="checkbox"
+          <Toggle
             checked={voiceAnnounce}
-            onChange={(e) => setVoiceAnnounce(e.target.checked)}
-            className="h-6 w-6 accent-[--color-accent]"
+            onChange={setVoiceAnnounce}
+            aria-label="Annonces vocales"
           />
-        </label>
+        </div>
       </section>
 
-      <button
-        onClick={submit}
-        disabled={pending}
-        className="rounded-xl bg-accent px-4 py-3.5 font-semibold text-black disabled:opacity-50"
-      >
+      <Button onClick={submit} disabled={pending} variant="primary" size="lg">
         {pending ? "Enregistrement…" : saved ? "✓ Enregistré" : "Enregistrer"}
-      </button>
+      </Button>
     </div>
   );
 }
