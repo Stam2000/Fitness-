@@ -15,13 +15,26 @@ services:
       retries: 12
 
   # Applique les migrations puis le seed (catalogue d'équipements), puis se termine.
+  # `app` attend la fin de ce conteneur : s'il se bloque, c'est tout le déploiement
+  # qui reste figé sans message (cas vécu sur Coolify). D'où les `timeout` :
+  # mieux vaut un échec lisible en 3 min qu'une attente infinie.
   migrate:
     build:
       context: .
       target: builder
-    command: sh -c "npx prisma migrate deploy && npx prisma db seed"
+    command: >
+      sh -ce "
+      echo '→ prisma migrate deploy' ;
+      timeout 180 ./node_modules/.bin/prisma migrate deploy ;
+      echo '→ prisma db seed' ;
+      timeout 180 ./node_modules/.bin/prisma db seed ;
+      echo '✓ base prête'
+      "
     environment:
       DATABASE_URL: postgresql://fitness:${POSTGRES_PASSWORD:-fitness}@db:5432/fitness
+      # La CLI Prisma interroge checkpoint.prisma.io au lancement (vérification de
+      # version). Sur un serveur au réseau sortant filtré, cet appel peut traîner.
+      CHECKPOINT_DISABLE: "1"
     depends_on:
       db:
         condition: service_healthy
