@@ -125,6 +125,8 @@ export default async function WorkoutPage({
       voiceInput={settings.voiceInput}
       voiceAnnounce={settings.voiceAnnounce}
       hasOpenrouterKey={Boolean(settings.openrouterApiKey)}
+      startedAtMs={session.startedAt.getTime()}
+      completedAtMs={session.completedAt?.getTime() ?? null}
     />
   );
 }

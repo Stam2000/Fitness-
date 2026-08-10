@@ -1,8 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { abandonSession, setSessionVariation } from "@/app/actions";
+import { btn } from "@/components/ui/button";
+import Chip from "@/components/ui/Chip";
+import ExerciseHero from "@/components/workout/ExerciseHero";
+import RestScreen from "@/components/workout/RestScreen";
+import WarmupScreen from "@/components/workout/WarmupScreen";
+import CompletionScreen from "@/components/workout/CompletionScreen";
+import SubstituteSheet from "@/components/workout/SubstituteSheet";
+import SetRow from "@/components/workout/SetRow";
+import type { NextUpInfo } from "@/components/workout/NextUpCard";
 
 // Une « option » d'exercice : l'exercice de base (index 0) ou une variante,
 // avec ses propres données d'historique (suggestion, dernières perfs, record).
@@ -112,6 +120,8 @@ export default function WorkoutPlayer({
   voiceInput,
   voiceAnnounce,
   hasOpenrouterKey,
+  startedAtMs = null,
+  completedAtMs = null,
 }: {
   sessionId: string;
   programName: string;
@@ -122,6 +132,8 @@ export default function WorkoutPlayer({
   voiceInput: boolean;
   voiceAnnounce: boolean;
   hasOpenrouterKey: boolean;
+  startedAtMs?: number | null;
+  completedAtMs?: number | null;
 }) {
   // Option affichée pour chaque exercice (bascule manuelle possible).
   const [variantIdx, setVariantIdx] = useState<Record<string, number>>(() =>
@@ -170,6 +182,8 @@ export default function WorkoutPlayer({
     target: number;
   } | null>(null);
   const [finished, setFinished] = useState(completed);
+  // Instant de fin (séance terminée dans cette session de navigation).
+  const [finishedAtMs, setFinishedAtMs] = useState<number | null>(null);
   const [showSubstitute, setShowSubstitute] = useState(false);
   const [substituteReason, setSubstituteReason] = useState("");
   const [substituting, setSubstituting] = useState(false);
@@ -485,6 +499,7 @@ export default function WorkoutPlayer({
       // le résumé s'affiche quand même, la séance restera « en cours »
     }
     speak("Bravo, séance terminée !");
+    setFinishedAtMs(Date.now());
     setFinished(true);
   }
 
@@ -595,478 +610,253 @@ export default function WorkoutPlayer({
       weight: number;
       previous: number | null;
     }[];
+    const endMs = finishedAtMs ?? completedAtMs;
+    const durationMin =
+      startedAtMs != null && endMs != null
+        ? Math.max(1, Math.round((endMs - startedAtMs) / 60000))
+        : null;
     return (
-      <main className="flex min-h-[70vh] flex-col items-center justify-center gap-4 text-center">
-        <p className="text-6xl">🎉</p>
-        <h1 className="text-2xl font-bold">Séance terminée !</h1>
-        <p className="text-muted">
-          {programName} — {dayName}
-        </p>
-        <div className="flex gap-3">
-          <div className="rounded-2xl border border-border bg-surface px-5 py-4">
-            <p className="text-2xl font-bold text-accent">{doneSets.length}</p>
-            <p className="text-xs text-muted">séries faites</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-surface px-5 py-4">
-            <p className="text-2xl font-bold text-accent">
-              {Math.round(volume)}
-            </p>
-            <p className="text-xs text-muted">kg soulevés (volume)</p>
-          </div>
-        </div>
-        {prs.length > 0 && (
-          <div className="w-full rounded-2xl border border-accent/40 bg-accent/10 p-4 text-left">
-            <p className="text-sm font-semibold text-accent">
-              ★ Nouveau record personnel !
-            </p>
-            {prs.map((pr) => (
-              <p key={pr.name} className="mt-1 text-sm">
-                {pr.name} : <span className="font-semibold">{pr.weight} kg</span>
-                {pr.previous != null && (
-                  <span className="text-muted"> (avant : {pr.previous} kg)</span>
-                )}
-              </p>
-            ))}
-          </div>
-        )}
-
-        {hasOpenrouterKey && (
-          <div className="w-full">
-            {feedback ? (
-              <div className="rounded-2xl border border-border bg-surface p-4 text-left">
-                <p className="text-sm font-semibold text-accent">
-                  🤖 Analyse du coach
-                </p>
-                <p className="mt-2 whitespace-pre-line text-sm text-muted">
-                  {feedback}
-                </p>
-              </div>
-            ) : (
-              <button
-                onClick={loadFeedback}
-                disabled={feedbackLoading}
-                className="w-full rounded-xl border border-accent/50 bg-accent/10 py-3 text-sm font-semibold text-accent disabled:opacity-60"
-              >
-                {feedbackLoading
-                  ? "🤖 Le coach analyse ta séance…"
-                  : "🤖 Demander l'analyse du coach"}
-              </button>
-            )}
-            {feedbackError && (
-              <p className="mt-2 text-sm text-danger">{feedbackError}</p>
-            )}
-          </div>
-        )}
-
-        <div className="mt-4 flex flex-col gap-2">
-          <Link
-            href="/history"
-            className="rounded-xl bg-accent px-6 py-3 font-semibold text-black"
-          >
-            Voir l&apos;historique
-          </Link>
-          <Link href="/" className="px-6 py-2 text-sm text-muted">
-            Retour à l&apos;accueil
-          </Link>
-        </div>
-      </main>
+      <CompletionScreen
+        programName={programName}
+        dayName={dayName}
+        durationMin={durationMin}
+        doneSetsCount={doneSets.length}
+        volume={volume}
+        prs={prs}
+        hasOpenrouterKey={hasOpenrouterKey}
+        feedback={feedback}
+        feedbackLoading={feedbackLoading}
+        feedbackError={feedbackError}
+        onLoadFeedback={loadFeedback}
+      />
     );
   }
 
   const totalSets = exercises.reduce((acc, ex) => acc + activeOf(ex).sets, 0);
   const doneCount = Object.values(logs).filter((s) => s.done).length;
 
+  function abandon() {
+    if (confirm("Abandonner la séance ? Les saisies seront perdues.")) {
+      abandonSession(sessionId);
+    }
+  }
+
+  // ---------- Échauffement plein écran ----------
+  if (!warmupDone) {
+    const warmupNextUp: NextUpInfo = {
+      overline: `Ensuite · Exercice ${current + 1}/${exercises.length}`,
+      imageUrl: active.imageUrl,
+      title: active.name,
+      targetLine: `${active.sets} × ${active.reps} · repos ${active.restSeconds} s`,
+    };
+    return (
+      <WarmupScreen
+        warmupLeft={warmupLeft}
+        aiWarmup={aiWarmup}
+        aiWarmupLoading={aiWarmupLoading}
+        aiWarmupError={aiWarmupError}
+        hasOpenrouterKey={hasOpenrouterKey}
+        dayName={dayName}
+        doneCount={doneCount}
+        totalSets={totalSets}
+        nextUp={warmupNextUp}
+        onAbandon={abandon}
+        onStart={startWarmup}
+        onLoadAi={loadAiWarmup}
+        onExtend={() => setWarmupLeft((w) => (w !== null ? w + 30 : w))}
+        onFinish={skipWarmup}
+      />
+    );
+  }
+
+  // ---------- Repos plein écran ----------
+  if (restLeft !== null) {
+    // Prochaine étape : première série ouverte de l'exercice courant,
+    // sinon l'exercice suivant.
+    let openIdx = -1;
+    for (let i = 0; i < active.sets; i++) {
+      if (!logs[`${exercise.id}:${i}`]?.done) {
+        openIdx = i;
+        break;
+      }
+    }
+    let lastLine: string | null = null;
+    for (let i = active.sets - 1; i >= 0; i--) {
+      const s = logs[`${exercise.id}:${i}`];
+      if (s?.done) {
+        lastLine = s.weightKg
+          ? `dernière série : ${s.weightKg} kg × ${s.reps || "—"}`
+          : s.reps
+            ? `dernière série : ${s.reps} reps`
+            : null;
+        break;
+      }
+    }
+    const nextExists = current < exercises.length - 1;
+    const next = nextExists ? activeOf(exercises[current + 1]) : null;
+    const restNextUp: NextUpInfo =
+      openIdx !== -1
+        ? {
+            overline: `Ensuite · Série ${openIdx + 1}/${active.sets}`,
+            imageUrl: active.imageUrl,
+            title: active.name,
+            targetLine: `objectif ${active.reps}`,
+            lastLine,
+          }
+        : next
+          ? {
+              overline: `Ensuite · Exercice ${current + 2}/${exercises.length}`,
+              imageUrl: next.imageUrl,
+              title: next.name,
+              targetLine: `${next.sets} × ${next.reps} · repos ${next.restSeconds} s`,
+              lastLine,
+            }
+          : {
+              overline: "Ensuite",
+              imageUrl: active.imageUrl,
+              title: active.name,
+              targetLine: `objectif ${active.reps}`,
+              lastLine,
+            };
+    return (
+      <RestScreen
+        restLeft={restLeft}
+        dayName={dayName}
+        doneCount={doneCount}
+        totalSets={totalSets}
+        nextUp={restNextUp}
+        onAbandon={abandon}
+        onExtend={() => setRestLeft((r) => (r !== null ? r + 30 : r))}
+        onSkip={() => {
+          if (restInterval.current) clearInterval(restInterval.current);
+          setRestLeft(null);
+        }}
+        onFinishNow={finishSession}
+      />
+    );
+  }
+
+  // ---------- Vue exercice ----------
+  const currentSetIdx = firstOpenSetIndex();
+
   return (
     <main className="flex flex-col gap-4 pb-6">
-      <header className="sticky top-0 z-30 -mx-4 flex items-center gap-3 border-b border-border bg-bg/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6 lg:-mx-8 lg:px-8">
-        <button
-          onClick={() => {
-            if (confirm("Abandonner la séance ? Les saisies seront perdues.")) {
-              abandonSession(sessionId);
-            }
-          }}
-          className="text-sm text-muted"
-        >
-          ✕
-        </button>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">{dayName}</p>
-          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2">
-            <div
-              className="h-full rounded-full bg-accent transition-all"
-              style={{ width: `${(doneCount / Math.max(totalSets, 1)) * 100}%` }}
-            />
-          </div>
-        </div>
-        <span className="text-xs text-muted">
-          {doneCount}/{totalSets}
-        </span>
-      </header>
-
       {/* Deux colonnes sur grand écran : fiche exercice à gauche, saisie à droite */}
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6">
-      <div className="flex flex-col gap-4">
-      {restLeft !== null && (
-        <div className="rounded-2xl border border-accent/40 bg-accent/10 p-4 text-center">
-          <p className="text-xs font-semibold uppercase tracking-wide text-accent">
-            Repos
-          </p>
-          <p className="my-1 text-5xl font-bold tabular-nums">
-            {Math.floor(restLeft / 60)}:{String(restLeft % 60).padStart(2, "0")}
-          </p>
-          <div className="flex justify-center gap-2">
-            <button
-              onClick={() => setRestLeft((r) => (r !== null ? r + 30 : r))}
-              className="rounded-lg border border-border px-4 py-2 text-sm"
-            >
-              +30 s
-            </button>
-            <button
-              onClick={() => {
-                if (restInterval.current) clearInterval(restInterval.current);
-                setRestLeft(null);
-              }}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-black"
-            >
-              Passer
-            </button>
-          </div>
-        </div>
-      )}
+      <div className="flex flex-col gap-3">
+      <ExerciseHero
+        option={active}
+        currentIndex={current + 1}
+        totalExercises={exercises.length}
+        doneCount={doneCount}
+        totalSets={totalSets}
+        onAbandon={abandon}
+      />
 
-      {!warmupDone && (
-        <div className="rounded-2xl border border-orange-400/40 bg-orange-400/10 p-4 text-center">
-          {warmupLeft === null ? (
-            <>
-              <p className="text-sm font-semibold text-orange-300">
-                🔥 Échauffement avant de commencer ?
-              </p>
-              <div className="mt-3 flex flex-wrap justify-center gap-2">
-                {[2, 5, 10].map((min) => (
-                  <button
-                    key={min}
-                    onClick={() => startWarmup(min * 60)}
-                    className="rounded-lg border border-orange-400/40 px-4 py-2.5 text-sm font-semibold text-orange-300"
-                  >
-                    {min} min
-                  </button>
-                ))}
-                {hasOpenrouterKey && (
-                  <button
-                    onClick={loadAiWarmup}
-                    disabled={aiWarmupLoading}
-                    className="rounded-lg border border-orange-400/40 px-4 py-2.5 text-sm font-semibold text-orange-300 disabled:opacity-50"
-                  >
-                    {aiWarmupLoading ? "🤖 Génération…" : "🤖 Sur mesure"}
-                  </button>
-                )}
-                <button
-                  onClick={skipWarmup}
-                  className="rounded-lg border border-border px-4 py-2.5 text-sm text-muted"
+      {(exercise.options.length > 1 || hasOpenrouterKey) && (
+        <div>
+          <div className="flex flex-wrap gap-1.5">
+            {exercise.options.length > 1 &&
+              exercise.options.map((o, oi) => (
+                <Chip
+                  key={oi}
+                  active={oi === activeIndexOf(exercise)}
+                  onClick={() => chooseVariant(exercise.id, oi)}
+                  className="max-w-full"
                 >
-                  Passer
-                </button>
-              </div>
-              {aiWarmupError && (
-                <p className="mt-2 text-xs text-danger">{aiWarmupError}</p>
-              )}
-            </>
-          ) : (
-            <>
-              <p className="text-xs font-semibold uppercase tracking-wide text-orange-300">
-                🔥 Échauffement
-              </p>
-              <p className="my-1 text-5xl font-bold tabular-nums">
-                {Math.floor(warmupLeft / 60)}:
-                {String(warmupLeft % 60).padStart(2, "0")}
-              </p>
-              {aiWarmup && (
-                <ul className="mx-auto mb-2 max-w-xs text-left text-sm text-muted">
-                  {aiWarmup.map((m) => (
-                    <li key={m.name} className="flex justify-between gap-2">
-                      <span>{m.name}</span>
-                      <span className="shrink-0 tabular-nums">{m.seconds} s</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="flex justify-center gap-2">
-                <button
-                  onClick={() => setWarmupLeft((w) => (w !== null ? w + 30 : w))}
-                  className="rounded-lg border border-border px-4 py-2 text-sm"
-                >
-                  +30 s
-                </button>
-                <button
-                  onClick={skipWarmup}
-                  className="rounded-lg bg-orange-400 px-4 py-2 text-sm font-semibold text-black"
-                >
-                  Terminer
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      <section className="overflow-hidden rounded-2xl border border-border bg-surface">
-        {active.videoUrl ? (
-          // Démo du mouvement en boucle, muette pour ne pas gêner la séance.
-          <video
-            key={active.videoUrl}
-            src={active.videoUrl}
-            poster={active.imageUrl ?? undefined}
-            autoPlay
-            muted
-            loop
-            playsInline
-            controls
-            className="aspect-video w-full bg-black object-contain"
-          />
-        ) : active.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={active.imageUrl}
-            alt={active.name}
-            className="aspect-[3/2] w-full object-cover"
-          />
-        ) : null}
-        <div className="p-4">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-muted">
-              Exercice {current + 1}/{exercises.length}
-            </p>
+                  <span className="truncate">
+                    {String.fromCharCode(65 + oi)} · {o.name}
+                  </span>
+                </Chip>
+              ))}
             {hasOpenrouterKey && (
-              <button
-                onClick={() => setShowSubstitute((v) => !v)}
-                className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs text-muted"
+              <Chip
+                onClick={() => setShowSubstitute(true)}
+                aria-label="Remplacer cet exercice"
               >
-                🔄 Remplacer
-              </button>
+                🔄{exercise.options.length > 1 ? "" : " Remplacer"}
+              </Chip>
             )}
           </div>
-          <h1 className="mt-0.5 text-xl font-bold">{active.name}</h1>
           {exercise.options.length > 1 && (
-            <div className="mt-2">
-              <div className="flex flex-wrap gap-1.5">
-                {exercise.options.map((o, oi) => (
-                  <button
-                    key={oi}
-                    onClick={() => chooseVariant(exercise.id, oi)}
-                    className={`rounded-full border px-3 py-1.5 text-xs ${
-                      oi === activeIndexOf(exercise)
-                        ? "border-accent bg-accent/15 text-accent"
-                        : "border-border text-muted"
-                    }`}
-                  >
-                    {String.fromCharCode(65 + oi)} · {o.name}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-1 text-xs text-muted">
-                🔁 Rotation auto — ce passage :{" "}
-                {String.fromCharCode(65 + exercise.autoIndex)}
-              </p>
-            </div>
-          )}
-          {showSubstitute && (
-            <div className="mt-2 rounded-xl bg-surface-2 p-3">
-              <p className="text-xs font-semibold text-muted">
-                Pourquoi remplacer cet exercice ?
-              </p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {[
-                  "Machine occupée",
-                  "Douleur",
-                  "Trop dur",
-                  "Trop facile",
-                ].map((r) => (
-                  <button
-                    key={r}
-                    onClick={() =>
-                      setSubstituteReason(substituteReason === r ? "" : r)
-                    }
-                    className={`rounded-full border px-3 py-1.5 text-xs ${
-                      substituteReason === r
-                        ? "border-accent bg-accent/15 text-accent"
-                        : "border-border text-muted"
-                    }`}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-              <input
-                value={
-                  ["Machine occupée", "Douleur", "Trop dur", "Trop facile"].includes(
-                    substituteReason
-                  )
-                    ? ""
-                    : substituteReason
-                }
-                onChange={(e) => setSubstituteReason(e.target.value)}
-                placeholder="Ou précise ta raison…"
-                className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
-              />
-              {substituteError && (
-                <p className="mt-2 text-xs text-danger">{substituteError}</p>
-              )}
-              <button
-                onClick={substituteExercise}
-                disabled={substituting}
-                className="mt-2 w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-black disabled:opacity-50"
-              >
-                {substituting
-                  ? "🤖 Recherche d'une alternative…"
-                  : "Remplacer par une alternative IA"}
-              </button>
-            </div>
-          )}
-          <p className="mt-1 text-accent">
-            {active.sets} × {active.reps}
-            <span className="text-muted">
-              {" "}
-              · repos {active.restSeconds}s
-            </span>
-          </p>
-          {active.weightHint && (
-            <p className="mt-1 text-sm text-muted">⚖️ {active.weightHint}</p>
-          )}
-          {active.suggestion && (
-            <p className="mt-1 rounded-lg bg-accent/10 px-2 py-1.5 text-sm text-accent">
-              📊 Dernière fois : {active.suggestion.lastWeight} kg —{" "}
-              {active.suggestion.suggestion > active.suggestion.lastWeight
-                ? `essaie ${active.suggestion.suggestion} kg 💪`
-                : "consolide cette charge"}
-            </p>
-          )}
-          {active.equipment.length > 0 && (
-            <p className="mt-1 text-sm text-muted">
-              🏋️ {active.equipment.join(", ")}
-            </p>
-          )}
-          {active.notes && (
-            <p className="mt-2 rounded-lg bg-surface-2 p-2 text-sm text-muted">
-              💡 {active.notes}
+            <p className="mt-1.5 text-xs text-muted">
+              🔁 Rotation auto — ce passage :{" "}
+              {String.fromCharCode(65 + exercise.autoIndex)}
             </p>
           )}
         </div>
-      </section>
+      )}
+
+      {active.suggestion && (
+        <p className="rounded-xl bg-accent/10 px-3.5 py-2.5 text-sm font-semibold text-accent">
+          📊 Dernière fois : {active.suggestion.lastWeight} kg —{" "}
+          {active.suggestion.suggestion > active.suggestion.lastWeight
+            ? `essaie ${active.suggestion.suggestion} kg 💪`
+            : "consolide cette charge"}
+        </p>
+      )}
+      {active.weightHint && (
+        <p className="text-sm text-muted-2">⚖️ {active.weightHint}</p>
+      )}
+      {active.notes && (
+        <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[13px] leading-relaxed text-muted-2">
+          💡 {active.notes}
+        </p>
+      )}
       </div>
 
       <div className="flex flex-col gap-4">
       <section className="flex flex-col gap-2">
         {Array.from({ length: active.sets }, (_, i) => {
           const key = `${exercise.id}:${i}`;
-          const state = logs[key];
-          const prev = active.previousLogs.find((l) => l.setIndex === i);
           return (
-            <div
+            <SetRow
               key={key}
-              className={`flex items-center gap-2 rounded-xl border p-2.5 ${
-                state.done
-                  ? "border-accent/40 bg-accent/10"
-                  : "border-border bg-surface"
-              }`}
-            >
-              <button
-                onClick={() => toggleDone(i)}
-                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-lg font-bold ${
-                  state.done
-                    ? "border-accent bg-accent text-black"
-                    : "border-border text-muted"
-                }`}
-                aria-label={`Série ${i + 1} ${state.done ? "faite" : "à faire"}`}
-              >
-                {state.done ? "✓" : i + 1}
-              </button>
-              <label className="flex min-w-0 flex-1 flex-col text-xs text-muted">
-                Poids (kg)
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={state.weightKg}
-                  placeholder={
-                    prev?.weightKg != null ? String(prev.weightKg) : "—"
-                  }
-                  onChange={(e) =>
-                    patchSet(exercise.id, i, { weightKg: e.target.value })
-                  }
-                  onBlur={() =>
-                    saveLog(exercise.id, i, logs[key], activeVariationName)
-                  }
-                  className="mt-0.5 w-full rounded-lg border border-border bg-surface-2 px-2 py-2.5 text-base text-ink outline-none focus:border-accent"
-                />
-              </label>
-              {exerciseDuration !== null ? (
-                <div className="flex min-w-0 flex-1 flex-col text-xs text-muted">
-                  Durée
-                  {setTimer?.setIndex === i ? (
-                    <button
-                      onClick={stopSetTimer}
-                      className="mt-0.5 w-full rounded-lg border border-accent bg-accent/15 px-2 py-2.5 text-base font-bold tabular-nums text-accent"
-                    >
-                      {Math.floor(setTimer.left / 60)}:
-                      {String(setTimer.left % 60).padStart(2, "0")} ■ Stop
-                    </button>
-                  ) : state.done ? (
-                    <p className="mt-0.5 w-full rounded-lg border border-border bg-surface-2 px-2 py-2.5 text-base text-ink">
-                      {state.reps || exerciseDuration} s ✓
-                    </p>
-                  ) : (
-                    <button
-                      onClick={() => startSetTimer(i)}
-                      disabled={setTimer !== null}
-                      className="mt-0.5 w-full rounded-lg border border-accent/50 bg-accent/10 px-2 py-2.5 text-base font-semibold text-accent disabled:opacity-40"
-                    >
-                      ▶ {exerciseDuration} s
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <label className="flex min-w-0 flex-1 flex-col text-xs text-muted">
-                  Reps
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    value={state.reps}
-                    placeholder={prev?.reps != null ? String(prev.reps) : "—"}
-                    onChange={(e) =>
-                      patchSet(exercise.id, i, { reps: e.target.value })
-                    }
-                    onBlur={() =>
-                    saveLog(exercise.id, i, logs[key], activeVariationName)
-                  }
-                    className="mt-0.5 w-full rounded-lg border border-border bg-surface-2 px-2 py-2.5 text-base text-ink outline-none focus:border-accent"
-                  />
-                </label>
-              )}
-            </div>
+              index={i}
+              state={logs[key]}
+              prev={active.previousLogs.find((l) => l.setIndex === i)}
+              isCurrent={i === currentSetIdx && !logs[key].done}
+              duration={exerciseDuration}
+              timerLeft={setTimer?.setIndex === i ? setTimer.left : null}
+              timerBusy={setTimer !== null}
+              onToggle={() => toggleDone(i)}
+              onWeightChange={(v) =>
+                patchSet(exercise.id, i, { weightKg: v })
+              }
+              onRepsChange={(v) => patchSet(exercise.id, i, { reps: v })}
+              onBlurSave={() =>
+                saveLog(exercise.id, i, logs[key], activeVariationName)
+              }
+              onStartTimer={() => startSetTimer(i)}
+              onStopTimer={stopSetTimer}
+            />
           );
         })}
       </section>
 
       {voiceInput && (
-        <div className="flex flex-col items-center gap-1.5">
+        <div className="flex flex-col items-center gap-2 py-1">
           <button
             onClick={startVoice}
             disabled={listening}
-            className={`flex h-16 w-16 items-center justify-center rounded-full border text-2xl ${
+            className={`flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 text-[28px] ${
               listening
                 ? "recording border-accent bg-accent/20"
-                : "border-border bg-surface"
+                : "border-accent/50 bg-accent/10"
             }`}
             aria-label="Dicter poids et répétitions"
           >
             🎤
           </button>
-          <p className="text-center text-xs text-muted">
+          <p className="text-center text-[13px] text-muted-2">
             {listening
               ? "Je t'écoute… dis par ex. « 80 kilos 10 répétitions »"
-              : "Dicte ta série au lieu de la saisir"}
+              : "« 62 kilos, 11 répétitions »"}
           </p>
           {voiceMessage && (
-            <p className="text-center text-sm text-accent">{voiceMessage}</p>
+            <p className="text-center text-sm font-semibold text-accent">
+              {voiceMessage}
+            </p>
           )}
         </div>
       )}
@@ -1075,21 +865,21 @@ export default function WorkoutPlayer({
         <button
           onClick={() => goTo(current - 1)}
           disabled={current === 0}
-          className="flex-1 rounded-xl border border-border py-3.5 font-semibold disabled:opacity-30"
+          className={btn("outline", "lg", "flex-1 text-muted-2")}
         >
           ← Précédent
         </button>
         {current < exercises.length - 1 ? (
           <button
             onClick={() => goTo(current + 1)}
-            className="flex-1 rounded-xl bg-accent py-3.5 font-semibold text-black"
+            className={btn("primary", "lg", "flex-1")}
           >
             Suivant →
           </button>
         ) : (
           <button
             onClick={finishSession}
-            className="flex-1 rounded-xl bg-accent py-3.5 font-semibold text-black"
+            className={btn("primary", "lg", "flex-1")}
           >
             🏁 Terminer
           </button>
@@ -1097,12 +887,25 @@ export default function WorkoutPlayer({
       </div>
 
       {current < exercises.length - 1 && (
-        <button onClick={finishSession} className="text-sm text-muted">
+        <button
+          onClick={finishSession}
+          className="text-sm font-semibold text-muted"
+        >
           Terminer la séance maintenant
         </button>
       )}
       </div>
       </div>
+
+      <SubstituteSheet
+        open={showSubstitute}
+        reason={substituteReason}
+        busy={substituting}
+        error={substituteError}
+        onClose={() => setShowSubstitute(false)}
+        onReason={setSubstituteReason}
+        onSubmit={substituteExercise}
+      />
     </main>
   );
 }
