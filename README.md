@@ -64,8 +64,8 @@ KIE_API_KEY=ta-clé-kie
 OPENROUTER_API_KEY=sk-or-…
 ```
 
-Puis ouvre <http://localhost:4000>. C'est tout : les migrations et le seed
-s'exécutent automatiquement au démarrage (service `migrate`), et les données
+Puis ouvre <http://localhost:4000>. C'est tout : le conteneur applicatif
+applique lui-même les migrations et le seed à chaque démarrage, et les données
 sont persistées dans le volume `db-data`.
 
 - Changer le port : `APP_PORT=8080 docker compose up -d`

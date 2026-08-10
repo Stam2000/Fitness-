@@ -1,8 +1,10 @@
+// JavaScript simple (et non TypeScript) : le seed tourne au démarrage du
+// conteneur applicatif, qui n'embarque pas tsx (une devDependency).
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const EQUIPMENT: { category: string; items: string[] }[] = [
+const EQUIPMENT = [
   {
     category: "Poids du corps",
     items: [

@@ -14,11 +14,13 @@ services:
       timeout: 5s
       retries: 12
 
-  # Applique les migrations puis le seed (catalogue d'équipements), puis se termine.
-  # `app` attend la fin de ce conteneur : s'il se bloque, c'est tout le déploiement
-  # qui reste figé sans message (cas vécu sur Coolify). D'où les `timeout` :
-  # mieux vaut un échec lisible en 3 min qu'une attente infinie.
+  # Migrations + seed à la demande, pour une intervention manuelle :
+  #   docker compose run --rm --build migrate
+  # Aucun service n'en dépend : `app` et `dev` appliquent eux-mêmes leurs
+  # migrations au démarrage. Un conteneur d'amorçage dont dépend le démarrage
+  # de l'app transforme le moindre incident en déploiement figé sans message.
   migrate:
+    profiles: ["tools"]
     build:
       context: .
       target: builder
@@ -55,8 +57,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
   # Mode développement avec mise à jour automatique : `next dev` + HMR.
   # Lancer avec : docker compose --profile dev watch dev
@@ -67,6 +67,13 @@ services:
     build:
       context: .
       target: dev
+    # Mêmes migrations au démarrage que le conteneur de production.
+    command: >
+      sh -ce "
+      ./node_modules/.bin/prisma migrate deploy ;
+      node prisma/seed.mjs ;
+      npm run dev
+      "
     ports:
       - "${DEV_PORT:-4001}:3000"
     environment:
@@ -78,8 +85,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
     develop:
       watch:
         - action: sync
