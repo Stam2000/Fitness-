@@ -5,6 +5,7 @@ type StatTileProps = {
   label: ReactNode;
   hint?: ReactNode;
   size?: "md" | "lg";
+  className?: string;
 };
 
 /** Tuile statistique : grande valeur mono lime + libellé. */
@@ -13,9 +14,12 @@ export default function StatTile({
   label,
   hint,
   size = "md",
+  className = "",
 }: StatTileProps) {
   return (
-    <div className={`card text-center ${size === "lg" ? "px-3 py-4" : "px-2 py-3"}`}>
+    <div
+      className={`card text-center ${size === "lg" ? "px-3 py-4" : "px-2 py-3"}${className ? ` ${className}` : ""}`}
+    >
       <p
         className={`font-mono font-bold text-accent ${
           size === "lg" ? "text-3xl" : "text-[22px]"

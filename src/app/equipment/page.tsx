@@ -17,10 +17,11 @@ export default async function EquipmentPage() {
   return (
     <main className="flex flex-col gap-4">
       <header className="pt-2">
-        <h1 className="text-2xl font-bold">Mon matériel</h1>
-        <p className="text-sm text-muted">
-          Coche l&apos;équipement disponible dans chaque contexte
-          d&apos;entraînement.
+        <h1 className="text-2xl font-extrabold italic tracking-tight">
+          Matériel 🏋️
+        </h1>
+        <p className="text-sm text-muted-2">
+          Coche l&apos;équipement dispo dans chaque contexte.
         </p>
       </header>
       <EquipmentManager

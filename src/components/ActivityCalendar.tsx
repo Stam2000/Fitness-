@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from "react";
 import type { ActivityStats } from "@/lib/activity";
+import StatTile from "@/components/ui/StatTile";
 
-const SERIES = "#65a30d"; // validé pour surface sombre (contraste ≥ 3:1)
+// Couleur de série validée pour surface sombre (contraste ≥ 3:1).
+const SERIES = "var(--color-accent-dark)";
 const WEEKDAYS = ["L", "M", "M", "J", "V", "S", "D"];
 const MONTHS = [
   "janvier",
@@ -24,24 +26,6 @@ function key(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-function StatTile({
-  value,
-  label,
-  hint,
-}: {
-  value: string;
-  label: string;
-  hint?: string;
-}) {
-  return (
-    <div className="flex-1 rounded-xl border border-border bg-surface px-3 py-2.5 text-center">
-      <p className="text-xl font-bold text-accent">{value}</p>
-      <p className="text-[11px] leading-tight text-muted">{label}</p>
-      {hint && <p className="text-[10px] text-muted opacity-70">{hint}</p>}
-    </div>
-  );
-}
-
 function WeeklyChart({
   weeks,
 }: {
@@ -58,7 +42,7 @@ function WeeklyChart({
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
-      className="w-full"
+      className="w-full font-mono"
       role="img"
       aria-label={`Séances par semaine sur 12 semaines : ${weeks
         .map((w) => w.count)
@@ -77,7 +61,7 @@ function WeeklyChart({
               width={barW}
               height={h}
               rx={w.count === 0 ? 1 : 4}
-              fill={w.count === 0 ? "#2a3441" : SERIES}
+              fill={w.count === 0 ? "var(--color-border)" : SERIES}
               opacity={isLast ? 1 : 0.85}
             />
             {w.count > 0 && (
@@ -85,7 +69,7 @@ function WeeklyChart({
                 x={x + barW / 2}
                 y={y - 3}
                 textAnchor="middle"
-                fill="#8b98a5"
+                fill="var(--color-muted)"
                 fontSize="9"
               >
                 {w.count}
@@ -94,14 +78,14 @@ function WeeklyChart({
           </g>
         );
       })}
-      <text x={gap} y={H - 3} fill="#8b98a5" fontSize="9">
+      <text x={gap} y={H - 3} fill="var(--color-muted)" fontSize="9">
         il y a 12 sem.
       </text>
       <text
         x={W - gap}
         y={H - 3}
         textAnchor="end"
-        fill="#8b98a5"
+        fill="var(--color-muted)"
         fontSize="9"
       >
         cette sem.
@@ -148,9 +132,9 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
 
   if (stats.totalSessions === 0) {
     return (
-      <div className="rounded-2xl border border-border bg-surface p-6 text-center">
+      <div className="card p-6 text-center">
         <p className="text-4xl">🗓️</p>
-        <p className="mt-3 text-sm text-muted">
+        <p className="mt-3 text-sm text-muted-2">
           Tes jours d&apos;entraînement apparaîtront ici dès ta première séance
           terminée.
         </p>
@@ -166,6 +150,7 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
       <div className="flex flex-col gap-2 md:grid md:grid-cols-5 md:gap-3">
       <div className="flex gap-2 md:contents">
         <StatTile
+          className="flex-1"
           value={`${stats.currentStreakWeeks}`}
           label={
             stats.currentStreakWeeks > 1
@@ -175,6 +160,7 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
           hint={`record : ${stats.bestStreakWeeks}`}
         />
         <StatTile
+          className="flex-1"
           value={`${stats.thisWeekSessions}`}
           label="séances cette semaine"
           hint={
@@ -189,12 +175,18 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
         />
       </div>
       <div className="flex gap-2 md:contents">
-        <StatTile value={`${stats.totalSessions}`} label="séances au total" />
         <StatTile
+          className="flex-1"
+          value={`${stats.totalSessions}`}
+          label="séances au total"
+        />
+        <StatTile
+          className="flex-1"
           value={hours > 0 ? `${hours} h` : `${stats.totalMinutes} min`}
           label="temps d'entraînement"
         />
         <StatTile
+          className="flex-1"
           value={`${Math.round(stats.totalVolume / 1000)} t`}
           label="volume soulevé"
         />
@@ -202,20 +194,20 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
       </div>
 
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start">
-      <section className="rounded-2xl border border-border bg-surface p-4">
+      <section className="card p-4">
         <div className="flex items-center justify-between">
           <button
             onClick={() => shiftMonth(-1)}
             aria-label="Mois précédent"
-            className="rounded-lg border border-border px-3 py-1.5 text-sm"
+            className="rounded-[10px] border border-border px-3.5 py-1.5 text-sm text-muted-2"
           >
             ‹
           </button>
           <div className="text-center">
-            <p className="font-semibold capitalize">
+            <p className="text-[15px] font-extrabold capitalize">
               {MONTHS[view.month]} {view.year}
             </p>
-            <p className="text-xs text-muted">
+            <p className="text-xs text-muted-2">
               {monthSessions} jour{monthSessions > 1 ? "s" : ""}{" "}
               d&apos;entraînement
             </p>
@@ -223,7 +215,7 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
           <button
             onClick={() => shiftMonth(1)}
             aria-label="Mois suivant"
-            className="rounded-lg border border-border px-3 py-1.5 text-sm"
+            className="rounded-[10px] border border-border px-3.5 py-1.5 text-sm text-muted-2"
           >
             ›
           </button>
@@ -233,7 +225,7 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
           {WEEKDAYS.map((d, i) => (
             <div
               key={`${d}-${i}`}
-              className="pb-1 text-center text-[11px] text-muted"
+              className="pb-1 text-center text-[10.5px] text-muted"
             >
               {d}
             </div>
@@ -255,13 +247,13 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
                     ? `${day} ${MONTHS[view.month]} : ${entry.sessions} séance${entry.sessions > 1 ? "s" : ""}`
                     : `${day} ${MONTHS[view.month]} : repos`
                 }
-                className={`relative flex aspect-square items-center justify-center rounded-lg text-sm ${
+                className={`relative flex aspect-square items-center justify-center rounded-[10px] font-mono text-[13.5px] ${
                   entry
                     ? isSelected
-                      ? "bg-accent font-bold text-black"
-                      : "bg-accent/20 font-semibold text-accent"
+                      ? "bg-accent font-extrabold text-black"
+                      : "bg-accent/15 font-bold text-accent"
                     : "text-muted"
-                } ${isToday && !isSelected ? "ring-1 ring-inset ring-ink/40" : ""}`}
+                } ${isToday && !isSelected ? "ring-[1.5px] ring-inset ring-ink/50" : ""}`}
               >
                 {day}
                 {entry && entry.sessions > 1 && (
@@ -275,27 +267,27 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
         </div>
 
         {selectedDay && (
-          <div className="mt-3 rounded-xl bg-surface-2 p-3">
-            <p className="text-sm font-semibold">
+          <div className="mt-3 rounded-[14px] bg-surface-2 p-3">
+            <p className="text-[13.5px] font-bold">
               {Number(selectedDay.date.slice(8))} {MONTHS[view.month]}
             </p>
             {selectedDay.labels.map((label, i) => (
-              <p key={`${label}-${i}`} className="mt-1 text-sm text-muted">
+              <p key={`${label}-${i}`} className="mt-1 text-sm text-muted-2">
                 • {label}
               </p>
             ))}
-            <p className="mt-1.5 text-xs text-muted">
+            <p className="mt-1.5 font-mono text-xs text-muted-2">
               {selectedDay.minutes} min
               {selectedDay.volume > 0 &&
-                ` · ${Math.round(selectedDay.volume)} kg de volume`}
+                ` · ${Math.round(selectedDay.volume).toLocaleString("fr-FR")} kg de volume`}
             </p>
           </div>
         )}
       </section>
 
       <div className="flex flex-col gap-4">
-      <section className="rounded-2xl border border-border bg-surface p-4">
-        <h2 className="text-sm font-semibold">Séances par semaine</h2>
+      <section className="card p-4">
+        <h2 className="text-sm font-extrabold">Séances par semaine</h2>
         <p className="text-xs text-muted">12 dernières semaines</p>
         <div className="mt-2 max-w-xl">
           <WeeklyChart weeks={stats.weeklyCounts} />
@@ -303,8 +295,8 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
       </section>
 
       {stats.focusBreakdown.length > 0 && (
-        <section className="rounded-2xl border border-border bg-surface p-4">
-          <h2 className="text-sm font-semibold">Répartition des séances</h2>
+        <section className="card p-4">
+          <h2 className="text-sm font-extrabold">Répartition des séances</h2>
           <div className="mt-2 flex flex-col gap-2">
             {stats.focusBreakdown.slice(0, 8).map((f) => (
               <div key={f.label}>

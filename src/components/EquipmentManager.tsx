@@ -9,6 +9,8 @@ import {
   toggleLocationEquipment,
   updateLocation,
 } from "@/app/actions";
+import { btn, Button } from "@/components/ui/button";
+import Chip from "@/components/ui/Chip";
 
 type LocationView = {
   id: string;
@@ -62,7 +64,7 @@ function LocationForm({
   const [icon, setIcon] = useState(initialIcon);
   return (
     <form
-      className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-3"
+      className="card flex flex-col gap-2.5 p-3.5"
       onSubmit={(e) => {
         e.preventDefault();
         if (!name.trim()) return;
@@ -74,7 +76,7 @@ function LocationForm({
         onChange={(e) => setName(e.target.value)}
         placeholder="Nom du contexte (ex. Gym Basic-Fit, Maison…)"
         autoFocus
-        className="rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
+        className="rounded-full border-[1.5px] border-border bg-surface-2 px-4 py-2.5 text-sm outline-none focus:border-accent"
       />
       <div className="flex flex-wrap gap-1.5">
         {ICONS.map((i) => (
@@ -82,7 +84,7 @@ function LocationForm({
             key={i}
             type="button"
             onClick={() => setIcon(i)}
-            className={`flex h-10 w-10 items-center justify-center rounded-lg border text-lg ${
+            className={`flex h-10 w-10 items-center justify-center rounded-xl border text-lg ${
               i === icon ? "border-accent bg-accent/15" : "border-border"
             }`}
           >
@@ -91,20 +93,13 @@ function LocationForm({
         ))}
       </div>
       <div className="flex gap-2">
-        <button
-          type="submit"
-          className="flex-1 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-black"
-        >
+        <button type="submit" className={btn("primary", "md", "flex-1")}>
           {submitLabel}
         </button>
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-xl border border-border px-4 py-2.5 text-sm text-muted"
-          >
+          <Button variant="outline" size="md" onClick={onCancel}>
             Annuler
-          </button>
+          </Button>
         )}
       </div>
     </form>
@@ -304,12 +299,12 @@ export default function EquipmentManager({
   if (locations.length === 0) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="rounded-2xl border border-border bg-surface p-6 text-center">
+        <div className="card p-6 text-center">
           <p className="text-4xl">📍</p>
-          <h2 className="mt-3 text-lg font-semibold">
+          <h2 className="mt-3 text-lg font-extrabold italic">
             Crée ton premier contexte
           </h2>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-sm text-muted-2">
             Un contexte est un endroit où tu t&apos;entraînes : chez toi, ta
             salle de sport, un parc… Tu cocheras ensuite l&apos;équipement
             disponible dans chacun.
@@ -324,29 +319,26 @@ export default function EquipmentManager({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-2">
         {locations.map((l) => (
-          <button
+          <Chip
             key={l.id}
+            active={l.id === activeId}
+            activeStyle="solid"
             onClick={() => {
               setActiveId(l.id);
               setEditingLocation(false);
             }}
-            className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${
-              l.id === activeId
-                ? "bg-accent text-black"
-                : "border border-border bg-surface text-ink"
-            }`}
           >
             {l.icon} {l.name}
-            <span className="ml-1.5 text-xs opacity-70">
+            <span className="text-xs font-bold opacity-70">
               {checked[l.id]?.size ?? 0}
             </span>
-          </button>
+          </Chip>
         ))}
         <button
           onClick={() => setShowNewLocation((v) => !v)}
-          className="rounded-xl border border-accent/60 bg-accent/10 px-4 py-2.5 text-sm font-semibold text-accent"
+          className={btn("tint", "md")}
         >
-          ＋ Nouveau contexte
+          ＋ Nouveau
         </button>
       </div>
 
@@ -359,23 +351,23 @@ export default function EquipmentManager({
       )}
 
       {createdNotice && (
-        <p className="rounded-xl border border-accent/40 bg-accent/10 p-3 text-sm text-accent">
+        <p className="rounded-2xl border border-accent/40 bg-accent/10 p-3 text-sm text-accent">
           ✓ Contexte « {createdNotice} » créé — coche ci-dessous l&apos;équipement
           qui s&apos;y trouve.
         </p>
       )}
 
       {active && !editingLocation && (
-        <div className="flex items-center justify-between gap-2 rounded-xl bg-surface px-3 py-2">
-          <p className="text-sm text-muted">
+        <div className="flex items-center justify-between gap-2 rounded-[14px] bg-surface px-3.5 py-2.5">
+          <p className="text-sm text-muted-2">
             Équipement disponible à{" "}
-            <span className="font-semibold text-ink">
+            <span className="font-bold text-ink">
               {active.icon} {active.name}
             </span>
           </p>
           <button
             onClick={() => setEditingLocation(true)}
-            className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs"
+            className="shrink-0 rounded-full border border-border px-3 py-1.5 text-xs text-muted-2"
           >
             ✏️ Renommer
           </button>
@@ -401,7 +393,7 @@ export default function EquipmentManager({
         <button
           onClick={generateAll}
           disabled={generatingAll}
-          className="rounded-xl border border-accent/50 bg-accent/10 py-3 text-sm font-semibold text-accent disabled:opacity-60"
+          className={btn("tint", "md", "w-full")}
         >
           {generatingAll
             ? `🎨 Génération en cours… (${generatingCount} restantes)`
@@ -411,7 +403,7 @@ export default function EquipmentManager({
 
       {/* Sans clé, la génération était masquée sans explication. */}
       {!hasKieKey && missingImages > 0 && (
-        <p className="rounded-xl border border-border bg-surface p-3 text-sm text-muted">
+        <p className="card p-3.5 text-sm text-muted-2">
           🎨 Les images des équipements ne sont pas encore générées.{" "}
           <Link href="/settings" className="font-semibold text-accent underline">
             Ajoute ta clé Kie.ai dans Réglages
@@ -435,9 +427,7 @@ export default function EquipmentManager({
         <>
           {byCategory.map(([category, items]) => (
             <section key={category}>
-              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
-                {category}
-              </h2>
+              <h2 className="overline-label mb-2">{category}</h2>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
                 {items.map((eq) => {
                   const on = activeChecked.has(eq.id);
@@ -455,13 +445,13 @@ export default function EquipmentManager({
                           toggle(eq.id);
                         }
                       }}
-                      className={`relative cursor-pointer overflow-hidden rounded-xl border text-left ${
+                      className={`relative cursor-pointer overflow-hidden rounded-2xl text-left ${
                         on
-                          ? "border-accent bg-accent/10"
-                          : "border-border bg-surface"
+                          ? "border-[1.5px] border-accent/55 bg-accent/10"
+                          : "border border-card-border bg-surface"
                       }`}
                     >
-                      <div className="relative aspect-square w-full bg-surface-2">
+                      <div className="relative aspect-[1.35] w-full bg-surface-2">
                         {img?.status === "done" && img.url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
@@ -471,7 +461,7 @@ export default function EquipmentManager({
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-3xl">
+                          <div className="flex h-full w-full items-center justify-center text-[40px]">
                             {img?.status === "generating" ? (
                               <span className="animate-pulse">🎨</span>
                             ) : (
@@ -480,7 +470,7 @@ export default function EquipmentManager({
                           </div>
                         )}
                         <span
-                          className={`absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                          className={`absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-[13px] font-extrabold ${
                             on
                               ? "bg-accent text-black"
                               : "bg-black/50 text-muted"
@@ -495,14 +485,14 @@ export default function EquipmentManager({
                               generateImage(eq.id);
                             }}
                             aria-label={`Générer l'image de ${eq.name}`}
-                            className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-sm"
+                            className="absolute right-2 top-2 flex h-[26px] w-[26px] items-center justify-center rounded-full bg-black/50 text-xs"
                           >
                             🎨
                           </button>
                         )}
                       </div>
                       <p
-                        className={`px-2 py-1.5 text-xs font-medium leading-tight ${
+                        className={`px-2.5 py-2 text-[12.5px] font-bold leading-tight ${
                           on ? "text-accent" : "text-ink"
                         }`}
                       >
@@ -516,7 +506,7 @@ export default function EquipmentManager({
           ))}
 
           <form
-            className="mt-2 flex flex-col gap-2 rounded-2xl border border-border bg-surface p-3"
+            className="card mt-2 flex flex-col gap-2.5 p-3.5"
             onSubmit={(e) => {
               e.preventDefault();
               const name = newEquipmentName.trim();
@@ -527,18 +517,18 @@ export default function EquipmentManager({
               });
             }}
           >
-            <p className="text-sm font-semibold">Ajouter un équipement</p>
+            <p className="text-sm font-extrabold">Ajouter un équipement</p>
             <div className="flex gap-2">
               <input
                 value={newEquipmentName}
                 onChange={(e) => setNewEquipmentName(e.target.value)}
                 placeholder="Nom de l'équipement"
-                className="min-w-0 flex-1 rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
+                className="min-w-0 flex-1 rounded-full border-[1.5px] border-border bg-surface-2 px-4 py-2.5 text-sm outline-none focus:border-accent"
               />
               <select
                 value={newEquipmentCategory}
                 onChange={(e) => setNewEquipmentCategory(e.target.value)}
-                className="rounded-xl border border-border bg-surface-2 px-2 py-2.5 text-sm"
+                className="rounded-full border-[1.5px] border-border bg-surface-2 px-3 py-2.5 text-sm"
               >
                 {CATEGORIES.map((c) => (
                   <option key={c} value={c}>
@@ -549,7 +539,7 @@ export default function EquipmentManager({
             </div>
             <button
               type="submit"
-              className="rounded-xl bg-surface-2 px-4 py-2.5 text-sm font-semibold"
+              className="min-h-[44px] rounded-full bg-surface-2 px-4 text-sm font-bold"
             >
               + Ajouter
             </button>
@@ -570,7 +560,7 @@ export default function EquipmentManager({
                 });
               }
             }}
-            className="text-sm text-danger"
+            className="text-sm font-semibold text-danger"
           >
             Supprimer ce contexte
           </button>

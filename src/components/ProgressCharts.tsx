@@ -3,7 +3,8 @@
 import { useState } from "react";
 import type { ExerciseProgress } from "@/lib/progress";
 
-const SERIES = "#65a30d"; // validé pour surface sombre (contraste ≥ 3:1)
+// Couleur de série validée pour surface sombre (contraste ≥ 3:1).
+const SERIES = "var(--color-accent-dark)";
 
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat("fr-FR", {
@@ -45,7 +46,7 @@ function Chart({ exercise }: { exercise: ExerciseProgress }) {
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
-      className="w-full"
+      className="w-full font-mono"
       role="img"
       aria-label={`Progression ${exercise.name} : ${values.join(", ")} ${unit}`}
     >
@@ -57,13 +58,13 @@ function Chart({ exercise }: { exercise: ExerciseProgress }) {
             x2={W - PAD_X}
             y1={y(v)}
             y2={y(v)}
-            stroke="#2a3441"
+            stroke="var(--color-border)"
             strokeWidth="1"
           />
           <text
             x={PAD_X}
             y={y(v) - 3}
-            fill="#8b98a5"
+            fill="var(--color-muted)"
             fontSize="9"
           >
             {v} {unit}
@@ -90,7 +91,7 @@ function Chart({ exercise }: { exercise: ExerciseProgress }) {
             cy={y(v)}
             r={i === active ? 5 : 4}
             fill={SERIES}
-            stroke="#141a22"
+            stroke="var(--color-surface)"
             strokeWidth="2"
             pointerEvents="none"
           />
@@ -100,7 +101,7 @@ function Chart({ exercise }: { exercise: ExerciseProgress }) {
               cy={y(v)}
               r="8"
               fill="none"
-              stroke="#e7edf3"
+              stroke="var(--color-ink)"
               strokeWidth="1"
               pointerEvents="none"
             />
@@ -114,7 +115,7 @@ function Chart({ exercise }: { exercise: ExerciseProgress }) {
           x={Math.min(Math.max(x(active), 28), W - 28)}
           y={y(values[active]) - 10}
           textAnchor="middle"
-          fill="#e7edf3"
+          fill="var(--color-ink)"
           fontSize="11"
           fontWeight="600"
         >
@@ -124,7 +125,7 @@ function Chart({ exercise }: { exercise: ExerciseProgress }) {
       )}
 
       {/* dates premier / actif / dernier */}
-      <text x={PAD_X} y={H - 4} fill="#8b98a5" fontSize="9">
+      <text x={PAD_X} y={H - 4} fill="var(--color-muted)" fontSize="9">
         {formatDate(exercise.points[0].date)}
       </text>
       {values.length > 1 && (
@@ -132,7 +133,7 @@ function Chart({ exercise }: { exercise: ExerciseProgress }) {
           x={W - PAD_X}
           y={H - 4}
           textAnchor="end"
-          fill="#8b98a5"
+          fill="var(--color-muted)"
           fontSize="9"
         >
           {formatDate(exercise.points[exercise.points.length - 1].date)}
@@ -149,9 +150,9 @@ export default function ProgressCharts({
 }) {
   if (exercises.length === 0) {
     return (
-      <div className="rounded-2xl border border-border bg-surface p-6 text-center">
+      <div className="card p-6 text-center">
         <p className="text-4xl">📈</p>
-        <p className="mt-3 text-sm text-muted">
+        <p className="mt-3 text-sm text-muted-2">
           Termine quelques séances pour voir ta progression exercice par
           exercice.
         </p>
@@ -164,28 +165,27 @@ export default function ProgressCharts({
       {exercises.map((ex) => {
         const last = ex.points[ex.points.length - 1];
         return (
-          <section
-            key={ex.name}
-            className="rounded-2xl border border-border bg-surface p-4"
-          >
+          <section key={ex.name} className="card p-4">
             <div className="flex items-baseline justify-between gap-2">
-              <h2 className="min-w-0 truncate font-semibold">{ex.name}</h2>
-              <span className="shrink-0 text-xs text-muted">
+              <h2 className="min-w-0 truncate text-[15px] font-extrabold">
+                {ex.name}
+              </h2>
+              <span className="shrink-0 text-[11.5px] text-muted">
                 {ex.points.length} séance{ex.points.length > 1 ? "s" : ""}
               </span>
             </div>
-            <div className="mt-2 flex gap-3 text-sm">
+            <div className="mt-2 flex gap-4 text-sm">
               <div>
-                <p className="text-xs text-muted">Record ★</p>
-                <p className="font-semibold text-accent">
+                <p className="text-[11px] text-muted">Record ★</p>
+                <p className="font-mono text-[15px] font-extrabold text-accent">
                   {ex.metric === "weight"
                     ? `${ex.prWeight} kg`
                     : `${ex.prReps} reps`}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted">Dernière fois</p>
-                <p className="font-semibold">
+                <p className="text-[11px] text-muted">Dernière fois</p>
+                <p className="font-mono text-[15px] font-bold">
                   {ex.metric === "weight"
                     ? `${last.topWeight} kg × ${last.topReps ?? "—"}`
                     : `${last.topReps} reps`}
@@ -193,8 +193,10 @@ export default function ProgressCharts({
               </div>
               {last.volume > 0 && (
                 <div>
-                  <p className="text-xs text-muted">Volume</p>
-                  <p className="font-semibold">{Math.round(last.volume)} kg</p>
+                  <p className="text-[11px] text-muted">Volume</p>
+                  <p className="font-mono text-[15px] font-bold">
+                    {Math.round(last.volume).toLocaleString("fr-FR")} kg
+                  </p>
                 </div>
               )}
             </div>
