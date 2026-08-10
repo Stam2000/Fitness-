@@ -5,12 +5,35 @@
   --color-surface: #141a22;
   --color-surface-2: #1c242f;
   --color-border: #2a3441;
+  --color-card-border: #232e3b;
   --color-accent: #a3e635;
   --color-accent-dark: #65a30d;
   --color-ink: #e7edf3;
   --color-muted: #8b98a5;
+  --color-muted-2: #b9c6d3;
+  --color-warm: #fb923c;
+  --color-warm-light: #fdba74;
   --color-danger: #f87171;
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.625rem;
+}
+
+/* Libellé de section : « OBJECTIFS · JUSQU'À 2 », « 🏬 GYM X »… */
+@utility overline-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-muted-2);
+}
+
+/* Carte standard de la direction Vitrine. */
+@utility card {
+  border-radius: var(--radius-2xl);
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
 }
 
 html {
