@@ -51,11 +51,17 @@ mises en page multi-colonnes sur grand écran.
 Le plus simple : l'app **et** la base PostgreSQL tournent dans Docker.
 
 ```bash
-# Clés API optionnelles (ou saisis-les ensuite dans Réglages)
-export KIE_API_KEY="ta-clé-kie"
-export OPENROUTER_API_KEY="sk-or-…"
-
 docker compose up -d --build
+```
+
+Pour les clés API, le plus simple est de les saisir dans la page **Réglages**
+de l'application (elles sont stockées en base et survivent aux redémarrages).
+Sinon, crée un fichier `.env` à côté de `docker-compose.yml` — Docker Compose
+le lit automatiquement :
+
+```env
+KIE_API_KEY=ta-clé-kie
+OPENROUTER_API_KEY=sk-or-…
 ```
 
 Puis ouvre <http://localhost:4000>. C'est tout : les migrations et le seed
@@ -97,6 +103,17 @@ est pensée mobile, ajoutable à l'écran d'accueil en PWA).
 3. Après le premier déploiement, exécute les migrations :
    `npx prisma migrate deploy && npx prisma db seed` (en local, pointé sur la
    base de production).
+
+## Pourquoi les images n'apparaissent-elles pas ? 🎨
+
+Les images ne sont **jamais générées automatiquement** (chaque image est un
+appel payant à Kie.ai). Il faut donc :
+
+1. renseigner une clé Kie.ai — page **Réglages**, ou variable `KIE_API_KEY` ;
+2. lancer la génération : bouton **« 🎨 Générer les images des équipements »**
+   sur la page Matériel, la pastille 🎨 d'une carte, ou la commande ci-dessous.
+
+Sans clé, la page Matériel affiche un rappel avec un lien vers les Réglages.
 
 ## Générer toutes les images en une commande 🎨
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   createEquipment,
   createLocation,
@@ -406,6 +407,17 @@ export default function EquipmentManager({
             ? `🎨 Génération en cours… (${generatingCount} restantes)`
             : `🎨 Générer les images des équipements (${missingImages})`}
         </button>
+      )}
+
+      {/* Sans clé, la génération était masquée sans explication. */}
+      {!hasKieKey && missingImages > 0 && (
+        <p className="rounded-xl border border-border bg-surface p-3 text-sm text-muted">
+          🎨 Les images des équipements ne sont pas encore générées.{" "}
+          <Link href="/settings" className="font-semibold text-accent underline">
+            Ajoute ta clé Kie.ai dans Réglages
+          </Link>{" "}
+          pour faire apparaître le bouton de génération.
+        </p>
       )}
       {generatingCount > 0 && !generatingAll && (
         <p className="text-center text-xs text-muted">
