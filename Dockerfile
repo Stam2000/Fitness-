@@ -6,6 +6,16 @@ COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN npm ci
 
+# Mode développement : `next dev` avec HMR. Le code source est synchronisé
+# en continu par `docker compose watch` (voir docker-compose.yml, service « dev »).
+FROM node:22-alpine AS dev
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+EXPOSE 3000
+CMD ["npm", "run", "dev"]
+
 # Étape de build — sert aussi de service « migrate » dans docker-compose
 # (elle contient la CLI Prisma et tsx pour le seed).
 FROM node:22-alpine AS builder

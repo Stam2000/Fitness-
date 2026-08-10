@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ProgramEditor, { type EditableProgram } from "@/components/ProgramEditor";
-import { saveProgram } from "@/app/actions";
+import ModelPicker from "@/components/ModelPicker";
+import { saveProgram, setDefaultModel } from "@/app/actions";
 
 const GOALS = [
   "Prise de muscle",
@@ -26,13 +27,21 @@ type LocationView = {
 export default function NewProgramWizard({
   locations,
   hasOpenrouterKey,
+  defaultModel,
+  pinnedModels,
 }: {
   locations: LocationView[];
   hasOpenrouterKey: boolean;
+  defaultModel: string;
+  pinnedModels: string[];
 }) {
   const router = useRouter();
   const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
-  const [goal, setGoal] = useState(GOALS[0]);
+  const [model, setModel] = useState(defaultModel);
+  // Suit les promotions faites depuis le sélecteur, sans recharger la page.
+  const [currentDefault, setCurrentDefault] = useState(defaultModel);
+  // 1 ou 2 objectifs combinables (ex. prise de muscle + perte de poids).
+  const [goals, setGoals] = useState<string[]>([GOALS[0]]);
   const [level, setLevel] = useState(LEVELS[1]);
   const [daysPerWeek, setDaysPerWeek] = useState(3);
   const [sessionMinutes, setSessionMinutes] = useState(60);
@@ -41,6 +50,19 @@ export default function NewProgramWizard({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<EditableProgram | null>(null);
+
+  const goal = goals.join(" + ");
+
+  function toggleGoal(g: string) {
+    setGoals((prev) => {
+      if (prev.includes(g)) {
+        // Toujours au moins un objectif sélectionné.
+        return prev.length > 1 ? prev.filter((x) => x !== g) : prev;
+      }
+      if (prev.length >= 2) return prev;
+      return [...prev, g];
+    });
+  }
 
   async function generate() {
     setGenerating(true);
@@ -56,6 +78,7 @@ export default function NewProgramWizard({
           daysPerWeek,
           sessionMinutes,
           notes: notes.trim() || undefined,
+          model: model.trim() || undefined,
         }),
       });
       const json = await res.json();
@@ -89,6 +112,7 @@ export default function NewProgramWizard({
               weightHint: ex.weightHint ?? null,
               equipment: ex.equipment ?? [],
               notes: ex.notes ?? null,
+              variations: ex.variations ?? [],
             })),
           })),
         },
@@ -198,23 +222,32 @@ export default function NewProgramWizard({
 
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
-          Objectif
+          Objectifs
         </h2>
         <div className="flex flex-wrap gap-2">
-          {GOALS.map((g) => (
-            <button
-              key={g}
-              onClick={() => setGoal(g)}
-              className={`rounded-full px-3.5 py-2 text-sm ${
-                g === goal
-                  ? "bg-accent/15 text-accent border border-accent"
-                  : "border border-border bg-surface text-muted"
-              }`}
-            >
-              {g}
-            </button>
-          ))}
+          {GOALS.map((g) => {
+            const selected = goals.includes(g);
+            const full = goals.length >= 2 && !selected;
+            return (
+              <button
+                key={g}
+                onClick={() => toggleGoal(g)}
+                className={`rounded-full px-3.5 py-2 text-sm ${
+                  selected
+                    ? "bg-accent/15 text-accent border border-accent"
+                    : `border border-border bg-surface text-muted ${full ? "opacity-40" : ""}`
+                }`}
+              >
+                {selected && goals.length > 1 ? "✓ " : ""}
+                {g}
+              </button>
+            );
+          })}
         </div>
+        <p className="mt-1.5 text-xs text-muted">
+          Jusqu&apos;à 2 objectifs combinables (ex. prise de muscle + perte de
+          poids).
+        </p>
       </section>
 
       <section>
@@ -276,6 +309,33 @@ export default function NewProgramWizard({
             </button>
           ))}
         </div>
+      </section>
+
+      <section>
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
+            Modèle d&apos;IA
+          </h2>
+          {model.trim() !== currentDefault && (
+            <button
+              onClick={() => setModel(currentDefault)}
+              className="text-xs text-accent"
+            >
+              ↺ Revenir au défaut
+            </button>
+          )}
+        </div>
+        <ModelPicker
+          value={model}
+          onChange={setModel}
+          initialPinned={pinnedModels}
+          defaultModel={currentDefault}
+          onSetDefault={(m) => {
+            setCurrentDefault(m);
+            setDefaultModel(m);
+          }}
+          inputClassName="bg-surface"
+        />
       </section>
 
       <section>

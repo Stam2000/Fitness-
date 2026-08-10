@@ -32,7 +32,7 @@ services:
       target: runner
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "${APP_PORT:-4000}:3000"
     environment:
       DATABASE_URL: postgresql://fitness:${POSTGRES_PASSWORD:-fitness}@db:5432/fitness
       KIE_API_KEY: ${KIE_API_KEY:-}
@@ -44,6 +44,49 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+
+  # Mode développement avec mise à jour automatique : `next dev` + HMR.
+  # Lancer avec : docker compose --profile dev watch dev
+  # Chaque modification du code est synchronisée dans le conteneur (rechargement
+  # instantané) ; un changement de dépendances ou de schéma Prisma rebuilde l'image.
+  dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      target: dev
+    ports:
+      - "${DEV_PORT:-4001}:3000"
+    environment:
+      DATABASE_URL: postgresql://fitness:${POSTGRES_PASSWORD:-fitness}@db:5432/fitness
+      KIE_API_KEY: ${KIE_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Le calendrier de suivi utilise la date locale du serveur.
+      TZ: ${TZ:-Europe/Paris}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    develop:
+      watch:
+        - action: sync
+          path: ./src
+          target: /app/src
+        - action: sync
+          path: ./public
+          target: /app/public
+        - action: sync+restart
+          path: ./next.config.ts
+          target: /app/next.config.ts
+        - action: sync+restart
+          path: ./postcss.config.mjs
+          target: /app/postcss.config.mjs
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./package-lock.json
+        - action: rebuild
+          path: ./prisma
 
 volumes:
   db-data:

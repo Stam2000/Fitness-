@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { abandonSession } from "@/app/actions";
+import { abandonSession, setSessionVariation } from "@/app/actions";
 
-type ExerciseView = {
-  id: string;
+// Une « option » d'exercice : l'exercice de base (index 0) ou une variante,
+// avec ses propres données d'historique (suggestion, dernières perfs, record).
+type VariantView = {
   name: string;
   sets: number;
   reps: string;
@@ -14,6 +15,21 @@ type ExerciseView = {
   equipment: string[];
   notes: string | null;
   imageUrl: string | null;
+  videoUrl: string | null;
+  suggestion: { lastWeight: number; suggestion: number } | null;
+  previousLogs: {
+    setIndex: number;
+    reps: number | null;
+    weightKg: number | null;
+  }[];
+  historicalMax: number | null;
+};
+
+type ExerciseView = {
+  id: string;
+  options: VariantView[]; // index 0 = exercice de base
+  activeIndex: number; // option active au chargement (override ou rotation)
+  autoIndex: number; // option désignée par la rotation automatique
 };
 
 type LogEntry = {
@@ -93,11 +109,8 @@ export default function WorkoutPlayer({
   completed,
   exercises,
   initialLogs,
-  previousLogs,
   voiceInput,
   voiceAnnounce,
-  suggestions,
-  historicalMax,
   hasOpenrouterKey,
 }: {
   sessionId: string;
@@ -106,13 +119,14 @@ export default function WorkoutPlayer({
   completed: boolean;
   exercises: ExerciseView[];
   initialLogs: LogEntry[];
-  previousLogs: LogEntry[];
   voiceInput: boolean;
   voiceAnnounce: boolean;
-  suggestions: Record<string, { lastWeight: number; suggestion: number }>;
-  historicalMax: Record<string, number>;
   hasOpenrouterKey: boolean;
 }) {
+  // Option affichée pour chaque exercice (bascule manuelle possible).
+  const [variantIdx, setVariantIdx] = useState<Record<string, number>>(() =>
+    Object.fromEntries(exercises.map((ex) => [ex.id, ex.activeIndex]))
+  );
   const [current, setCurrent] = useState(() => {
     // Reprendre au premier exercice incomplet.
     for (let i = 0; i < exercises.length; i++) {
@@ -120,14 +134,17 @@ export default function WorkoutPlayer({
       const doneCount = initialLogs.filter(
         (l) => l.exerciseId === ex.id && l.done
       ).length;
-      if (doneCount < ex.sets) return i;
+      if (doneCount < ex.options[ex.activeIndex].sets) return i;
     }
     return 0;
   });
   const [logs, setLogs] = useState<Record<string, SetState>>(() => {
     const map: Record<string, SetState> = {};
     for (const ex of exercises) {
-      for (let i = 0; i < ex.sets; i++) {
+      // Autant de clés que la plus généreuse des options, pour que la
+      // bascule vers une variante à plus de séries ne casse rien.
+      const maxSets = Math.max(...ex.options.map((o) => o.sets));
+      for (let i = 0; i < maxSets; i++) {
         const existing = initialLogs.find(
           (l) => l.exerciseId === ex.id && l.setIndex === i
         );
@@ -174,7 +191,21 @@ export default function WorkoutPlayer({
   const recognitionRef = useRef<any>(null);
 
   const exercise = exercises[current];
-  const exerciseDuration = parseDurationSeconds(exercise.reps);
+  // Option active d'un exercice, clampée si les variantes ont changé.
+  const activeIndexOf = useCallback(
+    (ex: ExerciseView) =>
+      Math.min(variantIdx[ex.id] ?? ex.activeIndex, ex.options.length - 1),
+    [variantIdx]
+  );
+  const activeOf = useCallback(
+    (ex: ExerciseView) => ex.options[activeIndexOf(ex)],
+    [activeIndexOf]
+  );
+  const active = activeOf(exercise);
+  // Nom sous lequel journaliser les séries (null = exercice de base).
+  const activeVariationName =
+    activeIndexOf(exercise) === 0 ? null : active.name;
+  const exerciseDuration = parseDurationSeconds(active.reps);
 
   // Double bip court (fin de chrono), indépendant des annonces vocales.
   const beep = useCallback(() => {
@@ -216,7 +247,12 @@ export default function WorkoutPlayer({
   );
 
   const saveLog = useCallback(
-    (exerciseId: string, setIndex: number, state: SetState) => {
+    (
+      exerciseId: string,
+      setIndex: number,
+      state: SetState,
+      variationName: string | null
+    ) => {
       fetch(`/api/sessions/${sessionId}/logs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -226,6 +262,7 @@ export default function WorkoutPlayer({
           reps: state.reps === "" ? null : parseInt(state.reps, 10),
           weightKg: state.weightKg === "" ? null : parseFloat(state.weightKg),
           done: state.done,
+          variationName,
         }),
       }).catch(() => {
         // hors-ligne : la valeur reste dans l'état local
@@ -295,12 +332,12 @@ export default function WorkoutPlayer({
         reps: String(seconds),
         done: true,
       };
-      saveLog(exercise.id, setIndex, nextState);
+      saveLog(exercise.id, setIndex, nextState, activeVariationName);
       return { ...prev, [key]: nextState };
     });
-    const isLastSet = setIndex === exercise.sets - 1;
+    const isLastSet = setIndex === active.sets - 1;
     const isLastExercise = current === exercises.length - 1;
-    if (!(isLastSet && isLastExercise)) startRest(exercise.restSeconds);
+    if (!(isLastSet && isLastExercise)) startRest(active.restSeconds);
   }
 
   function startSetTimer(setIndex: number) {
@@ -343,7 +380,7 @@ export default function WorkoutPlayer({
     setLogs((prev) => {
       const key = `${exerciseId}:${setIndex}`;
       const next = { ...prev, [key]: { ...prev[key], ...patch } };
-      if (save) saveLog(exerciseId, setIndex, next[key]);
+      if (save) saveLog(exerciseId, setIndex, next[key], activeVariationName);
       return next;
     });
   }
@@ -354,19 +391,28 @@ export default function WorkoutPlayer({
     const nowDone = !state.done;
     patchSet(exercise.id, setIndex, { done: nowDone }, true);
     if (nowDone) {
-      const isLastSet = setIndex === exercise.sets - 1;
+      const isLastSet = setIndex === active.sets - 1;
       const isLastExercise = current === exercises.length - 1;
       if (!(isLastSet && isLastExercise)) {
-        startRest(exercise.restSeconds);
+        startRest(active.restSeconds);
       }
     }
   }
 
   function firstOpenSetIndex(): number {
-    for (let i = 0; i < exercise.sets; i++) {
+    for (let i = 0; i < active.sets; i++) {
       if (!logs[`${exercise.id}:${i}`]?.done) return i;
     }
-    return exercise.sets - 1;
+    return active.sets - 1;
+  }
+
+  // Bascule manuelle de variante : état local immédiat + persistance sur la
+  // séance pour survivre aux rechargements.
+  function chooseVariant(exerciseId: string, idx: number) {
+    setVariantIdx((prev) => ({ ...prev, [exerciseId]: idx }));
+    setSessionVariation(sessionId, exerciseId, idx).catch(() => {
+      // hors-ligne : le choix reste appliqué localement
+    });
   }
 
   function startVoice() {
@@ -405,13 +451,13 @@ export default function WorkoutPlayer({
         done: true,
       };
       setLogs((prev) => ({ ...prev, [key]: nextState }));
-      saveLog(exercise.id, setIndex, nextState);
+      saveLog(exercise.id, setIndex, nextState, activeVariationName);
       setVoiceMessage(
         `✓ Série ${setIndex + 1} : ${nextState.weightKg || "?"} kg × ${nextState.reps || "?"} reps`
       );
-      const isLastSet = setIndex === exercise.sets - 1;
+      const isLastSet = setIndex === active.sets - 1;
       const isLastExercise = current === exercises.length - 1;
-      if (!(isLastSet && isLastExercise)) startRest(exercise.restSeconds);
+      if (!(isLastSet && isLastExercise)) startRest(active.restSeconds);
     };
     recognition.onerror = () => {
       setVoiceMessage("Je n'ai rien entendu. Réessaie.");
@@ -424,9 +470,9 @@ export default function WorkoutPlayer({
   function goTo(index: number) {
     if (index < 0 || index >= exercises.length) return;
     setCurrent(index);
-    const ex = exercises[index];
+    const o = activeOf(exercises[index]);
     speak(
-      `${ex.name}. ${ex.sets} séries de ${ex.reps}${ex.weightHint ? `. ${ex.weightHint}` : ""}.`
+      `${o.name}. ${o.sets} séries de ${o.reps}${o.weightHint ? `. ${o.weightHint}` : ""}.`
     );
   }
 
@@ -527,10 +573,11 @@ export default function WorkoutPlayer({
       const r = parseInt(s.reps, 10);
       return acc + (isNaN(w) || isNaN(r) ? 0 : w * r);
     }, 0);
-    // Records personnels battus pendant cette séance.
+    // Records personnels battus pendant cette séance (sur l'option jouée).
     const prs = exercises
       .map((ex) => {
-        const sessionMax = Array.from({ length: ex.sets }, (_, i) =>
+        const o = activeOf(ex);
+        const sessionMax = Array.from({ length: o.sets }, (_, i) =>
           logs[`${ex.id}:${i}`]
         )
           .filter((s) => s?.done)
@@ -538,9 +585,9 @@ export default function WorkoutPlayer({
             const w = parseFloat(s.weightKg);
             return isNaN(w) ? acc : Math.max(acc, w);
           }, 0);
-        const previous = historicalMax[ex.id];
+        const previous = o.historicalMax;
         return sessionMax > 0 && (previous == null || sessionMax > previous)
-          ? { name: ex.name, weight: sessionMax, previous: previous ?? null }
+          ? { name: o.name, weight: sessionMax, previous: previous ?? null }
           : null;
       })
       .filter(Boolean) as {
@@ -626,7 +673,7 @@ export default function WorkoutPlayer({
     );
   }
 
-  const totalSets = exercises.reduce((acc, ex) => acc + ex.sets, 0);
+  const totalSets = exercises.reduce((acc, ex) => acc + activeOf(ex).sets, 0);
   const doneCount = Object.values(logs).filter((s) => s.done).length;
 
   return (
@@ -763,14 +810,27 @@ export default function WorkoutPlayer({
       )}
 
       <section className="overflow-hidden rounded-2xl border border-border bg-surface">
-        {exercise.imageUrl && (
+        {active.videoUrl ? (
+          // Démo du mouvement en boucle, muette pour ne pas gêner la séance.
+          <video
+            key={active.videoUrl}
+            src={active.videoUrl}
+            poster={active.imageUrl ?? undefined}
+            autoPlay
+            muted
+            loop
+            playsInline
+            controls
+            className="aspect-video w-full bg-black object-contain"
+          />
+        ) : active.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={exercise.imageUrl}
-            alt={exercise.name}
+            src={active.imageUrl}
+            alt={active.name}
             className="aspect-[3/2] w-full object-cover"
           />
-        )}
+        ) : null}
         <div className="p-4">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs text-muted">
@@ -785,7 +845,30 @@ export default function WorkoutPlayer({
               </button>
             )}
           </div>
-          <h1 className="mt-0.5 text-xl font-bold">{exercise.name}</h1>
+          <h1 className="mt-0.5 text-xl font-bold">{active.name}</h1>
+          {exercise.options.length > 1 && (
+            <div className="mt-2">
+              <div className="flex flex-wrap gap-1.5">
+                {exercise.options.map((o, oi) => (
+                  <button
+                    key={oi}
+                    onClick={() => chooseVariant(exercise.id, oi)}
+                    className={`rounded-full border px-3 py-1.5 text-xs ${
+                      oi === activeIndexOf(exercise)
+                        ? "border-accent bg-accent/15 text-accent"
+                        : "border-border text-muted"
+                    }`}
+                  >
+                    {String.fromCharCode(65 + oi)} · {o.name}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                🔁 Rotation auto — ce passage :{" "}
+                {String.fromCharCode(65 + exercise.autoIndex)}
+              </p>
+            </div>
+          )}
           {showSubstitute && (
             <div className="mt-2 rounded-xl bg-surface-2 p-3">
               <p className="text-xs font-semibold text-muted">
@@ -840,32 +923,31 @@ export default function WorkoutPlayer({
             </div>
           )}
           <p className="mt-1 text-accent">
-            {exercise.sets} × {exercise.reps}
+            {active.sets} × {active.reps}
             <span className="text-muted">
               {" "}
-              · repos {exercise.restSeconds}s
+              · repos {active.restSeconds}s
             </span>
           </p>
-          {exercise.weightHint && (
-            <p className="mt-1 text-sm text-muted">⚖️ {exercise.weightHint}</p>
+          {active.weightHint && (
+            <p className="mt-1 text-sm text-muted">⚖️ {active.weightHint}</p>
           )}
-          {suggestions[exercise.id] && (
+          {active.suggestion && (
             <p className="mt-1 rounded-lg bg-accent/10 px-2 py-1.5 text-sm text-accent">
-              📊 Dernière fois : {suggestions[exercise.id].lastWeight} kg —{" "}
-              {suggestions[exercise.id].suggestion >
-              suggestions[exercise.id].lastWeight
-                ? `essaie ${suggestions[exercise.id].suggestion} kg 💪`
+              📊 Dernière fois : {active.suggestion.lastWeight} kg —{" "}
+              {active.suggestion.suggestion > active.suggestion.lastWeight
+                ? `essaie ${active.suggestion.suggestion} kg 💪`
                 : "consolide cette charge"}
             </p>
           )}
-          {exercise.equipment.length > 0 && (
+          {active.equipment.length > 0 && (
             <p className="mt-1 text-sm text-muted">
-              🏋️ {exercise.equipment.join(", ")}
+              🏋️ {active.equipment.join(", ")}
             </p>
           )}
-          {exercise.notes && (
+          {active.notes && (
             <p className="mt-2 rounded-lg bg-surface-2 p-2 text-sm text-muted">
-              💡 {exercise.notes}
+              💡 {active.notes}
             </p>
           )}
         </div>
@@ -874,12 +956,10 @@ export default function WorkoutPlayer({
 
       <div className="flex flex-col gap-4">
       <section className="flex flex-col gap-2">
-        {Array.from({ length: exercise.sets }, (_, i) => {
+        {Array.from({ length: active.sets }, (_, i) => {
           const key = `${exercise.id}:${i}`;
           const state = logs[key];
-          const prev = previousLogs.find(
-            (l) => l.exerciseId === exercise.id && l.setIndex === i
-          );
+          const prev = active.previousLogs.find((l) => l.setIndex === i);
           return (
             <div
               key={key}
@@ -912,7 +992,9 @@ export default function WorkoutPlayer({
                   onChange={(e) =>
                     patchSet(exercise.id, i, { weightKg: e.target.value })
                   }
-                  onBlur={() => saveLog(exercise.id, i, logs[key])}
+                  onBlur={() =>
+                    saveLog(exercise.id, i, logs[key], activeVariationName)
+                  }
                   className="mt-0.5 w-full rounded-lg border border-border bg-surface-2 px-2 py-2.5 text-base text-ink outline-none focus:border-accent"
                 />
               </label>
@@ -952,7 +1034,9 @@ export default function WorkoutPlayer({
                     onChange={(e) =>
                       patchSet(exercise.id, i, { reps: e.target.value })
                     }
-                    onBlur={() => saveLog(exercise.id, i, logs[key])}
+                    onBlur={() =>
+                    saveLog(exercise.id, i, logs[key], activeVariationName)
+                  }
                     className="mt-0.5 w-full rounded-lg border border-border bg-surface-2 px-2 py-2.5 text-base text-ink outline-none focus:border-accent"
                   />
                 </label>

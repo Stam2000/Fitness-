@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { getHistoricalMaxByName, suggestNextWeight } from "@/lib/progress";
+import { activeVariationIndex } from "@/lib/variants";
 import WorkoutPlayer from "@/components/WorkoutPlayer";
 
 export const dynamic = "force-dynamic";
@@ -19,17 +20,26 @@ export default async function WorkoutPage({
       day: {
         include: {
           program: true,
-          exercises: { orderBy: { order: "asc" } },
+          exercises: {
+            orderBy: { order: "asc" },
+            include: { variations: { orderBy: { order: "asc" } } },
+          },
         },
       },
     },
   });
   if (!session) notFound();
 
-  // Dernières perfs sur ce jour pour pré-remplir poids/reps.
-  const lastCompleted = await prisma.workoutSession.findFirst({
-    where: { dayId: session.dayId, completedAt: { not: null } },
+  // Dernières séances terminées sur ce jour : sert à retrouver, pour chaque
+  // option (base ou variante), la dernière fois où elle a été exécutée.
+  const recentCompleted = await prisma.workoutSession.findMany({
+    where: {
+      dayId: session.dayId,
+      completedAt: { not: null },
+      id: { not: session.id },
+    },
     orderBy: { completedAt: "desc" },
+    take: 10,
     include: { setLogs: true },
   });
 
@@ -38,34 +48,9 @@ export default async function WorkoutPage({
     getHistoricalMaxByName(session.id),
   ]);
 
-  const suggestions: Record<
-    string,
-    { lastWeight: number; suggestion: number }
-  > = {};
-  if (lastCompleted) {
-    for (const ex of session.day.exercises) {
-      const s = suggestNextWeight(
-        lastCompleted.setLogs.filter((l) => l.exerciseId === ex.id),
-        ex.reps
-      );
-      if (s) suggestions[ex.id] = s;
-    }
-  }
-
-  const maxByExercise: Record<string, number> = {};
-  for (const ex of session.day.exercises) {
-    if (historicalMax[ex.name] != null)
-      maxByExercise[ex.id] = historicalMax[ex.name];
-  }
-
-  return (
-    <WorkoutPlayer
-      sessionId={session.id}
-      programName={session.day.program.name}
-      dayName={session.day.name}
-      completed={Boolean(session.completedAt)}
-      exercises={session.day.exercises.map((ex) => ({
-        id: ex.id,
+  const exercises = session.day.exercises.map((ex) => {
+    const options = [
+      {
         name: ex.name,
         sets: ex.sets,
         reps: ex.reps,
@@ -74,15 +59,63 @@ export default async function WorkoutPage({
         equipment: ex.equipment,
         notes: ex.notes,
         imageUrl: ex.imageUrl,
-      }))}
+        videoUrl: ex.videoUrl,
+      },
+      ...ex.variations.map((v) => ({
+        name: v.name,
+        sets: v.sets,
+        reps: v.reps,
+        restSeconds: v.restSeconds,
+        weightHint: v.weightHint,
+        equipment: v.equipment,
+        notes: v.notes,
+        imageUrl: v.imageUrl,
+        videoUrl: v.videoUrl,
+      })),
+    ].map((o, oi) => {
+      // Une variante est identifiée dans les logs par son nom ; null = base.
+      const variationName = oi === 0 ? null : o.name;
+      const lastSession = recentCompleted.find((s) =>
+        s.setLogs.some(
+          (l) =>
+            l.exerciseId === ex.id &&
+            (l.variationName ?? null) === variationName &&
+            l.done
+        )
+      );
+      const lastLogs = (lastSession?.setLogs ?? []).filter(
+        (l) =>
+          l.exerciseId === ex.id &&
+          (l.variationName ?? null) === variationName
+      );
+      return {
+        ...o,
+        suggestion: lastLogs.length > 0 ? suggestNextWeight(lastLogs, o.reps) : null,
+        previousLogs: lastLogs.map((l) => ({
+          setIndex: l.setIndex,
+          reps: l.reps,
+          weightKg: l.weightKg,
+        })),
+        historicalMax: historicalMax[o.name] ?? null,
+      };
+    });
+
+    // Rotation automatique : le n° de passage choisit l'option, sauf choix
+    // manuel persisté ; clamp au cas où les variantes auraient changé.
+    const autoIndex =
+      options.length > 1 ? session.cycleIndex % options.length : 0;
+    const activeIndex = activeVariationIndex(session, ex);
+    return { id: ex.id, options, activeIndex, autoIndex };
+  });
+
+  return (
+    <WorkoutPlayer
+      sessionId={session.id}
+      programName={session.day.program.name}
+      dayName={session.day.name}
+      completed={Boolean(session.completedAt)}
+      exercises={exercises}
       initialLogs={session.setLogs.map((l) => ({
-        exerciseId: l.exerciseId,
-        setIndex: l.setIndex,
-        reps: l.reps,
-        weightKg: l.weightKg,
-        done: l.done,
-      }))}
-      previousLogs={(lastCompleted?.setLogs ?? []).map((l) => ({
         exerciseId: l.exerciseId,
         setIndex: l.setIndex,
         reps: l.reps,
@@ -91,8 +124,6 @@ export default async function WorkoutPage({
       }))}
       voiceInput={settings.voiceInput}
       voiceAnnounce={settings.voiceAnnounce}
-      suggestions={suggestions}
-      historicalMax={maxByExercise}
       hasOpenrouterKey={Boolean(settings.openrouterApiKey)}
     />
   );

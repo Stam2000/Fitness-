@@ -54,7 +54,8 @@ export async function getExerciseProgress(): Promise<ExerciseProgress[]> {
   for (const session of sessions) {
     const byName = new Map<string, typeof session.setLogs>();
     for (const log of session.setLogs) {
-      const name = log.exercise.name;
+      // Une variante est suivie sous son propre nom (mouvement différent).
+      const name = log.variationName ?? log.exercise.name;
       if (!byName.has(name)) byName.set(name, []);
       byName.get(name)!.push(log);
     }
@@ -126,7 +127,7 @@ export async function getHistoricalMaxByName(
   });
   const max: Record<string, number> = {};
   for (const log of logs) {
-    const name = log.exercise.name;
+    const name = log.variationName ?? log.exercise.name;
     if (log.weightKg! > (max[name] ?? 0)) max[name] = log.weightKg!;
   }
   return max;

@@ -45,7 +45,12 @@ export async function POST(
       include: {
         days: {
           orderBy: { dayIndex: "asc" },
-          include: { exercises: { orderBy: { order: "asc" } } },
+          include: {
+            exercises: {
+              orderBy: { order: "asc" },
+              include: { variations: { orderBy: { order: "asc" } } },
+            },
+          },
         },
       },
     }),
@@ -76,6 +81,15 @@ export async function POST(
         weightHint: ex.weightHint,
         equipment: ex.equipment,
         notes: ex.notes,
+        variations: ex.variations.map((v) => ({
+          name: v.name,
+          sets: v.sets,
+          reps: v.reps,
+          restSeconds: v.restSeconds,
+          weightHint: v.weightHint,
+          equipment: v.equipment,
+          notes: v.notes,
+        })),
       })),
     })),
   };
@@ -88,6 +102,7 @@ ${JSON.stringify(source, null, 2)}
 Règles :
 - Garde la même structure (mêmes jours, même logique de séance, volumes équivalents).
 - Remplace chaque exercice impossible avec l'équipement cible par l'équivalent le plus proche ciblant les mêmes muscles ; garde tels quels ceux qui restent réalisables.
+- Adapte aussi les "variations" de chaque exercice ; si l'équipement cible ne permet plus d'alternative pertinente pour une variation, supprime-la ("variations": []).
 - Utilise EXCLUSIVEMENT l'équipement listé (ou le poids du corps).
 - Adapte "name" du programme au nouveau contexte (ex. « ${program.name} — ${target.name} »).
 Réponds UNIQUEMENT avec l'objet JSON du programme adapté, au même format que le programme source.`;
@@ -152,6 +167,18 @@ Réponds UNIQUEMENT avec l'objet JSON du programme adapté, au même format que 
                 weightHint: ex.weightHint ?? null,
                 equipment: ex.equipment ?? [],
                 notes: ex.notes ?? null,
+                variations: {
+                  create: (ex.variations ?? []).map((v, vi) => ({
+                    order: vi,
+                    name: v.name,
+                    sets: v.sets,
+                    reps: v.reps,
+                    restSeconds: v.restSeconds,
+                    weightHint: v.weightHint ?? null,
+                    equipment: v.equipment ?? [],
+                    notes: v.notes ?? null,
+                  })),
+                },
               })),
             },
           })),

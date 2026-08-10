@@ -2,6 +2,18 @@
 
 import { useState } from "react";
 
+// Variante d'un exercice (mêmes muscles), jouée en alternance selon les
+// passages. Non éditable ici : simple passthrough conservé à l'enregistrement.
+export type EditableVariation = {
+  name: string;
+  sets: number;
+  reps: string;
+  restSeconds: number;
+  weightHint?: string | null;
+  equipment: string[];
+  notes?: string | null;
+};
+
 export type EditableExercise = {
   id?: string;
   name: string;
@@ -12,6 +24,7 @@ export type EditableExercise = {
   equipment: string[];
   notes?: string | null;
   imageUrl?: string | null;
+  variations?: EditableVariation[];
 };
 
 export type EditableDay = {
@@ -301,6 +314,15 @@ export default function ProgramEditor({
                       )}
                       {ex.notes}
                     </p>
+                  )}
+                  {(ex.variations?.length ?? 0) > 0 && (
+                    <div className="mt-2 flex flex-col gap-0.5">
+                      {ex.variations!.map((v, vi) => (
+                        <p key={vi} className="text-xs text-muted">
+                          🔁 Variante : {v.name} — {v.sets} × {v.reps}
+                        </p>
+                      ))}
+                    </div>
                   )}
                 </div>
               ))}

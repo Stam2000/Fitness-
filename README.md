@@ -58,7 +58,7 @@ export OPENROUTER_API_KEY="sk-or-…"
 docker compose up -d --build
 ```
 
-Puis ouvre <http://localhost:3000>. C'est tout : les migrations et le seed
+Puis ouvre <http://localhost:4000>. C'est tout : les migrations et le seed
 s'exécutent automatiquement au démarrage (service `migrate`), et les données
 sont persistées dans le volume `db-data`.
 

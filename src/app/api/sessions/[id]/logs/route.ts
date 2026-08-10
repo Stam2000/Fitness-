@@ -8,6 +8,8 @@ const logSchema = z.object({
   reps: z.number().int().min(0).nullable(),
   weightKg: z.number().min(0).nullable(),
   done: z.boolean(),
+  // Nom de la variante réellement exécutée (null/absent = exercice de base).
+  variationName: z.string().nullable().optional(),
 });
 
 export async function POST(
@@ -19,7 +21,8 @@ export async function POST(
   if (!body.success) {
     return NextResponse.json({ error: "Payload invalide" }, { status: 400 });
   }
-  const { exerciseId, setIndex, reps, weightKg, done } = body.data;
+  const { exerciseId, setIndex, reps, weightKg, done, variationName } =
+    body.data;
 
   const session = await prisma.workoutSession.findUnique({ where: { id } });
   if (!session) {
@@ -30,8 +33,16 @@ export async function POST(
     where: {
       sessionId_exerciseId_setIndex: { sessionId: id, exerciseId, setIndex },
     },
-    update: { reps, weightKg, done },
-    create: { sessionId: id, exerciseId, setIndex, reps, weightKg, done },
+    update: { reps, weightKg, done, variationName: variationName ?? null },
+    create: {
+      sessionId: id,
+      exerciseId,
+      setIndex,
+      reps,
+      weightKg,
+      done,
+      variationName: variationName ?? null,
+    },
   });
 
   return NextResponse.json({ ok: true });

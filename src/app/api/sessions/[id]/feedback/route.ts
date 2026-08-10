@@ -16,6 +16,7 @@ function describeSession(
     reps: number | null;
     weightKg: number | null;
     done: boolean;
+    variationName: string | null;
   }[]
 ): string {
   return exercises
@@ -30,7 +31,9 @@ function describeSession(
             : "non faite"
         )
         .join(", ");
-      return `- ${ex.name} (objectif ${ex.sets} × ${ex.reps}${ex.weightHint ? `, ${ex.weightHint}` : ""}) : ${series || "aucune série"}`;
+      // Le mouvement réellement exécuté (variante) prime sur l'exercice prévu.
+      const name = exLogs.find((l) => l.variationName)?.variationName ?? ex.name;
+      return `- ${name} (objectif ${ex.sets} × ${ex.reps}${ex.weightHint ? `, ${ex.weightHint}` : ""}) : ${series || "aucune série"}`;
     })
     .join("\n");
 }

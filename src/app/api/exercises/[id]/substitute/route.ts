@@ -115,20 +115,28 @@ Propose UN exercice de remplacement ciblant les mêmes muscles, adapté à la ra
     }
     const replacement = exerciseSchema.parse(extractJson(content));
 
-    const updated = await prisma.exercise.update({
-      where: { id },
-      data: {
-        name: replacement.name,
-        sets: replacement.sets,
-        reps: replacement.reps,
-        restSeconds: replacement.restSeconds,
-        weightHint: replacement.weightHint ?? null,
-        equipment: replacement.equipment ?? [],
-        notes: replacement.notes ?? null,
-        imageUrl: null,
-        imageTaskId: null,
-      },
-    });
+    // Le mouvement de base change : les anciennes variantes (alternatives de
+    // l'ancien mouvement) n'ont plus de sens, on les supprime.
+    const [updated] = await prisma.$transaction([
+      prisma.exercise.update({
+        where: { id },
+        data: {
+          name: replacement.name,
+          sets: replacement.sets,
+          reps: replacement.reps,
+          restSeconds: replacement.restSeconds,
+          weightHint: replacement.weightHint ?? null,
+          equipment: replacement.equipment ?? [],
+          notes: replacement.notes ?? null,
+          imageUrl: null,
+          imageTaskId: null,
+          videoUrl: null,
+          videoTaskId: null,
+          videoPrompt: null,
+        },
+      }),
+      prisma.exerciseVariation.deleteMany({ where: { exerciseId: id } }),
+    ]);
     return NextResponse.json({ exercise: updated });
   } catch (e) {
     console.error("substitute:", e);

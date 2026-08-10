@@ -99,6 +99,39 @@ export async function saveSettings(data: {
   revalidatePath("/settings");
 }
 
+// Épingle / désépingle un modèle ; renvoie la liste à jour pour que le
+// sélecteur reste synchronisé sans recharger la page.
+export async function togglePinnedModel(model: string): Promise<string[]> {
+  const id = model.trim();
+  if (!id) return [];
+  const current = await prisma.settings.upsert({
+    where: { id: 1 },
+    update: {},
+    create: { id: 1 },
+  });
+  const pinnedModels = current.pinnedModels.includes(id)
+    ? current.pinnedModels.filter((m) => m !== id)
+    : [...current.pinnedModels, id];
+
+  await prisma.settings.update({ where: { id: 1 }, data: { pinnedModels } });
+  revalidatePath("/settings");
+  revalidatePath("/programs/new");
+  return pinnedModels;
+}
+
+// Promeut un modèle en modèle par défaut, depuis n'importe quel écran.
+export async function setDefaultModel(model: string) {
+  const id = model.trim();
+  if (!id) return;
+  await prisma.settings.upsert({
+    where: { id: 1 },
+    update: { openrouterModel: id },
+    create: { id: 1, openrouterModel: id },
+  });
+  revalidatePath("/settings");
+  revalidatePath("/programs/new");
+}
+
 // ---------- Programmes ----------
 
 export async function saveProgram(
@@ -128,6 +161,18 @@ export async function saveProgram(
               weightHint: ex.weightHint ?? null,
               equipment: ex.equipment ?? [],
               notes: ex.notes ?? null,
+              variations: {
+                create: (ex.variations ?? []).map((v, vi) => ({
+                  order: vi,
+                  name: v.name,
+                  sets: v.sets,
+                  reps: v.reps,
+                  restSeconds: v.restSeconds,
+                  weightHint: v.weightHint ?? null,
+                  equipment: v.equipment ?? [],
+                  notes: v.notes ?? null,
+                })),
+              },
             })),
           },
         })),
@@ -227,7 +272,12 @@ export async function duplicateProgram(id: string): Promise<string> {
     include: {
       days: {
         orderBy: { dayIndex: "asc" },
-        include: { exercises: { orderBy: { order: "asc" } } },
+        include: {
+          exercises: {
+            orderBy: { order: "asc" },
+            include: { variations: { orderBy: { order: "asc" } } },
+          },
+        },
       },
     },
   });
@@ -254,6 +304,23 @@ export async function duplicateProgram(id: string): Promise<string> {
               equipment: ex.equipment,
               notes: ex.notes,
               imageUrl: ex.imageUrl,
+              videoUrl: ex.videoUrl,
+              videoPrompt: ex.videoPrompt,
+              variations: {
+                create: ex.variations.map((v) => ({
+                  order: v.order,
+                  name: v.name,
+                  sets: v.sets,
+                  reps: v.reps,
+                  restSeconds: v.restSeconds,
+                  weightHint: v.weightHint,
+                  equipment: v.equipment,
+                  notes: v.notes,
+                  imageUrl: v.imageUrl,
+                  videoUrl: v.videoUrl,
+                  videoPrompt: v.videoPrompt,
+                })),
+              },
             })),
           },
         })),
@@ -278,10 +345,41 @@ export async function startSession(dayId: string) {
     where: { dayId, completedAt: null },
     orderBy: { startedAt: "desc" },
   });
-  const session =
-    existing ??
-    (await prisma.workoutSession.create({ data: { dayId } }));
+  let session = existing;
+  if (!session) {
+    // N° de passage sur ce jour : pilote la rotation des variantes d'exercices.
+    const cycleIndex = await prisma.workoutSession.count({
+      where: { dayId, completedAt: { not: null } },
+    });
+    session = await prisma.workoutSession.create({
+      data: { dayId, cycleIndex },
+    });
+  }
   redirect(`/workout/${session.id}`);
+}
+
+// Choix manuel de variante pour un exercice, persisté sur la séance pour
+// survivre aux rechargements et reprises.
+export async function setSessionVariation(
+  sessionId: string,
+  exerciseId: string,
+  index: number
+) {
+  const session = await prisma.workoutSession.findUnique({
+    where: { id: sessionId },
+    select: { variationChoices: true },
+  });
+  if (!session) return;
+  const choices =
+    session.variationChoices &&
+    typeof session.variationChoices === "object" &&
+    !Array.isArray(session.variationChoices)
+      ? (session.variationChoices as Record<string, number>)
+      : {};
+  await prisma.workoutSession.update({
+    where: { id: sessionId },
+    data: { variationChoices: { ...choices, [exerciseId]: index } },
+  });
 }
 
 export async function abandonSession(sessionId: string) {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const exerciseSchema = z.object({
+const exerciseBaseShape = {
   name: z.string().min(1),
   sets: z.number().int().min(1).max(12),
   reps: z.string().min(1),
@@ -8,6 +8,14 @@ export const exerciseSchema = z.object({
   weightHint: z.string().nullish(),
   equipment: z.array(z.string()).default([]),
   notes: z.string().nullish(),
+};
+
+// Variante d'un exercice : mêmes muscles, jouée en alternance selon les passages.
+export const variationSchema = z.object(exerciseBaseShape);
+
+export const exerciseSchema = z.object({
+  ...exerciseBaseShape,
+  variations: z.array(variationSchema).max(2).default([]),
 });
 
 export const daySchema = z.object({
@@ -22,6 +30,7 @@ export const programDraftSchema = z.object({
   days: z.array(daySchema).min(1),
 });
 
+export type VariationDraft = z.infer<typeof variationSchema>;
 export type ExerciseDraft = z.infer<typeof exerciseSchema>;
 export type DayDraft = z.infer<typeof daySchema>;
 export type ProgramDraft = z.infer<typeof programDraftSchema>;

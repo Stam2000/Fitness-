@@ -89,16 +89,31 @@ export default async function HistoryPage() {
               </div>
             </summary>
             <div className="flex flex-col gap-2 border-t border-border p-4">
-              {session.day.exercises.map((ex) => {
+              {session.day.exercises.flatMap((ex) => {
                 const exLogs = session.setLogs.filter(
                   (l) => l.exerciseId === ex.id
                 );
-                if (exLogs.length === 0) return null;
-                return (
-                  <div key={ex.id}>
-                    <p className="text-sm font-medium">{ex.name}</p>
+                if (exLogs.length === 0) return [];
+                // Les séries sont affichées sous le mouvement réellement
+                // exécuté (variante ou exercice de base).
+                const byMove = new Map<string, typeof exLogs>();
+                for (const l of exLogs) {
+                  const move = l.variationName ?? ex.name;
+                  if (!byMove.has(move)) byMove.set(move, []);
+                  byMove.get(move)!.push(l);
+                }
+                return Array.from(byMove, ([move, moveLogs]) => (
+                  <div key={`${ex.id}:${move}`}>
+                    <p className="text-sm font-medium">
+                      {move}
+                      {move !== ex.name && (
+                        <span className="ml-1.5 text-xs text-muted">
+                          🔁 variante
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-muted">
-                      {exLogs
+                      {moveLogs
                         .map((l) =>
                           l.done
                             ? `${l.weightKg ?? "—"} kg × ${l.reps ?? "—"}`
@@ -107,7 +122,7 @@ export default async function HistoryPage() {
                         .join(" · ")}
                     </p>
                   </div>
-                );
+                ));
               })}
               {session.aiFeedback && (
                 <div className="mt-1 rounded-xl bg-surface-2 p-3">

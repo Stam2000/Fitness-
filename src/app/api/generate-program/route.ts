@@ -11,6 +11,8 @@ const requestSchema = z.object({
   daysPerWeek: z.number().int().min(1).max(7),
   sessionMinutes: z.number().int().min(15).max(180),
   notes: z.string().optional(),
+  // Modèle choisi pour cette génération ; sinon celui des Réglages.
+  model: z.string().trim().min(1).max(120).optional(),
 });
 
 function extractJson(text: string): unknown {
@@ -29,10 +31,11 @@ export async function POST(req: NextRequest) {
   if (!body.success) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
-  const { locationId, goal, level, daysPerWeek, sessionMinutes, notes } =
+  const { locationId, goal, level, daysPerWeek, sessionMinutes, notes, model } =
     body.data;
 
   const settings = await getSettings();
+  const selectedModel = model ?? settings.openrouterModel;
   if (!settings.openrouterApiKey) {
     return NextResponse.json(
       {
@@ -69,7 +72,18 @@ Tu réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ou après, re
           "restSeconds": 90,
           "weightHint": "conseil de charge (ex. 60-70% 1RM, ou 'modéré')",
           "equipment": ["équipement utilisé parmi la liste fournie"],
-          "notes": "conseil de technique court ou null"
+          "notes": "conseil de technique court ou null",
+          "variations": [
+            {
+              "name": "exercice alternatif ciblant les mêmes muscles",
+              "sets": 4,
+              "reps": "8-10",
+              "restSeconds": 120,
+              "weightHint": "conseil de charge",
+              "equipment": ["équipement utilisé parmi la liste fournie"],
+              "notes": "conseil de technique court ou null"
+            }
+          ]
         }
       ]
     }
@@ -80,7 +94,11 @@ Règles :
 - Le nombre de jours doit correspondre exactement à la demande.
 - Adapte le volume à la durée de séance demandée (échauffement compris).
 - "reps" est une chaîne : "8-12", "10", "30 s", "jusqu'à l'échec"…
-- "restSeconds" entre 30 et 240 selon l'intensité.`;
+- "restSeconds" entre 30 et 240 selon l'intensité.
+- "variations" : 0 à 2 exercices ALTERNATIFS ciblant EXACTEMENT les mêmes muscles que l'exercice de base, joués certaines semaines à sa place pour varier les stimuli.
+- Ne propose une variation QUE si l'équipement listé permet une alternative réellement différente et pertinente ; sinon "variations": [].
+- Une variation utilise elle aussi exclusivement l'équipement listé.
+- Si plusieurs objectifs sont indiqués (séparés par « + »), conçois le programme pour les concilier équitablement (choix d'exercices, fourchettes de reps, temps de repos, cardio/finishers si pertinent).`;
 
   const userPrompt = `Crée un programme :
 - Contexte : ${location.name}
@@ -101,7 +119,7 @@ ${notes ? `- Précisions de l'utilisateur : ${notes}` : ""}`;
         "X-Title": "Mon Coach Fitness",
       },
       body: JSON.stringify({
-        model: settings.openrouterModel,
+        model: selectedModel,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -112,7 +130,7 @@ ${notes ? `- Précisions de l'utilisateur : ${notes}` : ""}`;
 
     if (!res.ok) {
       const errText = await res.text();
-      let message = `Erreur OpenRouter (${res.status})`;
+      let message = `Erreur OpenRouter (${res.status}) avec le modèle « ${selectedModel} »`;
       try {
         const parsed = JSON.parse(errText);
         if (parsed?.error?.message) message += ` : ${parsed.error.message}`;

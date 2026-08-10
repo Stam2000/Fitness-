@@ -59,9 +59,9 @@ model ProgramDay {
 }
 
 model Exercise {
-  id          String     @id @default(cuid())
+  id          String              @id @default(cuid())
   dayId       String
-  day         ProgramDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  day         ProgramDay          @relation(fields: [dayId], references: [id], onDelete: Cascade)
   order       Int
   name        String
   sets        Int
@@ -72,30 +72,62 @@ model Exercise {
   notes       String?
   imageUrl    String?
   imageTaskId String?
+  // Vidéo de démonstration du mouvement (Seedance via Kie.ai) et le prompt
+  // détaillé qui a servi à la générer.
+  videoUrl    String?
+  videoTaskId String?
+  videoPrompt String?
   setLogs     SetLog[]
+  variations  ExerciseVariation[]
+}
+
+// Variante d'un exercice (mêmes muscles), jouée en alternance selon les passages.
+model ExerciseVariation {
+  id          String   @id @default(cuid())
+  exerciseId  String
+  exercise    Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  order       Int
+  name        String
+  sets        Int
+  reps        String
+  restSeconds Int
+  weightHint  String?
+  equipment   String[]
+  notes       String?
+  imageUrl    String?
+  imageTaskId String?
+  videoUrl    String?
+  videoTaskId String?
+  videoPrompt String?
 }
 
 model WorkoutSession {
-  id          String     @id @default(cuid())
-  dayId       String
-  day         ProgramDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  startedAt   DateTime   @default(now())
-  completedAt DateTime?
-  notes       String?
-  aiFeedback  String?
-  setLogs     SetLog[]
+  id               String     @id @default(cuid())
+  dayId            String
+  day              ProgramDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  startedAt        DateTime   @default(now())
+  completedAt      DateTime?
+  notes            String?
+  aiFeedback       String?
+  setLogs          SetLog[]
+  // N° de passage sur ce jour, figé au démarrage de la séance.
+  cycleIndex       Int        @default(0)
+  // Overrides manuels de variante : { [exerciseId]: index choisi }.
+  variationChoices Json       @default("{}")
 }
 
 model SetLog {
-  id         String         @id @default(cuid())
-  sessionId  String
-  session    WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  exerciseId String
-  exercise   Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-  setIndex   Int
-  reps       Int?
-  weightKg   Float?
-  done       Boolean        @default(false)
+  id            String         @id @default(cuid())
+  sessionId     String
+  session       WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId    String
+  exercise      Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  setIndex      Int
+  reps          Int?
+  weightKg      Float?
+  done          Boolean        @default(false)
+  // Nom de la variante réellement exécutée (null = exercice de base).
+  variationName String?
 
   @@unique([sessionId, exerciseId, setIndex])
 }
@@ -104,6 +136,8 @@ model Settings {
   id               Int     @id @default(1)
   openrouterApiKey String?
   openrouterModel  String  @default("openai/gpt-4o-mini")
+  // Modèles épinglés, remontés en tête de liste dans le sélecteur.
+  pinnedModels     String[]
   kieApiKey        String?
   voiceInput       Boolean @default(true)
   voiceAnnounce    Boolean @default(true)

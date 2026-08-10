@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { activeVariationIndex } from "@/lib/variants";
 
 const warmupSchema = z.object({
   moves: z
@@ -43,15 +44,29 @@ export async function POST(
   const session = await prisma.workoutSession.findUnique({
     where: { id },
     include: {
-      day: { include: { exercises: { orderBy: { order: "asc" } } } },
+      day: {
+        include: {
+          exercises: {
+            orderBy: { order: "asc" },
+            include: { variations: { orderBy: { order: "asc" } } },
+          },
+        },
+      },
     },
   });
   if (!session) {
     return NextResponse.json({ error: "Séance introuvable" }, { status: 404 });
   }
 
+  // L'échauffement cible les mouvements réellement joués cette séance
+  // (variante active plutôt que l'exercice de base le cas échéant).
+  const plannedNames = session.day.exercises.map((ex) => {
+    const idx = activeVariationIndex(session, ex);
+    return idx === 0 ? ex.name : ex.variations[idx - 1].name;
+  });
+
   const prompt = `Séance à venir : « ${session.day.name} »${session.day.focus ? ` (${session.day.focus})` : ""}.
-Exercices prévus : ${session.day.exercises.map((e) => e.name).join(", ")}.
+Exercices prévus : ${plannedNames.join(", ")}.
 
 Propose un échauffement ciblé d'environ 5 minutes, sans matériel, préparant spécifiquement les muscles et articulations sollicités. Réponds UNIQUEMENT avec un objet JSON :
 {"moves": [{"name": "nom du mouvement en français", "seconds": 45}]}

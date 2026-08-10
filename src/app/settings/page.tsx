@@ -25,6 +25,7 @@ export default async function SettingsPage() {
             Boolean(process.env.OPENROUTER_API_KEY),
           hasKieKey: Boolean(s.kieApiKey) || Boolean(process.env.KIE_API_KEY),
           openrouterModel: s.openrouterModel,
+          pinnedModels: s.pinnedModels,
           voiceInput: s.voiceInput,
           voiceAnnounce: s.voiceAnnounce,
         }}

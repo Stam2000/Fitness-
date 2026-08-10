@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 export type ResolvedSettings = {
   openrouterApiKey: string | null;
   openrouterModel: string;
+  pinnedModels: string[];
   kieApiKey: string | null;
   voiceInput: boolean;
   voiceAnnounce: boolean;
@@ -19,6 +20,7 @@ export async function getSettings(): Promise<ResolvedSettings> {
     openrouterApiKey:
       s.openrouterApiKey || process.env.OPENROUTER_API_KEY || null,
     openrouterModel: s.openrouterModel,
+    pinnedModels: s.pinnedModels,
     kieApiKey: s.kieApiKey || process.env.KIE_API_KEY || null,
     voiceInput: s.voiceInput,
     voiceAnnounce: s.voiceAnnounce,

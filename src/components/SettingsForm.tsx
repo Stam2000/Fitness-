@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { saveSettings } from "@/app/actions";
-
-type ModelOption = { id: string; name: string };
+import ModelPicker from "@/components/ModelPicker";
 
 export default function SettingsForm({
   initial,
@@ -12,6 +11,7 @@ export default function SettingsForm({
     hasOpenrouterKey: boolean;
     hasKieKey: boolean;
     openrouterModel: string;
+    pinnedModels: string[];
     voiceInput: boolean;
     voiceAnnounce: boolean;
   };
@@ -19,33 +19,17 @@ export default function SettingsForm({
   const [openrouterKey, setOpenrouterKey] = useState("");
   const [kieKey, setKieKey] = useState("");
   const [model, setModel] = useState(initial.openrouterModel);
-  const [modelSearch, setModelSearch] = useState("");
-  const [models, setModels] = useState<ModelOption[]>([]);
-  const [modelsError, setModelsError] = useState(false);
   const [voiceInput, setVoiceInput] = useState(initial.voiceInput);
   const [voiceAnnounce, setVoiceAnnounce] = useState(initial.voiceAnnounce);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    fetch("/api/openrouter/models")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data: ModelOption[]) => setModels(data))
-      .catch(() => setModelsError(true));
-  }, []);
-
-  const filtered = modelSearch
-    ? models.filter((m) =>
-        `${m.id} ${m.name}`.toLowerCase().includes(modelSearch.toLowerCase())
-      )
-    : models;
 
   function submit() {
     startTransition(async () => {
       await saveSettings({
         openrouterApiKey: openrouterKey,
         kieApiKey: kieKey,
-        openrouterModel: model,
+        openrouterModel: model.trim(),
         voiceInput,
         voiceAnnounce,
       });
@@ -82,39 +66,19 @@ export default function SettingsForm({
       </section>
 
       <section className="rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-semibold">Modèle d&apos;IA</h2>
-        <p className="mt-1 text-xs text-muted">
-          Modèle OpenRouter utilisé pour générer les programmes.
+        <h2 className="font-semibold">Modèle d&apos;IA par défaut</h2>
+        <p className="mt-1 mb-2 text-xs text-muted">
+          Utilisé pour les programmes, l&apos;échauffement, les substitutions
+          d&apos;exercices et les adaptations. Épingle tes modèles favoris pour
+          les retrouver en tête de liste ; le modèle enregistré ici est marqué
+          ⭐.
         </p>
-        <input
-          value={modelSearch}
-          onChange={(e) => setModelSearch(e.target.value)}
-          placeholder="Rechercher un modèle…"
-          className="mt-2 w-full rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
+        <ModelPicker
+          value={model}
+          onChange={setModel}
+          initialPinned={initial.pinnedModels}
+          defaultModel={initial.openrouterModel}
         />
-        {modelsError ? (
-          <input
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder="ex. openai/gpt-4o-mini"
-            className="mt-2 w-full rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
-          />
-        ) : (
-          <select
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            className="mt-2 w-full rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-sm"
-          >
-            {!filtered.some((m) => m.id === model) && (
-              <option value={model}>{model}</option>
-            )}
-            {filtered.slice(0, 200).map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        )}
       </section>
 
       <section className="rounded-2xl border border-border bg-surface p-4">

@@ -18,7 +18,12 @@ export default async function ProgramPage({
         location: true,
         days: {
           orderBy: { dayIndex: "asc" },
-          include: { exercises: { orderBy: { order: "asc" } } },
+          include: {
+            exercises: {
+              orderBy: { order: "asc" },
+              include: { variations: { orderBy: { order: "asc" } } },
+            },
+          },
         },
       },
     }),
@@ -59,6 +64,22 @@ export default async function ProgramPage({
             notes: ex.notes,
             imageUrl: ex.imageUrl,
             imageTaskId: ex.imageTaskId,
+            videoUrl: ex.videoUrl,
+            videoTaskId: ex.videoTaskId,
+            variations: ex.variations.map((v) => ({
+              id: v.id,
+              name: v.name,
+              sets: v.sets,
+              reps: v.reps,
+              restSeconds: v.restSeconds,
+              weightHint: v.weightHint,
+              equipment: v.equipment,
+              notes: v.notes,
+              imageUrl: v.imageUrl,
+              imageTaskId: v.imageTaskId,
+              videoUrl: v.videoUrl,
+              videoTaskId: v.videoTaskId,
+            })),
           })),
         })),
       }}

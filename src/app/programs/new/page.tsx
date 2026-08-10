@@ -29,6 +29,8 @@ export default async function NewProgramPage() {
           equipmentCount: l._count.equipment,
         }))}
         hasOpenrouterKey={Boolean(settings.openrouterApiKey)}
+        defaultModel={settings.openrouterModel}
+        pinnedModels={settings.pinnedModels}
       />
     </main>
   );
