@@ -9,6 +9,8 @@ import {
   startSession,
   updateProgram,
 } from "@/app/actions";
+import { btn } from "@/components/ui/button";
+import Chip from "@/components/ui/Chip";
 
 type VariationView = {
   id: string;
@@ -257,7 +259,9 @@ export default function ProgramDetail({
     return (
       <main className="flex flex-col gap-4">
         <header className="flex items-center justify-between pt-2">
-          <h1 className="text-xl font-bold">Modifier le programme</h1>
+          <h1 className="text-xl font-extrabold italic tracking-tight">
+            Modifier le programme
+          </h1>
           <button onClick={() => setEditing(false)} className="text-sm text-muted">
             Annuler
           </button>
@@ -280,76 +284,84 @@ export default function ProgramDetail({
     <main className="flex flex-col gap-4">
       <header className="pt-2">
         <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-bold">{program.name}</h1>
+          <h1 className="text-[21px] font-extrabold italic leading-tight tracking-tight">
+            {program.name}
+          </h1>
           <button
             onClick={() => setEditing(true)}
-            className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-sm"
+            className="shrink-0 rounded-full border border-border px-3.5 py-2 text-sm"
           >
-            ✏️ Modifier
+            ✏️
           </button>
         </div>
-        <p className="mt-1 text-sm text-muted">
+        <p className="mt-1 text-[13.5px] text-muted-2">
           {[program.locationLabel, program.goal, program.level]
             .filter(Boolean)
             .join(" · ")}
         </p>
         {program.description && (
-          <p className="mt-2 text-sm text-muted">{program.description}</p>
+          <p className="mt-2 text-sm text-muted-2">{program.description}</p>
         )}
       </header>
 
       {(missingImages > 0 || missingVideos > 0) && (
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-wrap gap-2">
           {missingImages > 0 && (
             <button
               onClick={() => generateAll("image")}
-              className="flex-1 rounded-xl border border-accent/50 bg-accent/10 py-3 text-sm font-semibold text-accent"
+              className={btn("tint", "md")}
             >
-              🎨 Générer les images ({missingImages})
+              🎨 Images ({missingImages})
             </button>
           )}
           {missingVideos > 0 && (
             <button
               onClick={() => generateAll("video")}
-              className="flex-1 rounded-xl border border-accent/50 bg-accent/10 py-3 text-sm font-semibold text-accent"
+              className={btn("tint", "md")}
             >
-              🎬 Générer les vidéos ({missingVideos})
+              🎬 Vidéos ({missingVideos})
             </button>
           )}
         </div>
       )}
 
       {program.days.map((day, di) => (
-        <section
-          key={day.id}
-          className="rounded-2xl border border-border bg-surface"
-        >
+        <section key={day.id} className="card">
           <button
             onClick={() => setOpenDay(openDay === di ? -1 : di)}
-            className="flex w-full items-center justify-between p-4 text-left"
+            className="flex w-full items-center gap-3.5 p-4 text-left"
           >
-            <div>
-              <h2 className="font-semibold">{day.name}</h2>
-              <p className="text-xs text-muted">
+            <span
+              className={`font-mono text-[22px] font-extrabold ${
+                openDay === di ? "text-accent" : "text-muted/60"
+              }`}
+            >
+              {String(di + 1).padStart(2, "0")}
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-[15.5px] font-extrabold">
+                {day.name}
+              </h2>
+              <p className="text-[12.5px] text-muted-2">
                 {day.focus ? `${day.focus} · ` : ""}
                 {day.exercises.length} exercice
-                {day.exercises.length > 1 ? "s" : ""}
+                {day.exercises.length > 1 ? "s" : ""} ·{" "}
+                {day.exercises.reduce((a, e) => a + e.sets, 0)} séries
               </p>
             </div>
-            <span className="text-muted">{openDay === di ? "▾" : "▸"}</span>
+            <span className={openDay === di ? "text-accent" : "text-muted-2"}>
+              {openDay === di ? "▾" : "▸"}
+            </span>
           </button>
 
           {openDay === di && (
-            <div className="flex flex-col gap-3 border-t border-border p-3">
+            <div className="flex flex-col gap-3.5 border-t border-card-border p-3">
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {day.exercises.map((ex) => {
                 const img = media[mediaKey("image", ex.id)];
                 const vid = media[mediaKey("video", ex.id)];
                 return (
-                  <div
-                    key={ex.id}
-                    className="overflow-hidden rounded-xl bg-surface-2"
-                  >
+                  <div key={ex.id} className="card overflow-hidden">
                     {vid?.status === "done" && vid.url ? (
                       <video
                         src={vid.url}
@@ -361,14 +373,20 @@ export default function ProgramDetail({
                         className="aspect-video w-full bg-black object-contain"
                       />
                     ) : img?.status === "done" && img.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={img.url}
-                        alt={ex.name}
-                        className="aspect-[3/2] w-full object-cover"
-                      />
+                      <div className="relative aspect-[3/2] w-full">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={img.url}
+                          alt={ex.name}
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
+                        <p className="absolute bottom-2.5 left-3.5 right-3.5 text-[17.5px] font-extrabold leading-tight text-white">
+                          {ex.name}
+                        </p>
+                      </div>
                     ) : (
-                      <div className="flex aspect-[3/2] w-full flex-col items-center justify-center gap-2 bg-bg/60">
+                      <div className="relative flex aspect-[3/2] w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-surface-2 to-bg">
                         {img?.status === "generating" ? (
                           <>
                             <span className="animate-pulse text-3xl">🎨</span>
@@ -383,7 +401,7 @@ export default function ProgramDetail({
                               onClick={() =>
                                 generateMedia("image", "exercise", ex.id)
                               }
-                              className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted"
+                              className="rounded-full border border-border px-3.5 py-1.5 text-xs text-muted-2"
                             >
                               {img?.status === "error"
                                 ? "Réessayer l'image"
@@ -396,23 +414,51 @@ export default function ProgramDetail({
                             )}
                           </>
                         )}
+                        <p className="absolute bottom-2.5 left-3.5 right-3.5 text-[17.5px] font-extrabold leading-tight">
+                          {ex.name}
+                        </p>
                       </div>
                     )}
-                    <div className="p-3">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <h3 className="font-medium">{ex.name}</h3>
+                    <div className="p-3.5">
+                      {(vid?.status === "done" && vid.url) && (
+                        <h3 className="mb-1.5 text-[17.5px] font-extrabold leading-tight">
+                          {ex.name}
+                        </h3>
+                      )}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="rounded-full bg-accent px-3 py-1.5 text-[13.5px] font-extrabold text-black">
+                          {ex.sets} × {ex.reps}
+                        </span>
+                        <span className="rounded-full bg-surface-2 px-3 py-1.5 text-[12.5px] font-semibold">
+                          ⏱ {ex.restSeconds} s
+                        </span>
+                        {ex.equipment.length > 0 && (
+                          <span className="max-w-full truncate rounded-full bg-surface-2 px-3 py-1.5 text-[12.5px] font-semibold text-muted-2">
+                            🏋️ {ex.equipment.join(", ")}
+                          </span>
+                        )}
+                      </div>
+                      {ex.weightHint && (
+                        <p className="mt-1.5 text-xs text-muted-2">
+                          ⚖️ {ex.weightHint}
+                        </p>
+                      )}
+                      {ex.notes && (
+                        <p className="mt-1.5 text-[13px] leading-relaxed text-muted-2">
+                          💡 {ex.notes}
+                        </p>
+                      )}
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                         {img?.status === "done" && (
                           <button
                             onClick={() =>
                               generateMedia("image", "exercise", ex.id)
                             }
-                            className="shrink-0 text-xs text-muted underline"
+                            className="text-muted underline"
                           >
-                            régénérer
+                            🎨 régénérer l&apos;image
                           </button>
                         )}
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
                         {vid?.status === "generating" ? (
                           <span className="animate-pulse text-muted">
                             🎬 Génération de la vidéo… (1-3 min)
@@ -424,14 +470,14 @@ export default function ProgramDetail({
                             }
                             className="text-muted underline"
                           >
-                            régénérer la vidéo
+                            🎬 régénérer la vidéo
                           </button>
                         ) : (
                           <button
                             onClick={() =>
                               generateMedia("video", "exercise", ex.id)
                             }
-                            className="rounded-lg border border-border px-2.5 py-1 text-muted"
+                            className="rounded-full border border-border px-3 py-1.5 text-muted-2"
                           >
                             🎬{" "}
                             {vid?.status === "error"
@@ -445,25 +491,9 @@ export default function ProgramDetail({
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-sm text-accent">
-                        {ex.sets} × {ex.reps}
-                        <span className="text-muted">
-                          {" "}
-                          · repos {ex.restSeconds}s
-                          {ex.weightHint ? ` · ${ex.weightHint}` : ""}
-                        </span>
-                      </p>
-                      {ex.equipment.length > 0 && (
-                        <p className="mt-1 text-xs text-muted">
-                          🏋️ {ex.equipment.join(", ")}
-                        </p>
-                      )}
-                      {ex.notes && (
-                        <p className="mt-1 text-xs text-muted">💡 {ex.notes}</p>
-                      )}
                       {ex.variations.length > 0 && (
-                        <div className="mt-2 border-t border-border pt-2">
-                          <p className="text-xs font-semibold text-muted">
+                        <div className="mt-2.5 border-t border-card-border pt-2.5">
+                          <p className="text-xs font-bold text-muted-2">
                             🔁 En alternance selon les semaines :
                           </p>
                           {ex.variations.map((v, vi) => {
@@ -472,21 +502,21 @@ export default function ProgramDetail({
                             return (
                               <div
                                 key={v.id}
-                                className="mt-1.5 flex items-center gap-2"
+                                className="mt-2 flex items-center gap-2.5"
                               >
                                 {vimg?.status === "done" && vimg.url ? (
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img
                                     src={vimg.url}
                                     alt={v.name}
-                                    className="h-10 w-14 shrink-0 rounded-md object-cover"
+                                    className="h-[34px] w-[46px] shrink-0 rounded-lg object-cover"
                                   />
                                 ) : (
                                   <button
                                     onClick={() =>
                                       generateMedia("image", "variation", v.id)
                                     }
-                                    className="flex h-10 w-14 shrink-0 items-center justify-center rounded-md bg-bg/60 text-sm"
+                                    className="flex h-[34px] w-[46px] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-surface-2 to-bg text-sm"
                                     aria-label={`Générer l'image de ${v.name}`}
                                   >
                                     {vimg?.status === "generating" ? (
@@ -496,11 +526,14 @@ export default function ProgramDetail({
                                     )}
                                   </button>
                                 )}
-                                <p className="min-w-0 flex-1 text-xs text-muted">
-                                  <span className="font-medium text-ink">
+                                <p className="min-w-0 flex-1 text-[12.5px] leading-snug text-muted-2">
+                                  <span className="font-bold text-ink">
                                     {String.fromCharCode(66 + vi)} · {v.name}
                                   </span>{" "}
-                                  — {v.sets} × {v.reps} · repos {v.restSeconds}s
+                                  —{" "}
+                                  <span className="font-mono">
+                                    {v.sets} × {v.reps} · repos {v.restSeconds} s
+                                  </span>
                                 </p>
                                 {vvid?.status === "done" && vvid.url ? (
                                   <a
@@ -548,7 +581,7 @@ export default function ProgramDetail({
               <form action={startSession.bind(null, day.id)}>
                 <button
                   type="submit"
-                  className="w-full rounded-xl bg-accent py-3.5 font-semibold text-black"
+                  className={btn("primary", "lg", "w-full text-[17px]")}
                 >
                   ▶️ Démarrer cette séance
                 </button>
@@ -570,38 +603,35 @@ export default function ProgramDetail({
             }
           }}
           disabled={duplicating}
-          className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold disabled:opacity-50"
+          className={btn("outline", "md", "flex-1")}
         >
           {duplicating ? "Duplication…" : "📋 Dupliquer"}
         </button>
         {hasOpenrouterKey && locations.length > 1 && (
           <button
             onClick={() => setShowConvert((v) => !v)}
-            className="flex-1 rounded-xl border border-border py-3 text-sm font-semibold"
+            className={btn("outline", "md", "flex-1")}
           >
-            🔄 Adapter à un contexte
+            🔄 Adapter
           </button>
         )}
       </div>
 
       {showConvert && (
-        <div className="rounded-2xl border border-border bg-surface p-3">
-          <p className="text-sm font-semibold">
+        <div className="card p-3.5">
+          <p className="text-sm font-extrabold">
             Adapter ce programme à l&apos;équipement de :
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-2.5 flex flex-wrap gap-2">
             {locations.map((l) => (
-              <button
+              <Chip
                 key={l.id}
+                active={convertTarget === l.id}
+                activeStyle="solid"
                 onClick={() => setConvertTarget(l.id)}
-                className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${
-                  convertTarget === l.id
-                    ? "bg-accent text-black"
-                    : "border border-border"
-                }`}
               >
                 {l.icon} {l.name}
-              </button>
+              </Chip>
             ))}
           </div>
           {convertError && (
@@ -631,7 +661,7 @@ export default function ProgramDetail({
               }
             }}
             disabled={!convertTarget || converting}
-            className="mt-3 w-full rounded-xl bg-accent py-3 text-sm font-semibold text-black disabled:opacity-50"
+            className={btn("primary", "md", "mt-3 w-full")}
           >
             {converting
               ? "🤖 Adaptation en cours… (10-30 s)"
@@ -646,7 +676,7 @@ export default function ProgramDetail({
             deleteProgram(program.id);
           }
         }}
-        className="pb-2 text-sm text-danger"
+        className="pb-2 text-sm font-semibold text-danger"
       >
         Supprimer ce programme
       </button>
