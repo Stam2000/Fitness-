@@ -112,6 +112,9 @@ model Exercise {
   // Temps de transition vers l'exercice suivant (installation), défini par l'IA.
   transitionSeconds Int?
   notes       String?
+  // Description détaillée d'exécution (position, étapes, respiration,
+  // erreurs), générée par l'IA à la demande puis mémorisée.
+  howTo       String?
   imageUrl    String?
   imageTaskId String?
   // Vidéo de démonstration du mouvement (Seedance via Kie.ai) et le prompt
@@ -142,6 +145,8 @@ model ExerciseVariation {
   // Temps cible d'exécution d'UNE série, défini par l'IA.
   setSeconds    Int?
   notes       String?
+  // Description détaillée d'exécution, générée par l'IA à la demande.
+  howTo       String?
   imageUrl    String?
   imageTaskId String?
   videoUrl    String?

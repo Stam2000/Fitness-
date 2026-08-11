@@ -126,6 +126,20 @@ export default function ProgramDetail({
   const [aiEditBusy, setAiEditBusy] = useState(false);
   const [aiEditError, setAiEditError] = useState<string | null>(null);
   const [aiDraft, setAiDraft] = useState<EditableProgram | null>(null);
+  // Description détaillée d'exécution (générée à la demande, mémorisée).
+  const [howToSheet, setHowToSheet] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [howToText, setHowToText] = useState<string | null>(null);
+  const [howToLoading, setHowToLoading] = useState(false);
+  const [howToError, setHowToError] = useState<string | null>(null);
+  // Génération de variantes alternatives par l'IA (exercice en cours + erreur).
+  const [variantsBusy, setVariantsBusy] = useState<string | null>(null);
+  const [variantsError, setVariantsError] = useState<{
+    id: string;
+    msg: string;
+  } | null>(null);
   const [convertTarget, setConvertTarget] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
   const [convertError, setConvertError] = useState<string | null>(null);
@@ -289,6 +303,62 @@ export default function ProgramDetail({
       setAiEditError("Erreur réseau. Vérifie ta connexion et réessaie.");
     } finally {
       setAiEditBusy(false);
+    }
+  }
+
+  // Ouvre la description d'exécution : renvoyée telle quelle si déjà
+  // mémorisée, générée par l'IA sinon (force = régénérer).
+  async function openHowTo(id: string, name: string, force = false) {
+    setHowToSheet({ id, name });
+    setHowToLoading(true);
+    setHowToError(null);
+    if (!force) setHowToText(null);
+    try {
+      const res = await fetch(`/api/exercises/${id}/description`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setHowToError(json.error ?? "Erreur lors de la génération.");
+        return;
+      }
+      setHowToText(json.howTo);
+    } catch {
+      setHowToError("Erreur réseau. Réessaie.");
+    } finally {
+      setHowToLoading(false);
+    }
+  }
+
+  // Demande à l'IA 2 exercices alternatifs (mêmes muscles, catalogue en
+  // priorité) et les enregistre comme variantes en rotation.
+  async function generateVariants(ex: ExerciseView) {
+    if (
+      ex.variations.length > 0 &&
+      !confirm(
+        "Remplacer les variantes actuelles par de nouvelles propositions IA ?"
+      )
+    ) {
+      return;
+    }
+    setVariantsBusy(ex.id);
+    setVariantsError(null);
+    try {
+      const res = await fetch(`/api/exercises/${ex.id}/variations`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setVariantsError({ id: ex.id, msg: json.error ?? "Erreur" });
+        return;
+      }
+      router.refresh();
+    } catch {
+      setVariantsError({ id: ex.id, msg: "Erreur réseau. Réessaie." });
+    } finally {
+      setVariantsBusy(null);
     }
   }
 
@@ -707,6 +777,30 @@ export default function ProgramDetail({
                             {vid.error}
                           </span>
                         )}
+                        <button
+                          onClick={() => openHowTo(ex.id, ex.name)}
+                          className="rounded-full border border-border px-3 py-1.5 text-muted-2"
+                        >
+                          📖 Exécution
+                        </button>
+                        {hasOpenrouterKey && (
+                          <button
+                            onClick={() => generateVariants(ex)}
+                            disabled={variantsBusy === ex.id}
+                            className="rounded-full border border-border px-3 py-1.5 text-muted-2 disabled:opacity-60"
+                          >
+                            {variantsBusy === ex.id
+                              ? "🔀 Génération…"
+                              : ex.variations.length > 0
+                                ? "🔀 Nouvelles variantes"
+                                : "🔀 Variantes IA"}
+                          </button>
+                        )}
+                        {variantsError?.id === ex.id && (
+                          <span className="text-[10px] text-danger">
+                            {variantsError.msg}
+                          </span>
+                        )}
                       </div>
                       {ex.variations.length > 0 && (
                         <div className="mt-2.5 border-t border-card-border pt-2.5">
@@ -937,6 +1031,33 @@ export default function ProgramDetail({
             ? "🤖 Modification en cours… (10-30 s)"
             : "Proposer les modifications"}
         </button>
+      </BottomSheet>
+
+      <BottomSheet open={howToSheet !== null} onClose={() => setHowToSheet(null)}>
+        <h2 className="text-lg font-extrabold italic">
+          📖 {howToSheet?.name}
+        </h2>
+        <div className="mt-3 max-h-[60vh] overflow-y-auto">
+          {howToLoading ? (
+            <p className="animate-pulse text-sm text-muted">
+              🤖 Génération de la description… (5-15 s)
+            </p>
+          ) : howToError ? (
+            <p className="text-sm text-danger">{howToError}</p>
+          ) : howToText ? (
+            <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-muted-2">
+              {howToText}
+            </p>
+          ) : null}
+        </div>
+        {howToText && !howToLoading && howToSheet && hasOpenrouterKey && (
+          <button
+            onClick={() => openHowTo(howToSheet.id, howToSheet.name, true)}
+            className="mt-3 text-xs font-semibold text-muted underline"
+          >
+            ↺ Régénérer la description
+          </button>
+        )}
       </BottomSheet>
 
       <MusclePreviewSheet
