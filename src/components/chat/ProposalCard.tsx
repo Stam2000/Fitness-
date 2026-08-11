@@ -1,6 +1,14 @@
 "use client";
 
-import { Check, Loader2, Replace, Shuffle, WandSparkles, X } from "lucide-react";
+import {
+  Check,
+  ClipboardList,
+  Loader2,
+  Replace,
+  Shuffle,
+  WandSparkles,
+  X,
+} from "lucide-react";
 import type { ChatProposal } from "@/lib/chat-shared";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +19,7 @@ const KIND_META: Record<
   program_edit: { title: "Modification du programme", Icon: WandSparkles },
   substitution: { title: "Remplacement d'exercice", Icon: Replace },
   variations: { title: "Nouvelles variantes", Icon: Shuffle },
+  set_logs: { title: "Correction des séries", Icon: ClipboardList },
 };
 
 type ProposalCardProps = {
@@ -102,6 +111,20 @@ export default function ProposalCard({
             <p className="text-xs text-muted-2">
               Remplace les variantes existantes de cet exercice.
             </p>
+          </>
+        )}
+
+        {proposal.kind === "set_logs" && (
+          <>
+            <p>
+              <span className="text-ink">{proposal.exerciseName}</span> —{" "}
+              {proposal.sessionLabel}
+            </p>
+            {proposal.changes.map((c, i) => (
+              <p key={i} className="leading-snug">
+                • {c}
+              </p>
+            ))}
           </>
         )}
       </div>

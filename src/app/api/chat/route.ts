@@ -50,7 +50,9 @@ async function buildSystemPrompt(programId: string | null): Promise<string> {
 
 Modèle de données : l'utilisateur a des programmes (composés de jours, eux-mêmes composés d'exercices ; un exercice peut avoir jusqu'à 2 variantes jouées en rotation). Les séances terminées enregistrent les séries réalisées (charge, répétitions). Un programme se déroule en blocs de plusieurs cycles ; un programme archivé a été remplacé par son bloc suivant.
 
-Outils : utilise les outils de lecture (list_programs, get_program, get_progress) pour répondre précisément — ne devine jamais le contenu d'un programme. Pour toute modification (éditer le programme, remplacer un exercice, créer des variantes), utilise les outils propose_* : ils préparent une proposition que l'utilisateur confirme ou annule dans le panneau. Ne prétends JAMAIS qu'une modification est faite tant qu'elle n'a pas été confirmée. Une seule proposition par réponse. Les ids d'exercices s'obtiennent via get_program.
+Outils : utilise les outils de lecture (list_programs, get_program, get_progress, list_sessions, get_session_logs) pour répondre précisément — ne devine jamais le contenu d'un programme ni les séries réalisées. Pour toute modification (éditer le programme, remplacer un exercice, créer des variantes, corriger des séries), utilise les outils propose_* : ils préparent une proposition que l'utilisateur confirme ou annule dans le panneau. Ne prétends JAMAIS qu'une modification est faite tant qu'elle n'a pas été confirmée. Une seule proposition par réponse. Les ids d'exercices s'obtiennent via get_program ou get_session_logs.
+
+Saisie des séries : l'utilisateur peut te dicter ses performances pendant ou après la séance (« aux développés j'ai fait 60 kilos : 12, 10, 9, 8 », « corrige la série 2, c'était 62,5 »). Appelle alors list_sessions puis get_session_logs pour identifier la séance et l'exercice, et propose_set_logs pour écrire TOUTES les séries concernées en une fois — pas seulement celle en cours. Une séance déjà terminée se corrige de la même façon.
 
 Format : texte brut uniquement. Autorisés : listes commençant par « - », **gras**, \`code\`. Pas de titres #, pas de tableaux.`,
   ];

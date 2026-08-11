@@ -67,6 +67,94 @@ export const CHAT_TOOLS = [
   {
     type: "function",
     function: {
+      name: "list_sessions",
+      description:
+        "Liste les séances récentes (terminées et en cours) avec leur id, leur date et leur avancement. Point de départ pour lire ou corriger les séries réalisées.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: {
+            type: "number",
+            description: "Nombre de séances à renvoyer (défaut 10, max 30)",
+          },
+          onlyToday: {
+            type: "boolean",
+            description:
+              "Limiter aux séances commencées aujourd'hui (optionnel)",
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_session_logs",
+      description:
+        "Renvoie le détail des séries d'une séance : pour chaque exercice, son exerciseId et chaque série (numéro à partir de 1, charge, répétitions, faite ou non). Indispensable avant propose_set_logs. Sans sessionId, prend la séance la plus récente.",
+      parameters: {
+        type: "object",
+        properties: {
+          sessionId: {
+            type: "string",
+            description: "Id de la séance (via list_sessions)",
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "propose_set_logs",
+      description:
+        "Prépare la saisie ou la correction des séries réalisées d'UN exercice, dans une séance en cours ou déjà terminée (charge mal saisie, répétitions oubliées, série à marquer passée…). Plusieurs séries peuvent être corrigées en une fois. La proposition doit être confirmée par l'utilisateur — elle n'est pas appliquée par cet outil. Appelle d'abord get_session_logs pour connaître les ids et les valeurs actuelles.",
+      parameters: {
+        type: "object",
+        properties: {
+          sessionId: { type: "string", description: "Id de la séance" },
+          exerciseId: {
+            type: "string",
+            description: "Id de l'exercice (via get_session_logs)",
+          },
+          sets: {
+            type: "array",
+            description:
+              "Séries à écrire. Seules les séries listées changent ; un champ omis garde sa valeur actuelle.",
+            items: {
+              type: "object",
+              properties: {
+                setNumber: {
+                  type: "number",
+                  description: "Numéro de la série, à partir de 1",
+                },
+                weightKg: {
+                  type: "number",
+                  description: "Charge en kg (null pour effacer)",
+                },
+                reps: {
+                  type: "number",
+                  description: "Répétitions effectuées (null pour effacer)",
+                },
+                done: {
+                  type: "boolean",
+                  description:
+                    "Série réalisée (false = série passée). Défaut : true.",
+                },
+              },
+              required: ["setNumber"],
+            },
+          },
+        },
+        required: ["sessionId", "exerciseId", "sets"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "propose_program_edit",
       description:
         "Prépare une modification du programme (ajouter/retirer/changer des jours ou exercices) à partir d'instructions en langage naturel. La modification est PROPOSÉE à l'utilisateur qui doit la confirmer — elle n'est pas appliquée par cet outil. Appelle d'abord get_program pour connaître le contenu exact.",
@@ -126,6 +214,26 @@ const getProgressArgs = z.object({
   programId: z.string().min(1).optional(),
   exerciseName: z.string().min(1).optional(),
   limit: z.number().int().min(1).max(30).optional(),
+});
+const listSessionsArgs = z.object({
+  limit: z.number().int().min(1).max(30).optional(),
+  onlyToday: z.boolean().optional(),
+});
+const getSessionLogsArgs = z.object({ sessionId: z.string().min(1).optional() });
+const proposeSetLogsArgs = z.object({
+  sessionId: z.string().min(1),
+  exerciseId: z.string().min(1),
+  sets: z
+    .array(
+      z.object({
+        setNumber: z.number().int().min(1).max(50),
+        weightKg: z.number().min(0).max(2000).nullable().optional(),
+        reps: z.number().int().min(0).max(1000).nullable().optional(),
+        done: z.boolean().optional(),
+      })
+    )
+    .min(1)
+    .max(50),
 });
 const proposeEditArgs = z.object({
   programId: z.string().min(1),
@@ -311,6 +419,216 @@ async function getProgress(args: {
   };
 }
 
+// ---------- Séries réalisées (saisie et correction) ----------
+
+function sessionLabel(session: {
+  startedAt: Date;
+  completedAt: Date | null;
+  day: { name: string; program: { name: string } };
+}): string {
+  const date = (session.completedAt ?? session.startedAt)
+    .toISOString()
+    .slice(0, 10);
+  return `${session.day.program.name} — ${session.day.name} (${date})`;
+}
+
+// « 60 kg × 10 », « 10 reps », « passée », « — ».
+function formatSet(
+  weightKg: number | null,
+  reps: number | null,
+  done: boolean
+): string {
+  if (!done) return "passée";
+  if (weightKg == null && reps == null) return "—";
+  if (weightKg == null) return `${reps} reps`;
+  return `${weightKg} kg × ${reps ?? "—"}`;
+}
+
+async function listSessions(args: {
+  limit?: number;
+  onlyToday?: boolean;
+}): Promise<{ result: string; summary: string }> {
+  let startedAfter: Date | undefined;
+  if (args.onlyToday) {
+    startedAfter = new Date();
+    startedAfter.setHours(0, 0, 0, 0);
+  }
+  const sessions = await prisma.workoutSession.findMany({
+    where: startedAfter ? { startedAt: { gte: startedAfter } } : {},
+    orderBy: { startedAt: "desc" },
+    take: args.limit ?? 10,
+    include: {
+      day: { include: { program: { select: { name: true } } } },
+      setLogs: { select: { done: true } },
+    },
+  });
+  const rows = sessions.map((s) => ({
+    sessionId: s.id,
+    label: sessionLabel(s),
+    startedAt: s.startedAt.toISOString(),
+    status: s.completedAt ? "terminée" : "en cours",
+    doneSets: s.setLogs.filter((l) => l.done).length,
+  }));
+  return {
+    result: JSON.stringify(rows),
+    summary: `${rows.length} séance${rows.length > 1 ? "s" : ""}`,
+  };
+}
+
+async function getSessionLogs(args: {
+  sessionId?: string;
+}): Promise<{ result: string; summary: string }> {
+  const include = {
+    day: {
+      include: {
+        program: { select: { name: true } },
+        exercises: { orderBy: { order: "asc" as const } },
+      },
+    },
+    setLogs: { orderBy: { setIndex: "asc" as const } },
+  };
+  const session = args.sessionId
+    ? await prisma.workoutSession.findUnique({
+        where: { id: args.sessionId },
+        include,
+      })
+    : await prisma.workoutSession.findFirst({
+        orderBy: { startedAt: "desc" },
+        include,
+      });
+  if (!session) {
+    return {
+      result: "Erreur : séance introuvable.",
+      summary: "Séance introuvable",
+    };
+  }
+  const detail = {
+    sessionId: session.id,
+    label: sessionLabel(session),
+    status: session.completedAt ? "terminée" : "en cours",
+    exercises: session.day.exercises.map((ex) => {
+      const logs = session.setLogs.filter((l) => l.exerciseId === ex.id);
+      const maxIndex = Math.max(ex.sets - 1, ...logs.map((l) => l.setIndex));
+      return {
+        exerciseId: ex.id,
+        name: ex.name,
+        prescribed: `${ex.sets} × ${ex.reps}`,
+        sets: Array.from({ length: maxIndex + 1 }, (_, i) => {
+          const log = logs.find((l) => l.setIndex === i);
+          return {
+            setNumber: i + 1,
+            weightKg: log?.weightKg ?? null,
+            reps: log?.reps ?? null,
+            done: log?.done ?? false,
+            // Mouvement réellement exécuté (null = exercice de base).
+            variationName: log?.variationName ?? null,
+            logged: log != null,
+          };
+        }),
+      };
+    }),
+  };
+  return {
+    result: JSON.stringify(detail),
+    summary: `Séries de « ${session.day.name} » lues`,
+  };
+}
+
+// Fusionne les séries demandées avec l'existant et produit la proposition
+// (valeurs absolues) + le résumé lisible des changements.
+async function proposeSetLogs(args: {
+  sessionId: string;
+  exerciseId: string;
+  sets: {
+    setNumber: number;
+    weightKg?: number | null;
+    reps?: number | null;
+    done?: boolean;
+  }[];
+}): Promise<ChatToolOutcome> {
+  const session = await prisma.workoutSession.findUnique({
+    where: { id: args.sessionId },
+    include: {
+      day: { include: { program: { select: { name: true } } } },
+      setLogs: { where: { exerciseId: args.exerciseId } },
+    },
+  });
+  if (!session) {
+    return {
+      result: "Erreur : séance introuvable avec cet id.",
+      summary: "Séance introuvable",
+    };
+  }
+  const exercise = await prisma.exercise.findUnique({
+    where: { id: args.exerciseId },
+    select: { id: true, name: true, dayId: true },
+  });
+  if (!exercise || exercise.dayId !== session.dayId) {
+    return {
+      result:
+        "Erreur : cet exercice n'appartient pas à la séance indiquée. Relis get_session_logs.",
+      summary: "Exercice hors séance",
+    };
+  }
+
+  // Variante par défaut : celle déjà journalisée pour cet exercice.
+  const defaultVariation =
+    session.setLogs.find((l) => l.variationName != null)?.variationName ?? null;
+
+  const resolved: {
+    setIndex: number;
+    reps: number | null;
+    weightKg: number | null;
+    done: boolean;
+    variationName: string | null;
+  }[] = [];
+  const changes: string[] = [];
+  for (const wanted of args.sets) {
+    const setIndex = wanted.setNumber - 1;
+    const current = session.setLogs.find((l) => l.setIndex === setIndex);
+    const next = {
+      setIndex,
+      weightKg:
+        wanted.weightKg !== undefined
+          ? wanted.weightKg
+          : current?.weightKg ?? null,
+      reps: wanted.reps !== undefined ? wanted.reps : current?.reps ?? null,
+      done: wanted.done !== undefined ? wanted.done : true,
+      variationName: current?.variationName ?? defaultVariation,
+    };
+    resolved.push(next);
+    const before = current
+      ? formatSet(current.weightKg, current.reps, current.done)
+      : "vide";
+    const after = formatSet(next.weightKg, next.reps, next.done);
+    if (before !== after) {
+      changes.push(`Série ${wanted.setNumber} : ${before} → ${after}`);
+    }
+  }
+
+  if (changes.length === 0) {
+    return {
+      result:
+        "Aucun changement : les séries demandées ont déjà ces valeurs. N'affiche pas de proposition.",
+      summary: "Rien à corriger",
+    };
+  }
+
+  return {
+    result: `${PROPOSAL_PENDING_NOTE}\nCorrection proposée sur ${exercise.name} : ${changes.join(" ; ")}.`,
+    summary: `${changes.length} série${changes.length > 1 ? "s" : ""} sur ${exercise.name}`,
+    proposal: {
+      kind: "set_logs",
+      sessionId: session.id,
+      sessionLabel: sessionLabel(session),
+      exerciseId: exercise.id,
+      exerciseName: exercise.name,
+      sets: resolved,
+      changes,
+    },
+  };
+}
+
 // Résumé lisible des changements entre le programme actuel et le brouillon.
 async function computeProgramEditChanges(
   programId: string,
@@ -420,6 +738,19 @@ export async function executeChatTool(
       case "get_progress": {
         const args = getProgressArgs.parse(rawArgs);
         return await getProgress(args);
+      }
+      case "list_sessions": {
+        const args = listSessionsArgs.parse(rawArgs);
+        return await listSessions(args);
+      }
+      case "get_session_logs": {
+        const args = getSessionLogsArgs.parse(rawArgs);
+        return await getSessionLogs(args);
+      }
+      case "propose_set_logs": {
+        if (hasPendingProposal) return pendingProposalError();
+        const args = proposeSetLogsArgs.parse(rawArgs);
+        return await proposeSetLogs(args);
       }
       case "propose_program_edit": {
         if (hasPendingProposal) return pendingProposalError();

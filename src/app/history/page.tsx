@@ -11,6 +11,7 @@ import { getActivityStats } from "@/lib/activity";
 import HistoryTabs from "@/components/HistoryTabs";
 import ProgressCharts from "@/components/ProgressCharts";
 import ActivityCalendar from "@/components/ActivityCalendar";
+import SessionLogEditor from "@/components/SessionLogEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -148,6 +149,40 @@ export default async function HistoryPage() {
                   </div>
                 ));
               })}
+              {/* Correction après coup : charge ou répétitions mal saisies,
+                  série oubliée ou enregistrée en double. */}
+              <SessionLogEditor
+                sessionId={session.id}
+                label={`${session.day.program.name} — ${session.day.name}${
+                  session.completedAt ? ` · ${formatDate(session.completedAt)}` : ""
+                }`}
+                exercises={session.day.exercises.map((ex) => {
+                  const exLogs = session.setLogs.filter(
+                    (l) => l.exerciseId === ex.id
+                  );
+                  // Les séries prescrites sans log apparaissent quand même :
+                  // c'est ainsi qu'on rattrape une série oubliée.
+                  const maxIndex = Math.max(
+                    ex.sets - 1,
+                    ...exLogs.map((l) => l.setIndex)
+                  );
+                  return {
+                    id: ex.id,
+                    name: ex.name,
+                    sets: Array.from({ length: maxIndex + 1 }, (_, i) => {
+                      const log = exLogs.find((l) => l.setIndex === i);
+                      return {
+                        setIndex: i,
+                        reps: log?.reps ?? null,
+                        weightKg: log?.weightKg ?? null,
+                        done: log?.done ?? false,
+                        variationName: log?.variationName ?? null,
+                      };
+                    }),
+                  };
+                })}
+              />
+
               {session.aiFeedback && (
                 <div className="mt-1 rounded-[14px] bg-surface-2 p-3">
                   <p className="flex items-center gap-1.5 text-xs font-extrabold text-accent">

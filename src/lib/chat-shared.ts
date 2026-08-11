@@ -28,6 +28,24 @@ export type ChatProposal =
       programId: string;
       exerciseName: string;
       variations: VariationDraft[];
+    }
+  | {
+      // Saisie / correction des séries réalisées d'un exercice, dans une
+      // séance en cours ou déjà terminée. Les valeurs sont déjà résolues
+      // (fusion avec l'existant) : l'application les écrit telles quelles.
+      kind: "set_logs";
+      sessionId: string;
+      sessionLabel: string;
+      exerciseId: string;
+      exerciseName: string;
+      sets: {
+        setIndex: number;
+        reps: number | null;
+        weightKg: number | null;
+        done: boolean;
+        variationName: string | null;
+      }[];
+      changes: string[];
     };
 
 export type ChatToolTrace = {
@@ -41,6 +59,9 @@ export const TOOL_LABELS: Record<string, string> = {
   list_programs: "Liste des programmes",
   get_program: "Lecture du programme",
   get_progress: "Analyse de la progression",
+  list_sessions: "Liste des séances",
+  get_session_logs: "Lecture des séries d'une séance",
+  propose_set_logs: "Préparation d'une correction de séries",
   propose_program_edit: "Préparation d'une modification du programme",
   propose_substitution: "Recherche d'un exercice de remplacement",
   propose_variations: "Création de variantes",

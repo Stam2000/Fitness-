@@ -7,10 +7,8 @@ import {
   ChevronRight,
   Flag,
   Lightbulb,
-  Mic,
   Repeat,
   Replace,
-  Square,
   Target,
   Weight,
 } from "lucide-react";
@@ -23,7 +21,7 @@ import RestScreen from "@/components/workout/RestScreen";
 import WarmupScreen from "@/components/workout/WarmupScreen";
 import CompletionScreen from "@/components/workout/CompletionScreen";
 import SubstituteSheet from "@/components/workout/SubstituteSheet";
-import SetRow from "@/components/workout/SetRow";
+import SetLogPanel from "@/components/workout/SetLogPanel";
 import TimeBar from "@/components/workout/TimeBar";
 import type { NextUpInfo } from "@/components/workout/NextUpCard";
 import MusclePreviewSheet, {
@@ -31,6 +29,7 @@ import MusclePreviewSheet, {
   type MuscleComboInfo,
 } from "@/components/MusclePreviewSheet";
 import { muscleComboKey, normalizeName } from "@/lib/normalize";
+import { parseVoiceEntries, type VoiceSet } from "@/lib/voice-parse";
 
 // Une « option » d'exercice : l'exercice de base (index 0) ou une variante,
 // avec ses propres données d'historique (suggestion, dernières perfs, record).
@@ -112,52 +111,6 @@ export function parseDurationSeconds(reps: string): number | null {
   return range[2].startsWith("min") ? value * 60 : value;
 }
 
-// « 80 kilos 10 répétitions », « 10 reps à 82,5 kg », « 12 fois 20 kilos »…
-export function parseVoiceEntry(transcript: string): {
-  weightKg: number | null;
-  reps: number | null;
-} {
-  const text = transcript
-    .toLowerCase()
-    .replace(/,/g, ".")
-    .replace(/virgule/g, ".");
-
-  let weightKg: number | null = null;
-  let reps: number | null = null;
-
-  const weightMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:kilos?|kg)/);
-  if (weightMatch) weightKg = parseFloat(weightMatch[1]);
-
-  const repsMatch = text.match(
-    /(\d+)\s*(?:reps?|rép(?:é|e)titions?|fois)/
-  );
-  if (repsMatch) reps = parseInt(repsMatch[1], 10);
-
-  if (weightKg === null || reps === null) {
-    const numbers = (text.match(/\d+(?:\.\d+)?/g) ?? [])
-      .map(Number)
-      .filter(
-        (n) => n !== weightKg && n !== reps
-      );
-    if (weightKg === null && reps === null) {
-      if (numbers.length >= 2) {
-        // Sans unités : le plus grand nombre est le poids.
-        const [a, b] = numbers;
-        weightKg = Math.max(a, b);
-        reps = Math.min(a, b);
-      } else if (numbers.length === 1) {
-        reps = Math.round(numbers[0]);
-      }
-    } else if (weightKg === null && numbers.length > 0) {
-      weightKg = numbers[0];
-    } else if (reps === null && numbers.length > 0) {
-      reps = Math.round(numbers[0]);
-    }
-  }
-
-  return { weightKg, reps };
-}
-
 export default function WorkoutPlayer({
   sessionId,
   programName,
@@ -237,6 +190,11 @@ export default function WorkoutPlayer({
     return map;
   });
   const [restLeft, setRestLeft] = useState<number | null>(null);
+  // Série tout juste validée : mise en avant dans la saisie pendant le repos.
+  const [justDone, setJustDone] = useState<{
+    exerciseId: string;
+    setIndex: number;
+  } | null>(null);
   // Nature du décompte en cours : repos entre séries ou transition
   // vers l'exercice suivant (après la dernière série d'un exercice).
   const [restKind, setRestKind] = useState<"rest" | "transition">("rest");
@@ -523,6 +481,7 @@ export default function WorkoutPlayer({
   // Après une série cochée : repos normal, ou transition (temps IA) si
   // c'était la dernière série de l'exercice. Rien après la toute dernière.
   function startRestAfterSet(setIndex: number) {
+    setJustDone({ exerciseId: exercise.id, setIndex });
     const isLastSet = setIndex === active.sets - 1;
     const isLastExercise = current === exercises.length - 1;
     if (isLastSet && isLastExercise) return;
@@ -623,7 +582,8 @@ export default function WorkoutPlayer({
     const state = logs[key];
     const nowDone = !state.done;
     patchSet(exercise.id, setIndex, { done: nowDone }, true);
-    if (nowDone) startRestAfterSet(setIndex);
+    // Cocher une série depuis l'écran de repos ne relance pas le décompte.
+    if (nowDone && restLeft === null) startRestAfterSet(setIndex);
   }
 
   function firstOpenSetIndex(): number {
@@ -673,11 +633,11 @@ export default function WorkoutPlayer({
 
   // Interprète la phrase dictée : modèle OpenRouter si une clé est
   // configurée (plus précis — nombres en toutes lettres, tournures libres),
-  // sinon ou en cas d'échec, l'analyseur local parseVoiceEntry.
+  // sinon ou en cas d'échec, l'analyseur local parseVoiceEntries.
   async function interpretTranscript(
     transcript: string
-  ): Promise<{ weightKg: number | null; reps: number | null }> {
-    if (!hasOpenrouterKey) return parseVoiceEntry(transcript);
+  ): Promise<{ sets: VoiceSet[]; allSets: boolean }> {
+    if (!hasOpenrouterKey) return parseVoiceEntries(transcript);
     try {
       const res = await fetch("/api/voice/parse", {
         method: "POST",
@@ -686,50 +646,84 @@ export default function WorkoutPlayer({
           transcript,
           exercise: active.name,
           targetReps: active.reps,
+          setCount: active.sets,
+          currentSet: firstOpenSetIndex() + 1,
         }),
       });
-      if (!res.ok) return parseVoiceEntry(transcript);
+      if (!res.ok) return parseVoiceEntries(transcript);
       const json = (await res.json()) as {
-        weightKg?: number | null;
-        reps?: number | null;
+        sets?: VoiceSet[];
+        allSets?: boolean;
       };
-      const weightKg = json.weightKg ?? null;
-      const reps = json.reps ?? null;
-      if (weightKg === null && reps === null) return parseVoiceEntry(transcript);
-      return { weightKg, reps };
+      const sets = json.sets ?? [];
+      if (sets.length === 0) return parseVoiceEntries(transcript);
+      return { sets, allSets: Boolean(json.allSets) };
     } catch {
-      return parseVoiceEntry(transcript);
+      return parseVoiceEntries(transcript);
     }
   }
 
-  // La dictée ne fait que remplir les champs de la série en cours :
-  // pas de validation ni de repos — l'utilisateur coche lui-même.
-  function fillCurrentSet(weightKg: number | null, reps: number | null) {
-    const setIndex = firstOpenSetIndex();
-    const key = `${exercise.id}:${setIndex}`;
-    setLogs((prev) => {
-      const cur = prev[key];
+  // La dictée ne fait que remplir les champs : pas de validation ni de repos
+  // — l'utilisateur coche lui-même. Une série dictée sans position va dans la
+  // série en cours ; plusieurs séries remplissent l'exercice depuis le début
+  // (ou aux positions explicitement annoncées).
+  function applyVoiceSets(entries: VoiceSet[], allSets: boolean) {
+    if (entries.length === 0) return;
+    const total = active.sets;
+    const targets: { index: number; weightKg: number | null; reps: number | null }[] =
+      [];
+    if (allSets && entries.length === 1) {
+      for (let i = 0; i < total; i++) targets.push({ index: i, ...entries[0] });
+    } else {
+      const explicit = entries.some((e) => e.set != null);
+      const start =
+        entries.length === 1 && !explicit ? firstOpenSetIndex() : 0;
+      entries.forEach((entry, i) => {
+        const index = entry.set != null ? entry.set - 1 : start + i;
+        if (index >= 0 && index < total) {
+          targets.push({ index, weightKg: entry.weightKg, reps: entry.reps });
+        }
+      });
+    }
+    if (targets.length === 0) {
+      setVoiceMessage(
+        `Cet exercice n'a que ${total} série${total > 1 ? "s" : ""}.`
+      );
+      return;
+    }
+
+    const patch: Record<string, SetState> = {};
+    for (const target of targets) {
+      const key = `${exercise.id}:${target.index}`;
+      const cur = patch[key] ?? logs[key];
       const nextState: SetState = {
-        weightKg: weightKg !== null ? String(weightKg) : cur?.weightKg ?? "",
-        reps: reps !== null ? String(reps) : cur?.reps ?? "",
+        weightKg:
+          target.weightKg !== null ? String(target.weightKg) : cur?.weightKg ?? "",
+        reps: target.reps !== null ? String(target.reps) : cur?.reps ?? "",
         done: cur?.done ?? false,
       };
-      saveLog(exercise.id, setIndex, nextState, activeVariationName);
-      setVoiceMessage(
-        `Série ${setIndex + 1} remplie : ${nextState.weightKg || "?"} kg × ${nextState.reps || "?"} reps — coche-la quand c'est fait.`
-      );
-      return { ...prev, [key]: nextState };
-    });
+      patch[key] = nextState;
+      saveLog(exercise.id, target.index, nextState, activeVariationName);
+    }
+    setLogs((prev) => ({ ...prev, ...patch }));
+
+    const numbers = targets.map((t) => t.index + 1);
+    const first = patch[`${exercise.id}:${targets[0].index}`];
+    setVoiceMessage(
+      targets.length === 1
+        ? `Série ${numbers[0]} remplie : ${first.weightKg || "?"} kg × ${first.reps || "?"} reps — coche-la quand c'est fait.`
+        : `${targets.length} séries remplies (${numbers.join(", ")}) — coche celles qui sont faites.`
+    );
   }
 
   async function applyVoiceTranscript(transcript: string) {
     setVoiceMessage(`« ${transcript} » — interprétation…`);
-    const { weightKg, reps } = await interpretTranscript(transcript);
-    if (weightKg === null && reps === null) {
+    const { sets, allSets } = await interpretTranscript(transcript);
+    if (sets.length === 0) {
       setVoiceMessage(`« ${transcript} » — je n'ai pas compris de nombres.`);
       return;
     }
-    fillCurrentSet(weightKg, reps);
+    applyVoiceSets(sets, allSets);
   }
 
   // ---------- Dictée audio directe (modèle vocal via OpenRouter) ----------
@@ -745,20 +739,21 @@ export default function WorkoutPlayer({
           audio: wav,
           exercise: active.name,
           targetReps: active.reps,
+          setCount: active.sets,
+          currentSet: firstOpenSetIndex() + 1,
         }),
       });
       if (!res.ok) throw new Error("voice-parse");
       const json = (await res.json()) as {
-        weightKg?: number | null;
-        reps?: number | null;
+        sets?: VoiceSet[];
+        allSets?: boolean;
       };
-      const weightKg = json.weightKg ?? null;
-      const reps = json.reps ?? null;
-      if (weightKg === null && reps === null) {
+      const sets = json.sets ?? [];
+      if (sets.length === 0) {
         setVoiceMessage("Je n'ai pas compris de nombres. Réessaie.");
         return;
       }
-      fillCurrentSet(weightKg, reps);
+      applyVoiceSets(sets, Boolean(json.allSets));
     } catch {
       setVoiceMessage(
         "Interprétation impossible (modèle vocal). Réessaie ou saisis à la main."
@@ -867,6 +862,7 @@ export default function WorkoutPlayer({
     if (index < 0 || index >= exercises.length) return;
     saveExerciseSeconds();
     setExercisePaused(false);
+    setVoiceMessage(null);
     setCurrent(index);
     const o = activeOf(exercises[index]);
     speak(
@@ -1033,6 +1029,49 @@ export default function WorkoutPlayer({
     }
   }
 
+  // Bloc de saisie de l'exercice courant, partagé entre la vue exercice et
+  // l'écran de repos (c'est pendant la pause qu'on saisit ce qu'on vient de
+  // faire). `compact` = version resserrée du repos.
+  function renderLogPanel(compact: boolean) {
+    const stateAt = (i: number) =>
+      logs[`${exercise.id}:${i}`] ?? { reps: "", weightKg: "", done: false };
+    return (
+      <SetLogPanel
+        setCount={active.sets}
+        stateAt={stateAt}
+        prevAt={(i) => active.previousLogs.find((l) => l.setIndex === i)}
+        currentSetIdx={currentSetIdx}
+        justDoneIdx={
+          compact && justDone?.exerciseId === exercise.id
+            ? justDone.setIndex
+            : null
+        }
+        duration={exerciseDuration}
+        timerSetIndex={setTimer?.setIndex ?? null}
+        timerLeft={setTimer?.left ?? null}
+        compact={compact}
+        disableTimer={compact}
+        voice={
+          voiceInput
+            ? {
+                listening,
+                message: voiceMessage,
+                onTap: () => void onMicTap(),
+              }
+            : null
+        }
+        onToggle={toggleDone}
+        onWeightChange={(i, v) => patchSet(exercise.id, i, { weightKg: v })}
+        onRepsChange={(i, v) => patchSet(exercise.id, i, { reps: v })}
+        onBlurSave={(i) =>
+          saveLog(exercise.id, i, stateAt(i), activeVariationName)
+        }
+        onStartTimer={startSetTimer}
+        onStopTimer={stopSetTimer}
+      />
+    );
+  }
+
   // ---------- Échauffement plein écran ----------
   if (!warmupDone) {
     const warmupNextUp: NextUpInfo = {
@@ -1118,6 +1157,8 @@ export default function WorkoutPlayer({
         doneCount={doneCount}
         totalSets={totalSets}
         nextUp={restNextUp}
+        logPanel={renderLogPanel(true)}
+        logTitle={active.name}
         onAbandon={abandon}
         onExtend={() => setRestLeft((r) => (r !== null ? r + 30 : r))}
         onSkip={() => {
@@ -1239,67 +1280,7 @@ export default function WorkoutPlayer({
       </div>
 
       <div className="flex flex-col gap-4">
-      <section className="flex flex-col gap-2">
-        {Array.from({ length: active.sets }, (_, i) => {
-          const key = `${exercise.id}:${i}`;
-          return (
-            <SetRow
-              key={key}
-              index={i}
-              state={logs[key]}
-              prev={active.previousLogs.find((l) => l.setIndex === i)}
-              isCurrent={i === currentSetIdx && !logs[key].done}
-              duration={exerciseDuration}
-              timerLeft={setTimer?.setIndex === i ? setTimer.left : null}
-              timerBusy={setTimer !== null}
-              onToggle={() => toggleDone(i)}
-              onWeightChange={(v) =>
-                patchSet(exercise.id, i, { weightKg: v })
-              }
-              onRepsChange={(v) => patchSet(exercise.id, i, { reps: v })}
-              onBlurSave={() =>
-                saveLog(exercise.id, i, logs[key], activeVariationName)
-              }
-              onStartTimer={() => startSetTimer(i)}
-              onStopTimer={stopSetTimer}
-            />
-          );
-        })}
-      </section>
-
-      {voiceInput && (
-        <div className="flex flex-col items-center gap-2 py-1">
-          <button
-            onClick={onMicTap}
-            className={`flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 text-[28px] ${
-              listening
-                ? "recording border-accent bg-accent/20"
-                : "border-accent/50 bg-accent/10"
-            }`}
-            aria-label={
-              listening
-                ? "Terminer la dictée"
-                : "Dicter poids et répétitions"
-            }
-          >
-            {listening ? (
-              <Square size={26} fill="currentColor" className="text-accent" />
-            ) : (
-              <Mic size={30} className="text-accent" />
-            )}
-          </button>
-          <p className="text-center text-[13px] text-muted-2">
-            {listening
-              ? "Je t'écoute… appuie à nouveau pour terminer."
-              : "« 62 kilos, 11 répétitions »"}
-          </p>
-          {voiceMessage && (
-            <p className="text-center text-sm font-semibold text-accent">
-              {voiceMessage}
-            </p>
-          )}
-        </div>
-      )}
+      {renderLogPanel(false)}
 
       <div className="flex gap-2">
         <button

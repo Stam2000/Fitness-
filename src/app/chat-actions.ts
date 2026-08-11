@@ -104,6 +104,61 @@ export async function applyChatProposal(messageId: string): Promise<ApplyResult>
         revalidatePath("/");
         break;
       }
+      case "set_logs": {
+        const sets = z
+          .array(
+            z.object({
+              setIndex: z.number().int().min(0).max(49),
+              reps: z.number().int().min(0).max(1000).nullable(),
+              weightKg: z.number().min(0).max(2000).nullable(),
+              done: z.boolean(),
+              variationName: z.string().nullable(),
+            })
+          )
+          .min(1)
+          .parse(proposal.sets);
+        const session = await prisma.workoutSession.findUnique({
+          where: { id: proposal.sessionId },
+          select: { dayId: true },
+        });
+        const exercise = await prisma.exercise.findUnique({
+          where: { id: proposal.exerciseId },
+          select: { dayId: true },
+        });
+        if (!session || !exercise || exercise.dayId !== session.dayId) {
+          await setStatus(messageId, "stale");
+          return { ok: false, error: STALE_MESSAGE };
+        }
+        for (const set of sets) {
+          await prisma.setLog.upsert({
+            where: {
+              sessionId_exerciseId_setIndex: {
+                sessionId: proposal.sessionId,
+                exerciseId: proposal.exerciseId,
+                setIndex: set.setIndex,
+              },
+            },
+            update: {
+              reps: set.reps,
+              weightKg: set.weightKg,
+              done: set.done,
+              variationName: set.variationName,
+            },
+            create: {
+              sessionId: proposal.sessionId,
+              exerciseId: proposal.exerciseId,
+              setIndex: set.setIndex,
+              reps: set.reps,
+              weightKg: set.weightKg,
+              done: set.done,
+              variationName: set.variationName,
+            },
+          });
+        }
+        revalidatePath("/history");
+        revalidatePath("/");
+        break;
+      }
       default:
         return { ok: false, error: "Type de proposition inconnu." };
     }

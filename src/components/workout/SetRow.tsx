@@ -13,6 +13,7 @@ export default function SetRow({
   state,
   prev,
   isCurrent,
+  justDone = false,
   duration,
   timerLeft,
   timerBusy,
@@ -27,6 +28,8 @@ export default function SetRow({
   state: SetState;
   prev: { reps: number | null; weightKg: number | null } | undefined;
   isCurrent: boolean;
+  /** Série qui vient d'être validée : mise en avant pendant le repos. */
+  justDone?: boolean;
   duration: number | null;
   timerLeft: number | null;
   timerBusy: boolean;
@@ -37,11 +40,13 @@ export default function SetRow({
   onStartTimer: () => void;
   onStopTimer: () => void;
 }) {
-  const rowClass = state.done
-    ? "border-[1.5px] border-accent/45 bg-accent/10"
-    : isCurrent
-      ? "border-[1.5px] border-accent bg-surface"
-      : "border border-card-border bg-surface opacity-60";
+  const rowClass = justDone
+    ? "border-[1.5px] border-accent bg-accent/10 ring-2 ring-accent/30"
+    : state.done
+      ? "border-[1.5px] border-accent/45 bg-accent/10"
+      : isCurrent
+        ? "border-[1.5px] border-accent bg-surface"
+        : "border border-card-border bg-surface opacity-60";
   return (
     <div className={`flex items-center gap-2.5 rounded-[14px] p-2.5 ${rowClass}`}>
       <button
@@ -112,9 +117,15 @@ export default function SetRow({
           />
         </label>
       )}
-      <span className="hidden shrink-0 text-[11px] text-muted sm:block">
-        série {index + 1}
-      </span>
+      {justDone ? (
+        <span className="shrink-0 text-[11px] font-extrabold text-accent">
+          à l&apos;instant
+        </span>
+      ) : (
+        <span className="hidden shrink-0 text-[11px] text-muted sm:block">
+          série {index + 1}
+        </span>
+      )}
     </div>
   );
 }
