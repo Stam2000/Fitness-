@@ -508,6 +508,78 @@ export async function abandonSession(sessionId: string) {
   redirect("/");
 }
 
+// Promeut une variante en exercice par défaut : tous les champs descriptifs
+// sont ÉCHANGÉS entre la variante et l'exercice de base (aucun id ne change,
+// l'historique de séances reste attaché), et les logs sont réétiquetés par
+// nom : ceux de la variante promue deviennent « base » (variationName null),
+// ceux de l'ancien base prennent son ancien nom. L'attribution exacte de
+// l'historique — et donc les suggestions de charge — est ainsi préservée.
+export async function promoteVariation(variationId: string) {
+  const variation = await prisma.exerciseVariation.findUniqueOrThrow({
+    where: { id: variationId },
+    include: { exercise: { include: { day: { select: { programId: true } } } } },
+  });
+  const exercise = variation.exercise;
+
+  await prisma.$transaction(async (tx) => {
+    // Ordre important : d'abord étiqueter les logs du base avec son ancien
+    // nom, PUIS passer ceux de la variante promue à null.
+    await tx.setLog.updateMany({
+      where: { exerciseId: exercise.id, variationName: null },
+      data: { variationName: exercise.name },
+    });
+    await tx.setLog.updateMany({
+      where: { exerciseId: exercise.id, variationName: variation.name },
+      data: { variationName: null },
+    });
+    await tx.exercise.update({
+      where: { id: exercise.id },
+      data: {
+        name: variation.name,
+        sets: variation.sets,
+        reps: variation.reps,
+        restSeconds: variation.restSeconds,
+        weightHint: variation.weightHint,
+        equipment: variation.equipment,
+        muscles: variation.muscles,
+        targetSeconds: variation.targetSeconds,
+        setSeconds: variation.setSeconds,
+        notes: variation.notes,
+        howTo: variation.howTo,
+        imageUrl: variation.imageUrl,
+        imageTaskId: variation.imageTaskId,
+        videoUrl: variation.videoUrl,
+        videoTaskId: variation.videoTaskId,
+        videoPrompt: variation.videoPrompt,
+      },
+    });
+    await tx.exerciseVariation.update({
+      where: { id: variationId },
+      data: {
+        name: exercise.name,
+        sets: exercise.sets,
+        reps: exercise.reps,
+        restSeconds: exercise.restSeconds,
+        weightHint: exercise.weightHint,
+        equipment: exercise.equipment,
+        muscles: exercise.muscles,
+        targetSeconds: exercise.targetSeconds,
+        setSeconds: exercise.setSeconds,
+        notes: exercise.notes,
+        howTo: exercise.howTo,
+        imageUrl: exercise.imageUrl,
+        imageTaskId: exercise.imageTaskId,
+        videoUrl: exercise.videoUrl,
+        videoTaskId: exercise.videoTaskId,
+        videoPrompt: exercise.videoPrompt,
+      },
+    });
+  });
+
+  revalidatePath(`/programs/${exercise.day.programId}`);
+  revalidatePath("/");
+}
+
 // ————— Suivi corporel —————
 
 // Ajoute une mesure (poids, masse musculaire, % graisse — valeurs lues p. ex.

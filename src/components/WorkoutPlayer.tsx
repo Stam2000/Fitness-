@@ -340,6 +340,16 @@ export default function WorkoutPlayer({
         osc.start(ctx.currentTime + delay);
         osc.stop(ctx.currentTime + delay + 0.2);
       });
+      // Ferme le contexte après le dernier bip : Chrome limite le nombre
+      // d'AudioContext ouverts (les bips finiraient par se taire), et un
+      // contexte qui traîne peut retenir le focus audio au détriment de la
+      // musique (Spotify/Audible) qui joue en parallèle.
+      setTimeout(
+        () => {
+          void ctx.close().catch(() => {});
+        },
+        (times * 0.25 + 0.3) * 1000
+      );
     } catch {
       // audio indisponible : tant pis pour le bip
     }

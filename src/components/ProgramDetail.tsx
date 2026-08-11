@@ -7,6 +7,7 @@ import ProgramEditor, { type EditableProgram } from "@/components/ProgramEditor"
 import {
   deleteProgram,
   duplicateProgram,
+  promoteVariation,
   startSession,
   updateProgram,
 } from "@/app/actions";
@@ -136,6 +137,8 @@ export default function ProgramDetail({
   const [howToError, setHowToError] = useState<string | null>(null);
   // Génération de variantes alternatives par l'IA (exercice en cours + erreur).
   const [variantsBusy, setVariantsBusy] = useState<string | null>(null);
+  // Promotion d'une variante en exercice par défaut (id en cours).
+  const [promoting, setPromoting] = useState<string | null>(null);
   const [variantsError, setVariantsError] = useState<{
     id: string;
     msg: string;
@@ -846,6 +849,45 @@ export default function ProgramDetail({
                                     {v.sets} × {v.reps} · repos {v.restSeconds} s
                                   </span>
                                 </p>
+                                <button
+                                  onClick={async () => {
+                                    if (
+                                      !confirm(
+                                        `Faire de « ${v.name} » l'exercice par défaut ?\n« ${ex.name} » deviendra une variante en alternance.`
+                                      )
+                                    ) {
+                                      return;
+                                    }
+                                    setPromoting(v.id);
+                                    try {
+                                      await promoteVariation(v.id);
+                                      // Les médias ont été échangés en base :
+                                      // on permute aussi l'état local des
+                                      // miniatures (initialisé au montage).
+                                      setMedia((prev) => {
+                                        const next = { ...prev };
+                                        for (const t of [
+                                          "image",
+                                          "video",
+                                        ] as const) {
+                                          const a = mediaKey(t, ex.id);
+                                          const b = mediaKey(t, v.id);
+                                          next[a] = prev[b];
+                                          next[b] = prev[a];
+                                        }
+                                        return next;
+                                      });
+                                      router.refresh();
+                                    } finally {
+                                      setPromoting(null);
+                                    }
+                                  }}
+                                  disabled={promoting !== null}
+                                  className="shrink-0 rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-muted-2 disabled:opacity-60"
+                                  title={`Faire de « ${v.name} » l'exercice par défaut`}
+                                >
+                                  {promoting === v.id ? "…" : "⬆️ Par défaut"}
+                                </button>
                                 {vvid?.status === "done" && vvid.url ? (
                                   <a
                                     href={vvid.url}
