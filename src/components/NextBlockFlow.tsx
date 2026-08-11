@@ -69,6 +69,7 @@ export default function NextBlockFlow({
             equipment: ex.equipment ?? [],
             muscles: ex.muscles ?? [],
             targetSeconds: ex.targetSeconds ?? null,
+            setSeconds: ex.setSeconds ?? null,
             transitionSeconds: ex.transitionSeconds ?? null,
             notes: ex.notes ?? null,
             variations: (ex.variations ?? []).map((v) => ({

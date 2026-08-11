@@ -23,6 +23,7 @@ type VariationView = {
   equipment: string[];
   muscles: string[];
   targetSeconds: number | null;
+  setSeconds: number | null;
   notes: string | null;
   imageUrl: string | null;
   imageTaskId: string | null;
@@ -40,6 +41,7 @@ type ExerciseView = {
   equipment: string[];
   muscles: string[];
   targetSeconds: number | null;
+  setSeconds: number | null;
   transitionSeconds: number | null;
   notes: string | null;
   imageUrl: string | null;
@@ -274,9 +276,13 @@ export default function ProgramDetail({
     .flatMap((ex) => [
       ex.muscles.length === 0 ||
         ex.targetSeconds == null ||
+        ex.setSeconds == null ||
         ex.transitionSeconds == null,
       ...ex.variations.map(
-        (v) => v.muscles.length === 0 || v.targetSeconds == null
+        (v) =>
+          v.muscles.length === 0 ||
+          v.targetSeconds == null ||
+          v.setSeconds == null
       ),
     ])
     .filter(Boolean).length;

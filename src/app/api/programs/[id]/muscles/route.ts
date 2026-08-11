@@ -12,6 +12,7 @@ const responseSchema = z.object({
         id: z.string(),
         muscles: z.array(z.string().min(1)).max(6).optional(),
         targetSeconds: z.number().int().min(30).max(3600).optional(),
+        setSeconds: z.number().int().min(10).max(600).optional(),
         transitionSeconds: z.number().int().min(0).max(600).optional(),
       })
     )
@@ -71,6 +72,7 @@ export async function POST(
     label: string;
     needsMuscles: boolean;
     needsTarget: boolean;
+    needsSet: boolean;
     needsTransition: boolean;
   };
   const pending: Pending[] = [];
@@ -79,9 +81,15 @@ export async function POST(
       const needs = {
         needsMuscles: ex.muscles.length === 0,
         needsTarget: ex.targetSeconds == null,
+        needsSet: ex.setSeconds == null,
         needsTransition: ex.transitionSeconds == null,
       };
-      if (needs.needsMuscles || needs.needsTarget || needs.needsTransition) {
+      if (
+        needs.needsMuscles ||
+        needs.needsTarget ||
+        needs.needsSet ||
+        needs.needsTransition
+      ) {
         pending.push({
           kind: "exercise",
           id: ex.id,
@@ -90,13 +98,18 @@ export async function POST(
         });
       }
       for (const v of ex.variations) {
-        if (v.muscles.length === 0 || v.targetSeconds == null) {
+        if (
+          v.muscles.length === 0 ||
+          v.targetSeconds == null ||
+          v.setSeconds == null
+        ) {
           pending.push({
             kind: "variation",
             id: v.id,
             label: `${v.name} — ${v.sets} × ${v.reps}, repos ${v.restSeconds}s`,
             needsMuscles: v.muscles.length === 0,
             needsTarget: v.targetSeconds == null,
+            needsSet: v.setSeconds == null,
             needsTransition: false,
           });
         }
@@ -110,6 +123,7 @@ export async function POST(
   const prompt = `Pour chaque exercice de musculation/fitness ci-dessous, donne :
 - "muscles" : ses 1 à 4 muscles principaux réellement sollicités, en français, noms courts et cohérents (ex. "Dos", "Biceps", "Pectoraux", "Épaules", "Quadriceps", "Ischio-jambiers", "Fessiers", "Abdominaux", "Mollets", "Triceps", "Cardio").
 - "targetSeconds" : temps cible réaliste pour boucler l'exercice, TOUTES séries et repos compris (secondes), cohérent avec les séries/reps/repos indiqués.
+- "setSeconds" : temps cible d'exécution d'UNE série (secondes). Pour un exercice « en secondes » (reps = "30 s"), setSeconds = cette durée.
 - "transitionSeconds" (uniquement si demandé) : temps pour passer à l'exercice suivant, installation comprise (30 à 120 s en général).
 
 Exercices :
@@ -121,7 +135,7 @@ ${pending
   .join("\n")}
 
 Réponds UNIQUEMENT avec un objet JSON :
-{"items": [{"id": "…", "muscles": ["…"], "targetSeconds": 360, "transitionSeconds": 60}]}
+{"items": [{"id": "…", "muscles": ["…"], "targetSeconds": 360, "setSeconds": 45, "transitionSeconds": 60}]}
 Un élément par exercice listé, avec son id exact.`;
 
   try {
@@ -171,6 +185,7 @@ Un élément par exercice listé, avec son id exact.`;
         const data: {
           muscles?: string[];
           targetSeconds?: number;
+          setSeconds?: number;
           transitionSeconds?: number;
         } = {};
         if (p.needsMuscles && item.muscles && item.muscles.length > 0) {
@@ -178,6 +193,9 @@ Un élément par exercice listé, avec son id exact.`;
         }
         if (p.needsTarget && item.targetSeconds != null) {
           data.targetSeconds = item.targetSeconds;
+        }
+        if (p.needsSet && item.setSeconds != null) {
+          data.setSeconds = item.setSeconds;
         }
         if (p.needsTransition && item.transitionSeconds != null) {
           data.transitionSeconds = item.transitionSeconds;

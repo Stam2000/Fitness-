@@ -20,6 +20,7 @@ Tu réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ou après, re
           "equipment": ["équipement utilisé parmi la liste fournie"],
           "muscles": ["Dos", "Biceps"],
           "targetSeconds": 360,
+          "setSeconds": 45,
           "transitionSeconds": 60,
           "notes": "conseil de technique court ou null",
           "variations": [
@@ -32,6 +33,7 @@ Tu réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ou après, re
               "equipment": ["équipement utilisé parmi la liste fournie"],
               "muscles": ["muscles principaux travaillés"],
               "targetSeconds": 420,
+              "setSeconds": 45,
               "notes": "conseil de technique court ou null"
             }
           ]
@@ -47,6 +49,7 @@ Règles :
 - "reps" est une chaîne : "8-12", "10", "30 s", "jusqu'à l'échec"…
 - "muscles" : 1 à 4 muscles principaux réellement sollicités, en français, noms courts et cohérents d'un exercice à l'autre (ex. "Dos", "Biceps", "Pectoraux", "Épaules", "Quadriceps", "Ischio-jambiers", "Fessiers", "Abdominaux", "Mollets", "Triceps", "Cardio").
 - "targetSeconds" : temps cible réaliste pour boucler l'exercice, TOUTES séries et repos compris (secondes). Ordre de grandeur : sets × (temps d'exécution d'une série + restSeconds).
+- "setSeconds" : temps cible d'exécution d'UNE série (secondes). Pour un exercice « en secondes » (reps = "30 s"), setSeconds = cette durée. Cohérence attendue : targetSeconds ≈ sets × (setSeconds + restSeconds).
 - "transitionSeconds" : temps pour passer à l'exercice suivant, installation du matériel comprise (30 à 120 s en général).
 - La somme des targetSeconds et transitionSeconds d'une séance doit rester cohérente avec la durée de séance demandée.
 - "restSeconds" entre 30 et 240 selon l'intensité.

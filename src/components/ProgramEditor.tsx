@@ -14,6 +14,7 @@ export type EditableVariation = {
   equipment: string[];
   muscles?: string[];
   targetSeconds?: number | null;
+  setSeconds?: number | null;
   notes?: string | null;
 };
 
@@ -27,6 +28,7 @@ export type EditableExercise = {
   equipment: string[];
   muscles?: string[];
   targetSeconds?: number | null;
+  setSeconds?: number | null;
   transitionSeconds?: number | null;
   notes?: string | null;
   imageUrl?: string | null;

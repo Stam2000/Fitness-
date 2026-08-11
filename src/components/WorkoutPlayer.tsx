@@ -25,6 +25,8 @@ type VariantView = {
   muscles: string[];
   // Temps cible IA pour boucler l'exercice (null = estimation locale).
   targetSeconds: number | null;
+  // Temps cible IA d'exécution d'UNE série (null = estimation locale).
+  setSeconds: number | null;
   notes: string | null;
   imageUrl: string | null;
   videoUrl: string | null;
@@ -51,6 +53,19 @@ type ExerciseView = {
 function targetSecondsOf(option: VariantView): number {
   return (
     option.targetSeconds ?? option.sets * (option.restSeconds + 45)
+  );
+}
+
+// Temps cible d'UNE série : valeur IA, sinon durée des reps « en secondes »,
+// sinon dérivé du temps cible global (cible/séries − repos, plancher 20 s).
+function setSecondsOf(option: VariantView): number {
+  return (
+    option.setSeconds ??
+    parseDurationSeconds(option.reps) ??
+    Math.max(
+      20,
+      Math.round(targetSecondsOf(option) / option.sets - option.restSeconds)
+    )
   );
 }
 
@@ -222,6 +237,15 @@ export default function WorkoutPlayer({
   const [exercisePaused, setExercisePaused] = useState(false);
   // Horloge murale pour le temps de séance affiché (mise à jour chaque seconde).
   const [nowMs, setNowMs] = useState<number | null>(null);
+  // Chrono de la série en cours, ancré sur l'horloge murale pour rester
+  // juste malgré le throttling des timers (page en arrière-plan) : `base` =
+  // secondes gelées (pauses), `anchorMs` = début du run en cours (null =
+  // gelé). La clé exercice:série change quand on avance → remise à zéro.
+  const [setClock, setSetClock] = useState<{
+    key: string;
+    base: number;
+    anchorMs: number | null;
+  }>({ key: "", base: 0, anchorMs: null });
   const [showSubstitute, setShowSubstitute] = useState(false);
   const [substituteReason, setSubstituteReason] = useState("");
   const [substituting, setSubstituting] = useState(false);
@@ -258,6 +282,11 @@ export default function WorkoutPlayer({
   const activeVariationName =
     activeIndexOf(exercise) === 0 ? null : active.name;
   const exerciseDuration = parseDurationSeconds(active.reps);
+  // Série « en cours » = première non cochée de l'exercice courant
+  // (firstOpenSetIndex est déclarée plus bas ; hissée par le moteur JS).
+  const currentSetIdx = firstOpenSetIndex();
+  const currentSetKey = `${exercise.id}:${currentSetIdx}`;
+  const resting = restLeft !== null;
 
   // Double bip court (fin de chrono), indépendant des annonces vocales.
   const beep = useCallback(() => {
@@ -378,6 +407,38 @@ export default function WorkoutPlayer({
       clearInterval(clock);
     };
   }, [finished]);
+
+  // Chrono de la série en cours : actif seulement en vue exercice (pas
+  // pendant l'échauffement ni le repos) et hors pause. À l'activation on
+  // ancre le run sur l'horloge murale ; à la désactivation (pause, repos,
+  // navigation) on gèle l'écoulé dans `base`. L'affichage se rafraîchit via
+  // l'horloge `nowMs`, donc aucune dérive si les timers sont throttlés.
+  useEffect(() => {
+    if (finished || !warmupDone || resting || exercisePaused) return;
+    const start = setTimeout(() => {
+      setSetClock((prev) =>
+        prev.key === currentSetKey
+          ? prev.anchorMs != null
+            ? prev
+            : { ...prev, anchorMs: Date.now() }
+          : { key: currentSetKey, base: 0, anchorMs: Date.now() }
+      );
+    }, 0);
+    return () => {
+      clearTimeout(start);
+      setSetClock((prev) =>
+        prev.anchorMs != null
+          ? {
+              key: prev.key,
+              base:
+                prev.base +
+                Math.max(0, Math.floor((Date.now() - prev.anchorMs) / 1000)),
+              anchorMs: null,
+            }
+          : prev
+      );
+    };
+  }, [finished, warmupDone, resting, exercisePaused, currentSetKey]);
 
   // Persistance : carte complète envoyée en arrière-plan (changement
   // d'exercice, fin de séance, et toutes les 30 s par sécurité).
@@ -839,13 +900,18 @@ export default function WorkoutPlayer({
   }
 
   // ---------- Vue exercice ----------
-  const currentSetIdx = firstOpenSetIndex();
   const sessionSeconds =
     startedAtMs != null && nowMs != null
       ? Math.max(0, Math.floor((nowMs - startedAtMs) / 1000))
       : null;
-  const exerciseRemaining =
-    targetSecondsOf(active) - (exerciseSeconds[exercise.id] ?? 0);
+  const setElapsed =
+    setClock.key === currentSetKey
+      ? setClock.base +
+        (setClock.anchorMs != null && nowMs != null
+          ? Math.max(0, Math.floor((nowMs - setClock.anchorMs) / 1000))
+          : 0)
+      : 0;
+  const setRemaining = setSecondsOf(active) - setElapsed;
 
   return (
     <main className="flex flex-col gap-4 pb-6">
@@ -863,7 +929,8 @@ export default function WorkoutPlayer({
 
       <TimeBar
         sessionSeconds={sessionSeconds}
-        remainingSeconds={exerciseRemaining}
+        label={`Série ${currentSetIdx + 1}/${active.sets}`}
+        remainingSeconds={setRemaining}
         paused={exercisePaused}
         onTogglePause={() => setExercisePaused((p) => !p)}
       />

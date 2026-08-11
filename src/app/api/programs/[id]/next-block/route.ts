@@ -199,6 +199,7 @@ export async function POST(
         equipment: ex.equipment,
         muscles: ex.muscles,
         targetSeconds: ex.targetSeconds,
+        setSeconds: ex.setSeconds,
         transitionSeconds: ex.transitionSeconds,
         notes: ex.notes,
         variations: ex.variations.map((v) => ({
@@ -210,6 +211,7 @@ export async function POST(
           equipment: v.equipment,
           muscles: v.muscles,
           targetSeconds: v.targetSeconds,
+          setSeconds: v.setSeconds,
           notes: v.notes,
         })),
       })),

@@ -84,6 +84,8 @@ model Exercise {
   muscles     String[]            @default([])
   // Temps cible pour boucler l'exercice (séries + repos), défini par l'IA.
   targetSeconds     Int?
+  // Temps cible d'exécution d'UNE série, défini par l'IA.
+  setSeconds        Int?
   // Temps de transition vers l'exercice suivant (installation), défini par l'IA.
   transitionSeconds Int?
   notes       String?
@@ -114,6 +116,8 @@ model ExerciseVariation {
   muscles     String[] @default([])
   // Temps cible pour boucler la variante (séries + repos), défini par l'IA.
   targetSeconds Int?
+  // Temps cible d'exécution d'UNE série, défini par l'IA.
+  setSeconds    Int?
   notes       String?
   imageUrl    String?
   imageTaskId String?

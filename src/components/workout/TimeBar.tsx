@@ -11,16 +11,19 @@ function fmt(totalSeconds: number) {
 
 /**
  * Barre de temps de la vue exercice : temps de séance total à gauche,
- * compte à rebours de l'exercice (temps cible IA) en pastille lime à
- * droite — négatif quand le temps cible est dépassé — avec pause.
+ * compte à rebours (temps cible IA de la série en cours) en pastille
+ * lime à droite — négatif quand le temps cible est dépassé — avec pause.
  */
 export default function TimeBar({
   sessionSeconds,
+  label,
   remainingSeconds,
   paused,
   onTogglePause,
 }: {
   sessionSeconds: number | null;
+  /** Libellé de la pastille, ex. « Série 2/4 ». */
+  label: string;
   remainingSeconds: number;
   paused: boolean;
   onTogglePause: () => void;
@@ -41,7 +44,7 @@ export default function TimeBar({
       >
         <div className="text-right">
           <p className="text-[10px] font-extrabold uppercase tracking-[0.1em]">
-            Exercice
+            {label}
           </p>
           <p className="font-mono text-[22px] font-black leading-tight tabular-nums">
             {overdue ? "-" : ""}

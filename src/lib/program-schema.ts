@@ -11,6 +11,8 @@ const exerciseBaseShape = {
   muscles: z.array(z.string().min(1)).max(6).default([]),
   // Temps cible pour boucler l'exercice, séries + repos compris (secondes).
   targetSeconds: z.number().int().min(30).max(3600).nullish(),
+  // Temps cible d'exécution d'UNE série (secondes).
+  setSeconds: z.number().int().min(10).max(600).nullish(),
   notes: z.string().nullish(),
 };
 
