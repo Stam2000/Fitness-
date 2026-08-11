@@ -1,10 +1,11 @@
 /**
  * Génère avec Kie.ai (GPT Image 2) toutes les images manquantes :
- * équipements et exercices.
+ * équipements, exercices et groupes musculaires.
  *
  *   npm run images:generate                 # tout ce qui manque
  *   npm run images:generate -- --equipment  # équipements uniquement
  *   npm run images:generate -- --exercises  # exercices uniquement
+ *   npm run images:generate -- --muscles    # muscles uniquement
  *   npm run images:generate -- --force      # régénère aussi celles déjà là
  *
  * La clé est lue depuis les Réglages (base) ou KIE_API_KEY.
@@ -13,6 +14,8 @@ import { PrismaClient } from "@prisma/client";
 import {
   buildEquipmentImagePrompt,
   buildExerciseImagePrompt,
+  buildMuscleComboImagePrompt,
+  buildMuscleImagePrompt,
   createImageTask,
   getImageTaskResult,
 } from "../src/lib/kie";
@@ -21,17 +24,23 @@ const prisma = new PrismaClient();
 
 const args = process.argv.slice(2);
 const force = args.includes("--force");
-const onlyEquipment = args.includes("--equipment");
-const onlyExercises = args.includes("--exercises");
-const doEquipment = onlyEquipment || !onlyExercises;
-const doExercises = onlyExercises || !onlyEquipment;
+// Sans flag de cible : tout ; sinon uniquement les cibles demandées.
+const only = {
+  equipment: args.includes("--equipment"),
+  exercises: args.includes("--exercises"),
+  muscles: args.includes("--muscles"),
+};
+const noFilter = !only.equipment && !only.exercises && !only.muscles;
+const doEquipment = noFilter || only.equipment;
+const doExercises = noFilter || only.exercises;
+const doMuscles = noFilter || only.muscles;
 
 const CONCURRENCY = 3;
 const POLL_INTERVAL_MS = 5000;
 const POLL_TIMEOUT_MS = 5 * 60 * 1000;
 
 type Job = {
-  kind: "equipment" | "exercise";
+  kind: "equipment" | "exercise" | "muscle" | "muscle-combo";
   id: string;
   label: string;
   prompt: string;
@@ -61,6 +70,16 @@ async function runJob(job: Job, apiKey: string): Promise<boolean> {
       if (result.state === "success" && result.url) {
         if (job.kind === "equipment") {
           await prisma.equipment.update({
+            where: { id: job.id },
+            data: { imageUrl: result.url, imageTaskId: null },
+          });
+        } else if (job.kind === "muscle") {
+          await prisma.muscle.update({
+            where: { id: job.id },
+            data: { imageUrl: result.url, imageTaskId: null },
+          });
+        } else if (job.kind === "muscle-combo") {
+          await prisma.muscleCombo.update({
             where: { id: job.id },
             data: { imageUrl: result.url, imageTaskId: null },
           });
@@ -124,6 +143,35 @@ async function main() {
         label: `[exercice] ${ex.name}`,
         prompt: buildExerciseImagePrompt(ex.name, ex.equipment),
         aspect: "3:2",
+      });
+    }
+  }
+
+  if (doMuscles) {
+    const muscles = await prisma.muscle.findMany({
+      where: force ? {} : { imageUrl: null },
+      orderBy: { name: "asc" },
+    });
+    for (const m of muscles) {
+      jobs.push({
+        kind: "muscle",
+        id: m.id,
+        label: `[muscle] ${m.name}`,
+        prompt: buildMuscleImagePrompt(m.name),
+        aspect: "1:1",
+      });
+    }
+    const combos = await prisma.muscleCombo.findMany({
+      where: force ? {} : { imageUrl: null },
+      orderBy: { key: "asc" },
+    });
+    for (const c of combos) {
+      jobs.push({
+        kind: "muscle-combo",
+        id: c.id,
+        label: `[combo] ${c.muscles.join(" + ")}`,
+        prompt: buildMuscleComboImagePrompt(c.muscles),
+        aspect: "1:1",
       });
     }
   }

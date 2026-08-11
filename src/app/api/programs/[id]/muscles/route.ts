@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import {
+  ensureMuscleCombosExist,
+  ensureMusclesExist,
+  getKnownMuscles,
+  knownMusclesBlock,
+  resolveMuscleNames,
+} from "@/lib/known-muscles";
 
 // Réponse attendue du modèle : muscles + temps cible (et transition pour les
 // exercices de base) de chaque mouvement.
@@ -120,8 +127,10 @@ export async function POST(
     return NextResponse.json({ updated: 0 });
   }
 
+  const knownMuscles = await getKnownMuscles();
+
   const prompt = `Pour chaque exercice de musculation/fitness ci-dessous, donne :
-- "muscles" : ses 1 à 4 muscles principaux réellement sollicités, en français, noms courts et cohérents (ex. "Dos", "Biceps", "Pectoraux", "Épaules", "Quadriceps", "Ischio-jambiers", "Fessiers", "Abdominaux", "Mollets", "Triceps", "Cardio").
+- "muscles" : ses 1 à 4 groupes musculaires principaux réellement sollicités. ${knownMusclesBlock(knownMuscles) || 'En français, noms courts et cohérents (ex. "Dos", "Biceps", "Pectoraux").'}
 - "targetSeconds" : temps cible réaliste pour boucler l'exercice, TOUTES séries et repos compris (secondes), cohérent avec les séries/reps/repos indiqués.
 - "setSeconds" : temps cible d'exécution d'UNE série (secondes). Pour un exercice « en secondes » (reps = "30 s"), setSeconds = cette durée.
 - "transitionSeconds" (uniquement si demandé) : temps pour passer à l'exercice suivant, installation comprise (30 à 120 s en général).
@@ -189,7 +198,7 @@ Un élément par exercice listé, avec son id exact.`;
           transitionSeconds?: number;
         } = {};
         if (p.needsMuscles && item.muscles && item.muscles.length > 0) {
-          data.muscles = item.muscles;
+          data.muscles = resolveMuscleNames(item.muscles, knownMuscles);
         }
         if (p.needsTarget && item.targetSeconds != null) {
           data.targetSeconds = item.targetSeconds;
@@ -209,6 +218,14 @@ Un élément par exercice listé, avec son id exact.`;
         updated++;
       }
     });
+    await ensureMusclesExist(
+      parsed.items.flatMap((i) => i.muscles ?? [])
+    );
+    await ensureMuscleCombosExist(
+      parsed.items
+        .filter((i) => (i.muscles ?? []).length >= 2)
+        .map((i) => resolveMuscleNames(i.muscles ?? [], knownMuscles))
+    );
     return NextResponse.json({ updated });
   } catch (e) {
     console.error("muscles:", e);

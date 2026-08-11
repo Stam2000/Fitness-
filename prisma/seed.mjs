@@ -79,6 +79,27 @@ const EQUIPMENT = [
   },
 ];
 
+// Groupes musculaires prédéfinis. L'IA peut en créer d'autres à la volée ;
+// les images ne sont jamais générées au seed (npm run images:generate -- --muscles).
+const MUSCLES = [
+  "Dos",
+  "Biceps",
+  "Pectoraux",
+  "Épaules",
+  "Quadriceps",
+  "Ischio-jambiers",
+  "Fessiers",
+  "Abdominaux",
+  "Mollets",
+  "Triceps",
+  "Cardio",
+  "Trapèzes",
+  "Lombaires",
+  "Obliques",
+  "Avant-bras",
+  "Adducteurs",
+];
+
 async function main() {
   // Seul le catalogue d'équipements est seedé : les contextes
   // d'entraînement (Maison, Gym X…) sont créés par l'utilisateur.
@@ -90,6 +111,14 @@ async function main() {
         create: { name, category: group.category },
       });
     }
+  }
+
+  for (const name of MUSCLES) {
+    await prisma.muscle.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
   }
 
   await prisma.settings.upsert({

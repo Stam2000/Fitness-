@@ -2,7 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { programDraftSchema } from "@/lib/program-schema";
-import { PROGRAM_SYSTEM_PROMPT } from "@/lib/program-prompt";
+import { knownExercisesBlock, PROGRAM_SYSTEM_PROMPT } from "@/lib/program-prompt";
+import {
+  getKnownExercises,
+  knownExerciseLines,
+  resolveKnownRefs,
+} from "@/lib/known-exercises";
+import {
+  getKnownMuscles,
+  knownMusclesBlock,
+  resolveDraftMuscles,
+} from "@/lib/known-muscles";
 import { parseTopReps } from "@/lib/progress";
 
 function extractJson(text: string): unknown {
@@ -155,11 +165,16 @@ export async function POST(
     );
   }
 
-  const sessions = await prisma.workoutSession.findMany({
-    where: { day: { programId: id }, completedAt: { not: null } },
-    orderBy: { completedAt: "asc" },
-    include: { setLogs: true },
-  });
+  const [sessions, known, knownMuscles] = await Promise.all([
+    prisma.workoutSession.findMany({
+      where: { day: { programId: id }, completedAt: { not: null } },
+      orderBy: { completedAt: "asc" },
+      include: { setLogs: true },
+    }),
+    getKnownExercises(),
+    getKnownMuscles(),
+  ]);
+  const knownLines = knownExerciseLines(known);
   if (sessions.length === 0) {
     return NextResponse.json(
       { error: "Aucune séance terminée sur ce programme : rien à analyser." },
@@ -226,12 +241,13 @@ ${JSON.stringify(source, null, 2)}
 
 Performances du bloc (par mouvement réellement exécuté) :
 ${history}
-
+${knownLines.length > 0 ? `\n${knownExercisesBlock(knownLines)}\n` : ""}${knownMuscles.length > 0 ? `\n${knownMusclesBlock(knownMuscles)}\n` : ""}
 Conçois le BLOC SUIVANT (bloc n°${program.blockNumber + 1}) :
 - Même contexte et équipement disponible : ${equipmentNames.length > 0 ? equipmentNames.join(", ") : "aucun (poids du corps uniquement)"} — utilise EXCLUSIVEMENT cet équipement.
 - Garde le même nombre de jours et la même logique de séance.
 - Fais progresser chaque exercice selon ses performances réelles : haut de fourchette atteint régulièrement → nouvelle fourchette de reps ou variante plus difficile, et "weightHint" CONCRET en kg basé sur la dernière charge (ex. « démarre à 72,5 kg ») ; stagnation ou séries manquées → consolidation, travail technique, ou décharge (-10 % de charge).
 - Garde EXACTEMENT le même nom quand un exercice continue tel quel : la continuité des courbes de progression et des suggestions de charge dépend du nom. Ne renomme que si tu remplaces réellement le mouvement.
+- Si tu remplaces ou ajoutes un mouvement, pioche de préférence dans les exercices déjà connus listés plus haut (référence #n dans "name") avant d'en inventer un nouveau.
 - Si l'ensemble du bloc montre des signes de fatigue (échecs répétés, beaucoup de séries manquées), conçois un bloc qui démarre par une décharge.
 - Fixe "blockCycles" pour ce nouveau bloc (3 à 6 selon le niveau).
 - Adapte "name" (ex. « ${program.name.replace(/ — Bloc \d+$/, "")} — Bloc ${program.blockNumber + 1} ») et "description" (ce qui change et pourquoi, en 1-2 phrases).
@@ -270,6 +286,8 @@ Réponds UNIQUEMENT avec l'objet JSON du programme, au format du schéma.`;
       );
     }
     const draft = programDraftSchema.parse(extractJson(content));
+    resolveKnownRefs(draft, known);
+    resolveDraftMuscles(draft, knownMuscles);
     return NextResponse.json({ draft });
   } catch (e) {
     console.error("next-block:", e);

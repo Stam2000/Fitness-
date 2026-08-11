@@ -3,7 +3,22 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { programDraftSchema } from "@/lib/program-schema";
-import { PROGRAM_SYSTEM_PROMPT } from "@/lib/program-prompt";
+import {
+  CREATIVITY_LEVELS,
+  creativityInstruction,
+  knownExercisesBlock,
+  PROGRAM_SYSTEM_PROMPT,
+} from "@/lib/program-prompt";
+import {
+  getKnownExercises,
+  knownExerciseLines,
+  resolveKnownRefs,
+} from "@/lib/known-exercises";
+import {
+  getKnownMuscles,
+  knownMusclesBlock,
+  resolveDraftMuscles,
+} from "@/lib/known-muscles";
 
 const requestSchema = z.object({
   locationId: z.string(),
@@ -14,6 +29,8 @@ const requestSchema = z.object({
   notes: z.string().optional(),
   // Modèle choisi pour cette génération ; sinon celui des Réglages.
   model: z.string().trim().min(1).max(120).optional(),
+  // Réutiliser les exercices déjà en base vs en inventer de nouveaux.
+  creativity: z.enum(CREATIVITY_LEVELS).default("normal"),
 });
 
 function extractJson(text: string): unknown {
@@ -32,8 +49,16 @@ export async function POST(req: NextRequest) {
   if (!body.success) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
-  const { locationId, goal, level, daysPerWeek, sessionMinutes, notes, model } =
-    body.data;
+  const {
+    locationId,
+    goal,
+    level,
+    daysPerWeek,
+    sessionMinutes,
+    notes,
+    model,
+    creativity,
+  } = body.data;
 
   const settings = await getSettings();
   const selectedModel = model ?? settings.openrouterModel;
@@ -47,10 +72,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const location = await prisma.location.findUnique({
-    where: { id: locationId },
-    include: { equipment: { include: { equipment: true } } },
-  });
+  const [location, known, knownMuscles] = await Promise.all([
+    prisma.location.findUnique({
+      where: { id: locationId },
+      include: { equipment: { include: { equipment: true } } },
+    }),
+    getKnownExercises(),
+    getKnownMuscles(),
+  ]);
+  const knownLines = knownExerciseLines(known);
   if (!location) {
     return NextResponse.json({ error: "Contexte introuvable" }, { status: 404 });
   }
@@ -65,7 +95,15 @@ export async function POST(req: NextRequest) {
 - Niveau : ${level}
 - Séances par semaine : ${daysPerWeek}
 - Durée par séance : environ ${sessionMinutes} minutes
-${notes ? `- Précisions de l'utilisateur : ${notes}` : ""}`;
+${notes ? `- Précisions de l'utilisateur : ${notes}` : ""}${
+    knownLines.length > 0
+      ? `
+
+${creativityInstruction(creativity)}
+
+${knownExercisesBlock(knownLines)}`
+      : ""
+  }${knownMuscles.length > 0 ? `\n\n${knownMusclesBlock(knownMuscles)}` : ""}`;
 
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -108,6 +146,8 @@ ${notes ? `- Précisions de l'utilisateur : ${notes}` : ""}`;
     }
 
     const draft = programDraftSchema.parse(extractJson(content));
+    resolveKnownRefs(draft, known);
+    resolveDraftMuscles(draft, knownMuscles);
     return NextResponse.json({ draft });
   } catch (e) {
     console.error("generate-program:", e);

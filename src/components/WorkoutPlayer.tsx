@@ -13,6 +13,11 @@ import SubstituteSheet from "@/components/workout/SubstituteSheet";
 import SetRow from "@/components/workout/SetRow";
 import TimeBar from "@/components/workout/TimeBar";
 import type { NextUpInfo } from "@/components/workout/NextUpCard";
+import MusclePreviewSheet, {
+  type MuscleChipInfo,
+  type MuscleComboInfo,
+} from "@/components/MusclePreviewSheet";
+import { muscleComboKey, normalizeName } from "@/lib/normalize";
 
 // Une « option » d'exercice : l'exercice de base (index 0) ou une variante,
 // avec ses propres données d'historique (suggestion, dernières perfs, record).
@@ -153,6 +158,8 @@ export default function WorkoutPlayer({
   startedAtMs = null,
   completedAtMs = null,
   initialExerciseSeconds = {},
+  muscleInfoByName = {},
+  muscleComboByKey = {},
 }: {
   sessionId: string;
   programName: string;
@@ -166,6 +173,10 @@ export default function WorkoutPlayer({
   startedAtMs?: number | null;
   completedAtMs?: number | null;
   initialExerciseSeconds?: Record<string, number>;
+  // Catalogue Muscle indexé par nom normalisé, pour le popup de prévisualisation.
+  muscleInfoByName?: Record<string, MuscleChipInfo>;
+  // Combinaisons de muscles indexées par clé canonique (muscleComboKey).
+  muscleComboByKey?: Record<string, MuscleComboInfo>;
 }) {
   // Option affichée pour chaque exercice (bascule manuelle possible).
   const [variantIdx, setVariantIdx] = useState<Record<string, number>>(() =>
@@ -248,6 +259,8 @@ export default function WorkoutPlayer({
     anchorMs: number | null;
   }>({ key: "", base: 0, anchorMs: null });
   const [showSubstitute, setShowSubstitute] = useState(false);
+  // Popup de prévisualisation des muscles travaillés par l'exercice courant.
+  const [showMuscles, setShowMuscles] = useState(false);
   const [substituteReason, setSubstituteReason] = useState("");
   const [substituting, setSubstituting] = useState(false);
   const [substituteError, setSubstituteError] = useState<string | null>(null);
@@ -1125,12 +1138,15 @@ export default function WorkoutPlayer({
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-sm">💪</span>
           {active.muscles.map((m) => (
-            <span
+            <button
               key={m}
-              className="rounded-full bg-surface-2 px-3 py-1.5 text-[12.5px] font-semibold text-muted-2"
+              type="button"
+              onClick={() => setShowMuscles(true)}
+              aria-label={`Voir le groupe musculaire ${m}`}
+              className="rounded-full bg-surface-2 px-3 py-1.5 text-[12.5px] font-semibold text-muted-2 transition-colors hover:bg-surface-2/70"
             >
               {m}
-            </span>
+            </button>
           ))}
         </div>
       )}
@@ -1297,6 +1313,21 @@ export default function WorkoutPlayer({
         onClose={() => setShowSubstitute(false)}
         onReason={setSubstituteReason}
         onSubmit={substituteExercise}
+      />
+
+      <MusclePreviewSheet
+        open={showMuscles}
+        onClose={() => setShowMuscles(false)}
+        muscles={active.muscles.map(
+          (m) =>
+            muscleInfoByName[normalizeName(m)] ?? {
+              name: m,
+              id: null,
+              imageUrl: null,
+              imageTaskId: null,
+            }
+        )}
+        combo={muscleComboByKey[muscleComboKey(active.muscles)] ?? null}
       />
     </main>
   );

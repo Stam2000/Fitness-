@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { getCompletedCycles } from "@/lib/progress";
+import { normalizeName } from "@/lib/normalize";
 import ProgramDetail from "@/components/ProgramDetail";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,8 @@ export default async function ProgramPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [program, locations, settings, completedCycles] = await Promise.all([
+  const [program, locations, settings, completedCycles, allMuscles, allCombos] =
+    await Promise.all([
     prisma.program.findUnique({
       where: { id },
       include: {
@@ -32,6 +34,18 @@ export default async function ProgramPage({
     prisma.location.findMany({ orderBy: { createdAt: "asc" } }),
     getSettings(),
     getCompletedCycles(id),
+    prisma.muscle.findMany({
+      select: { id: true, name: true, imageUrl: true, imageTaskId: true },
+    }),
+    prisma.muscleCombo.findMany({
+      select: {
+        id: true,
+        key: true,
+        muscles: true,
+        imageUrl: true,
+        imageTaskId: true,
+      },
+    }),
   ]);
   if (!program) notFound();
 
@@ -43,6 +57,10 @@ export default async function ProgramPage({
         icon: l.icon,
       }))}
       hasOpenrouterKey={Boolean(settings.openrouterApiKey)}
+      muscleInfoByName={Object.fromEntries(
+        allMuscles.map((m) => [normalizeName(m.name), m])
+      )}
+      muscleComboByKey={Object.fromEntries(allCombos.map((c) => [c.key, c]))}
       program={{
         id: program.id,
         name: program.name,

@@ -12,6 +12,11 @@ import {
 } from "@/app/actions";
 import { btn } from "@/components/ui/button";
 import Chip from "@/components/ui/Chip";
+import MusclePreviewSheet, {
+  type MuscleChipInfo,
+  type MuscleComboInfo,
+} from "@/components/MusclePreviewSheet";
+import { muscleComboKey, normalizeName } from "@/lib/normalize";
 
 type VariationView = {
   id: string;
@@ -92,10 +97,16 @@ export default function ProgramDetail({
   program,
   locations,
   hasOpenrouterKey,
+  muscleInfoByName = {},
+  muscleComboByKey = {},
 }: {
   program: ProgramView;
   locations: { id: string; name: string; icon: string | null }[];
   hasOpenrouterKey: boolean;
+  // Catalogue Muscle indexé par nom normalisé, pour le popup de prévisualisation.
+  muscleInfoByName?: Record<string, MuscleChipInfo>;
+  // Combinaisons de muscles indexées par clé canonique (muscleComboKey).
+  muscleComboByKey?: Record<string, MuscleComboInfo>;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -105,6 +116,8 @@ export default function ProgramDetail({
   const [annotating, setAnnotating] = useState(false);
   const [annotateError, setAnnotateError] = useState<string | null>(null);
   const [showConvert, setShowConvert] = useState(false);
+  // Popup de prévisualisation : muscles de l'exercice cliqué (null = fermé).
+  const [muscleSheet, setMuscleSheet] = useState<string[] | null>(null);
   const [convertTarget, setConvertTarget] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
   const [convertError, setConvertError] = useState<string | null>(null);
@@ -562,12 +575,15 @@ export default function ProgramDetail({
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                           <span className="text-xs">💪</span>
                           {ex.muscles.map((m) => (
-                            <span
+                            <button
                               key={m}
-                              className="rounded-full bg-surface-2 px-2.5 py-1 text-[11.5px] font-semibold text-muted-2"
+                              type="button"
+                              onClick={() => setMuscleSheet(ex.muscles)}
+                              aria-label={`Voir le groupe musculaire ${m}`}
+                              className="rounded-full bg-surface-2 px-2.5 py-1 text-[11.5px] font-semibold text-muted-2 transition-colors hover:bg-surface-2/70"
                             >
                               {m}
-                            </span>
+                            </button>
                           ))}
                         </div>
                       )}
@@ -813,6 +829,25 @@ export default function ProgramDetail({
       >
         Supprimer ce programme
       </button>
+
+      <MusclePreviewSheet
+        open={muscleSheet !== null}
+        onClose={() => setMuscleSheet(null)}
+        muscles={(muscleSheet ?? []).map(
+          (m) =>
+            muscleInfoByName[normalizeName(m)] ?? {
+              name: m,
+              id: null,
+              imageUrl: null,
+              imageTaskId: null,
+            }
+        )}
+        combo={
+          muscleSheet
+            ? (muscleComboByKey[muscleComboKey(muscleSheet)] ?? null)
+            : null
+        }
+      />
     </main>
   );
 }

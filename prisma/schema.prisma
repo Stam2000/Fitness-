@@ -26,6 +26,29 @@ model Equipment {
   locations   LocationEquipment[]
 }
 
+// Groupe musculaire du catalogue : liste seedée + ajouts créés par l'IA.
+// Les exercices y font référence par nom (Exercise.muscles est un String[]).
+model Muscle {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  imageUrl    String?
+  imageTaskId String?
+  createdAt   DateTime @default(now())
+}
+
+// Combinaison de groupes musculaires ciblée par un exercice (≥ 2 muscles),
+// avec son illustration dédiée. `key` = noms normalisés triés, joints par "|"
+// (voir muscleComboKey dans src/lib/normalize.ts) ; `muscles` garde les noms
+// canoniques pour l'affichage et le prompt de génération.
+model MuscleCombo {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  muscles     String[]
+  imageUrl    String?
+  imageTaskId String?
+  createdAt   DateTime @default(now())
+}
+
 model LocationEquipment {
   locationId  String
   equipmentId String

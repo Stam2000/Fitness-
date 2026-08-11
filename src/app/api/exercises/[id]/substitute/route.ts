@@ -3,6 +3,19 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { exerciseSchema } from "@/lib/program-schema";
+import { knownExercisesBlock } from "@/lib/program-prompt";
+import {
+  getKnownExercises,
+  knownExerciseLines,
+  resolveKnownRef,
+} from "@/lib/known-exercises";
+import {
+  ensureMuscleCombosExist,
+  ensureMusclesExist,
+  getKnownMuscles,
+  knownMusclesBlock,
+  resolveMuscleNames,
+} from "@/lib/known-muscles";
 
 const requestSchema = z.object({
   reason: z.string().max(300).optional(),
@@ -61,6 +74,11 @@ export async function POST(
   }
 
   const program = exercise.day.program;
+  const [known, knownMuscles] = await Promise.all([
+    getKnownExercises(),
+    getKnownMuscles(),
+  ]);
+  const knownLines = knownExerciseLines(known);
   const equipmentNames =
     program.location?.equipment.map((e) => e.equipment.name) ?? [];
   const otherNames = exercise.day.exercises
@@ -73,6 +91,7 @@ ${body.data.reason ? `Raison : ${body.data.reason}` : ""}
 
 Équipement disponible : ${equipmentNames.length > 0 ? equipmentNames.join(", ") : "poids du corps uniquement"}
 Exercices déjà présents dans la séance (à ne PAS proposer) : ${otherNames.join(", ") || "aucun"}
+${knownLines.length > 0 ? `\n${knownExercisesBlock(knownLines)}\n` : ""}${knownMuscles.length > 0 ? `\n${knownMusclesBlock(knownMuscles)}\n` : ""}
 
 Propose UN exercice de remplacement ciblant les mêmes muscles, adapté à la raison donnée. Utilise EXCLUSIVEMENT l'équipement listé ; combine librement plusieurs équipements dans l'exercice quand c'est pertinent (ex. haltères + banc), et liste dans "equipment" TOUTES les pièces utilisées. Réponds UNIQUEMENT avec un objet JSON :
 {"name": "...", "sets": 4, "reps": "8-12", "restSeconds": 90, "weightHint": "..." , "equipment": ["..."], "muscles": ["1 à 4 muscles principaux, ex. Dos, Biceps"], "targetSeconds": 360, "setSeconds": 45, "notes": "conseil de technique court"}
@@ -115,6 +134,8 @@ Propose UN exercice de remplacement ciblant les mêmes muscles, adapté à la ra
       );
     }
     const replacement = exerciseSchema.parse(extractJson(content));
+    resolveKnownRef(replacement, known);
+    replacement.muscles = resolveMuscleNames(replacement.muscles, knownMuscles);
 
     // Le mouvement de base change : les anciennes variantes (alternatives de
     // l'ancien mouvement) n'ont plus de sens, on les supprime.
@@ -141,6 +162,8 @@ Propose UN exercice de remplacement ciblant les mêmes muscles, adapté à la ra
       }),
       prisma.exerciseVariation.deleteMany({ where: { exerciseId: id } }),
     ]);
+    await ensureMusclesExist(replacement.muscles);
+    await ensureMuscleCombosExist([replacement.muscles]);
     return NextResponse.json({ exercise: updated });
   } catch (e) {
     console.error("substitute:", e);

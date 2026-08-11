@@ -9,6 +9,15 @@ export function buildEquipmentImagePrompt(
   return `Product illustration of fitness equipment: "${equipmentName}" (category: ${category}). Single piece of gym equipment centered on a dark navy background (#0b0f14), modern flat illustration style with lime green (#a3e635) accents, subtle soft shadow, no people, no text, no watermark.`;
 }
 
+export function buildMuscleImagePrompt(muscleName: string): string {
+  return `Stylized anatomical illustration of the human muscle group "${muscleName}" (French name). Simplified athletic human silhouette, front or back view depending on where the muscle is located, with the ${muscleName} muscle group clearly highlighted in lime green (#a3e635), the rest of the body in muted dark tones on a dark navy background (#0b0f14), modern flat medical illustration style, no text, no labels, no watermark.`;
+}
+
+export function buildMuscleComboImagePrompt(muscleNames: string[]): string {
+  const list = muscleNames.join(", ");
+  return `Stylized anatomical illustration of a combination of human muscle groups: ${list} (French names). Simplified athletic human silhouette — show front and back views side by side if needed so every listed muscle group is visible — with ALL of these muscle groups (${list}) clearly highlighted in lime green (#a3e635), the rest of the body in muted dark tones on a dark navy background (#0b0f14), modern flat medical illustration style, no text, no labels, no watermark.`;
+}
+
 export function buildExerciseImagePrompt(
   exerciseName: string,
   equipment: string[]

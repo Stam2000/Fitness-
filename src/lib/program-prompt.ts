@@ -1,3 +1,30 @@
+// Style de sélection des exercices : pilote la propension de l'IA à
+// réutiliser les mouvements déjà en base plutôt qu'à en introduire de nouveaux.
+export const CREATIVITY_LEVELS = ["conservateur", "normal", "creatif"] as const;
+export type Creativity = (typeof CREATIVITY_LEVELS)[number];
+
+export function creativityInstruction(level: Creativity): string {
+  switch (level) {
+    case "conservateur":
+      return "Sélection des exercices : CONSERVATEUR — compose au maximum avec les exercices déjà connus listés ci-dessous (référence #n dans \"name\") ; n'introduis un mouvement nouveau que si aucun exercice connu ne convient au besoin.";
+    case "creatif":
+      return "Sélection des exercices : CRÉATIF — privilégie la variété et des mouvements nouveaux par rapport aux exercices déjà connus, tant qu'ils restent pertinents, sûrs et adaptés à l'équipement.";
+    default:
+      return "Sélection des exercices : ÉQUILIBRÉ — mélange librement exercices déjà connus et nouveautés pertinentes.";
+  }
+}
+
+// Liste des mouvements déjà en base (avec leur référence #n), à injecter dans
+// les prompts : l'IA renvoie la référence, résolue ensuite côté serveur vers
+// le nom canonique (voir resolveKnownRefs). L'historique de charge, les
+// suggestions de poids et les records sont retrouvés par nom, d'où
+// l'importance d'éviter les quasi-doublons.
+export function knownExercisesBlock(lines: string[]): string {
+  if (lines.length === 0) return "";
+  return `Exercices déjà connus de l'utilisateur. Pour en réutiliser un, mets UNIQUEMENT sa référence dans "name" (ex. "name": "#12") : elle sera remplacée automatiquement par le nom exact — c'est la méthode la plus fiable, l'historique de charge et les records en dépendent. Fournis normalement le reste de la prescription (sets, reps, restSeconds…). N'invente jamais de quasi-doublon d'un exercice listé (« Développé couché avec haltères » alors que « #12 Développé couché haltères » existe : utilise "#12").
+${lines.map((l) => `- ${l}`).join("\n")}`;
+}
+
 // Prompt système partagé par la génération de programme et la génération du
 // bloc suivant : les deux doivent produire un JSON au format programDraftSchema.
 export const PROGRAM_SYSTEM_PROMPT = `Tu es un coach sportif expert. Tu crées des programmes de musculation/fitness personnalisés en français.
@@ -48,7 +75,7 @@ Règles :
 - Le nombre de jours doit correspondre exactement à la demande.
 - Adapte le volume à la durée de séance demandée (échauffement compris).
 - "reps" est une chaîne : "8-12", "10", "30 s", "jusqu'à l'échec"…
-- "muscles" : 1 à 4 muscles principaux réellement sollicités, en français, noms courts et cohérents d'un exercice à l'autre (ex. "Dos", "Biceps", "Pectoraux", "Épaules", "Quadriceps", "Ischio-jambiers", "Fessiers", "Abdominaux", "Mollets", "Triceps", "Cardio").
+- "muscles" : 1 à 4 groupes musculaires principaux réellement sollicités, en français, choisis dans la liste de muscles connus fournie dans la demande (recopiés à l'identique) ; noms courts et cohérents d'un exercice à l'autre.
 - "targetSeconds" : temps cible réaliste pour boucler l'exercice, TOUTES séries et repos compris (secondes). Ordre de grandeur : sets × (temps d'exécution d'une série + restSeconds).
 - "setSeconds" : temps cible d'exécution d'UNE série (secondes). Pour un exercice « en secondes » (reps = "30 s"), setSeconds = cette durée. Cohérence attendue : targetSeconds ≈ sets × (setSeconds + restSeconds).
 - "transitionSeconds" : temps pour passer à l'exercice suivant, installation du matériel comprise (30 à 120 s en général).

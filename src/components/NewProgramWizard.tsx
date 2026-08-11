@@ -18,6 +18,25 @@ const GOALS = [
 ];
 const LEVELS = ["Débutant", "Intermédiaire", "Avancé"];
 const DURATIONS = [30, 45, 60, 90];
+// Propension de l'IA à réutiliser les exercices déjà en base vs en inventer.
+const CREATIVITY_OPTIONS = [
+  {
+    value: "conservateur",
+    label: "♻️ Conservateur",
+    hint: "Réutilise au maximum les exercices de tes programmes existants (historique de charge préservé).",
+  },
+  {
+    value: "normal",
+    label: "⚖️ Équilibré",
+    hint: "Mélange d'exercices que tu connais déjà et de nouveautés pertinentes.",
+  },
+  {
+    value: "creatif",
+    label: "✨ Créatif",
+    hint: "Privilégie la variété et les mouvements que tu n'as pas encore pratiqués.",
+  },
+] as const;
+type Creativity = (typeof CREATIVITY_OPTIONS)[number]["value"];
 
 type LocationView = {
   id: string;
@@ -47,6 +66,7 @@ export default function NewProgramWizard({
   const [level, setLevel] = useState(LEVELS[1]);
   const [daysPerWeek, setDaysPerWeek] = useState(3);
   const [sessionMinutes, setSessionMinutes] = useState(60);
+  const [creativity, setCreativity] = useState<Creativity>("normal");
   const [notes, setNotes] = useState("");
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -79,6 +99,7 @@ export default function NewProgramWizard({
           level,
           daysPerWeek,
           sessionMinutes,
+          creativity,
           notes: notes.trim() || undefined,
           model: model.trim() || undefined,
         }),
@@ -298,6 +319,25 @@ export default function NewProgramWizard({
             </Chip>
           ))}
         </div>
+      </section>
+
+      <section>
+        <h2 className="overline-label mb-2.5">Sélection des exercices</h2>
+        <div className="flex gap-2">
+          {CREATIVITY_OPTIONS.map((o) => (
+            <Chip
+              key={o.value}
+              active={o.value === creativity}
+              onClick={() => setCreativity(o.value)}
+              className="flex-1"
+            >
+              {o.label}
+            </Chip>
+          ))}
+        </div>
+        <p className="mt-1.5 text-xs text-muted">
+          {CREATIVITY_OPTIONS.find((o) => o.value === creativity)?.hint}
+        </p>
       </section>
 
       <section>

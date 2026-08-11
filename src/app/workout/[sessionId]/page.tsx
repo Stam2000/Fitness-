@@ -7,7 +7,12 @@ import {
   suggestNextWeight,
 } from "@/lib/progress";
 import { activeVariationIndex } from "@/lib/variants";
+import { normalizeName } from "@/lib/normalize";
 import WorkoutPlayer from "@/components/WorkoutPlayer";
+import type {
+  MuscleChipInfo,
+  MuscleComboInfo,
+} from "@/components/MusclePreviewSheet";
 
 export const dynamic = "force-dynamic";
 
@@ -54,11 +59,34 @@ export default async function WorkoutPage({
     ...ex.variations.map((v) => v.name),
   ]);
 
-  const [settings, historicalMax, lastLogsByName] = await Promise.all([
-    getSettings(),
-    getHistoricalMaxByName(session.id),
-    getLastLogsByName(optionNames, session.id),
-  ]);
+  const [settings, historicalMax, lastLogsByName, allMuscles, allCombos] =
+    await Promise.all([
+      getSettings(),
+      getHistoricalMaxByName(session.id),
+      getLastLogsByName(optionNames, session.id),
+      prisma.muscle.findMany({
+        select: { id: true, name: true, imageUrl: true, imageTaskId: true },
+      }),
+      prisma.muscleCombo.findMany({
+        select: {
+          id: true,
+          key: true,
+          muscles: true,
+          imageUrl: true,
+          imageTaskId: true,
+        },
+      }),
+    ]);
+
+  // Catalogue Muscle indexé par nom normalisé : le popup de prévisualisation
+  // retrouve l'image d'un muscle à partir du nom porté par l'exercice.
+  const muscleInfoByName: Record<string, MuscleChipInfo> = Object.fromEntries(
+    allMuscles.map((m) => [normalizeName(m.name), m])
+  );
+  // Combinaisons de muscles indexées par leur clé canonique.
+  const muscleComboByKey: Record<string, MuscleComboInfo> = Object.fromEntries(
+    allCombos.map((c) => [c.key, c])
+  );
 
   const exercises = session.day.exercises.map((ex) => {
     const options = [
@@ -161,6 +189,8 @@ export default async function WorkoutPage({
           ? (session.exerciseSeconds as Record<string, number>)
           : {}
       }
+      muscleInfoByName={muscleInfoByName}
+      muscleComboByKey={muscleComboByKey}
     />
   );
 }

@@ -2,6 +2,12 @@
 
 import { prisma } from "@/lib/prisma";
 import { programDraftSchema, type ProgramDraft } from "@/lib/program-schema";
+import {
+  ensureMuscleCombosExist,
+  ensureMusclesExist,
+  getKnownMuscles,
+  resolveDraftMuscles,
+} from "@/lib/known-muscles";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -184,11 +190,37 @@ function draftCreateData(parsed: ProgramDraft) {
   };
 }
 
+// Muscles de tous les exercices et variantes d'un draft (avec doublons —
+// ensureMusclesExist dédoublonne par nom normalisé).
+function draftMuscleNames(draft: ProgramDraft): string[] {
+  return draft.days.flatMap((d) =>
+    d.exercises.flatMap((ex) => [
+      ...ex.muscles,
+      ...ex.variations.flatMap((v) => v.muscles),
+    ])
+  );
+}
+
+// Combinaisons de muscles ciblées par chaque exercice/variante du draft
+// (une image combinée est générée par combinaison inédite de ≥ 2 muscles).
+function draftMuscleSets(draft: ProgramDraft): string[][] {
+  return draft.days.flatMap((d) =>
+    d.exercises.flatMap((ex) => [
+      ex.muscles,
+      ...ex.variations.map((v) => v.muscles),
+    ])
+  );
+}
+
 export async function saveProgram(
   draft: ProgramDraft,
   meta: { locationId?: string | null; goal?: string | null; level?: string | null }
 ): Promise<string> {
   const parsed = programDraftSchema.parse(draft);
+  // Le draft a pu être édité côté client : on recolle les muscles sur les
+  // noms canoniques (le popup de prévisualisation matche Muscle.name par nom)
+  // et on crée en base ceux qui sont réellement nouveaux.
+  resolveDraftMuscles(parsed, await getKnownMuscles());
   const program = await prisma.program.create({
     data: {
       ...draftCreateData(parsed),
@@ -197,6 +229,8 @@ export async function saveProgram(
       locationId: meta.locationId ?? null,
     },
   });
+  await ensureMusclesExist(draftMuscleNames(parsed));
+  await ensureMuscleCombosExist(draftMuscleSets(parsed));
   revalidatePath("/");
   return program.id;
 }
@@ -208,6 +242,7 @@ export async function saveNextBlock(
   draft: ProgramDraft
 ): Promise<string> {
   const parsed = programDraftSchema.parse(draft);
+  resolveDraftMuscles(parsed, await getKnownMuscles());
   const prev = await prisma.program.findUniqueOrThrow({
     where: { id: previousProgramId },
     select: { goal: true, level: true, locationId: true, blockNumber: true },
@@ -229,6 +264,8 @@ export async function saveNextBlock(
     });
     return created;
   });
+  await ensureMusclesExist(draftMuscleNames(parsed));
+  await ensureMuscleCombosExist(draftMuscleSets(parsed));
   revalidatePath("/");
   revalidatePath(`/programs/${previousProgramId}`);
   return program.id;
