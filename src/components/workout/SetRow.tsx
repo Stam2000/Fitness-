@@ -1,5 +1,7 @@
 "use client";
 
+import { Check, Play, Square } from "lucide-react";
+
 type SetState = { reps: string; weightKg: string; done: boolean };
 
 /**
@@ -53,7 +55,7 @@ export default function SetRow({
         }`}
         aria-label={`Série ${index + 1} ${state.done ? "faite" : "à faire"}`}
       >
-        {state.done ? "✓" : index + 1}
+        {state.done ? <Check size={20} strokeWidth={3} /> : index + 1}
       </button>
       <label className="flex min-w-0 flex-1 flex-col text-xs text-muted">
         Poids (kg)
@@ -73,22 +75,26 @@ export default function SetRow({
           {timerLeft !== null ? (
             <button
               onClick={onStopTimer}
-              className="mt-0.5 w-full rounded-full border border-accent bg-accent/15 px-3 py-2.5 font-mono text-base font-bold tabular-nums text-accent"
+              aria-label="Arrêter le chrono"
+              className="mt-0.5 inline-flex w-full items-center justify-center gap-2 rounded-full border border-accent bg-accent/15 px-3 py-2.5 font-mono text-base font-bold tabular-nums text-accent"
             >
               {Math.floor(timerLeft / 60)}:
-              {String(timerLeft % 60).padStart(2, "0")} ■ Stop
+              {String(timerLeft % 60).padStart(2, "0")}
+              <Square size={13} fill="currentColor" />
             </button>
           ) : state.done ? (
-            <p className="mt-0.5 w-full rounded-full border border-border bg-surface-2 px-3 py-2.5 font-mono text-base text-ink">
-              {state.reps || duration} s ✓
+            <p className="mt-0.5 inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-border bg-surface-2 px-3 py-2.5 font-mono text-base text-ink">
+              {state.reps || duration} s
+              <Check size={14} strokeWidth={3} className="text-accent" />
             </p>
           ) : (
             <button
               onClick={onStartTimer}
               disabled={timerBusy}
-              className="mt-0.5 w-full rounded-full border border-accent/50 bg-accent/10 px-3 py-2.5 font-mono text-base font-semibold text-accent disabled:opacity-40"
+              aria-label={`Lancer le chrono de ${duration} s`}
+              className="mt-0.5 inline-flex w-full items-center justify-center gap-2 rounded-full border border-accent/50 bg-accent/10 px-3 py-2.5 font-mono text-base font-semibold text-accent disabled:opacity-40"
             >
-              ▶ {duration} s
+              <Play size={13} fill="currentColor" /> {duration} s
             </button>
           )}
         </div>

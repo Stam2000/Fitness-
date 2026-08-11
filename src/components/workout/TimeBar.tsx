@@ -1,5 +1,7 @@
 "use client";
 
+import { Pause, Play, Timer } from "lucide-react";
+
 function fmt(totalSeconds: number) {
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
@@ -32,7 +34,9 @@ export default function TimeBar({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <p className="overline-label">⏱ Temps de séance</p>
+        <p className="overline-label flex items-center gap-1">
+          <Timer size={12} /> Séance
+        </p>
         <p className="font-mono text-[28px] font-black leading-tight tabular-nums">
           {sessionSeconds != null ? fmt(sessionSeconds) : "—:—"}
         </p>
@@ -56,9 +60,13 @@ export default function TimeBar({
           aria-label={
             paused ? "Reprendre le chrono" : "Mettre le chrono en pause"
           }
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-black/15 text-[13px] font-black"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-black/15"
         >
-          {paused ? "▶" : "❚❚"}
+          {paused ? (
+            <Play size={16} fill="currentColor" />
+          ) : (
+            <Pause size={16} fill="currentColor" />
+          )}
         </button>
       </div>
     </div>

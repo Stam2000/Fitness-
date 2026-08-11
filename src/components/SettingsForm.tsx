@@ -1,6 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import {
+  Bot,
+  Check,
+  CircleCheck,
+  Key,
+  Loader2,
+  Mic,
+  Star,
+  Volume2,
+} from "lucide-react";
 import { saveSettings } from "@/app/actions";
 import ModelPicker from "@/components/ModelPicker";
 import { Button } from "@/components/ui/button";
@@ -48,11 +58,15 @@ export default function SettingsForm({
   return (
     <div className="flex max-w-2xl flex-col gap-5">
       <section className="card p-4">
-        <h2 className="text-[15px] font-extrabold">Clé OpenRouter</h2>
+        <h2 className="flex items-center gap-1.5 text-[15px] font-extrabold">
+          <Key size={15} className="text-muted-2" /> Clé OpenRouter
+        </h2>
         <p className="mt-1 text-xs text-muted-2">
           Nécessaire pour générer les programmes.{" "}
           {initial.hasOpenrouterKey ? (
-            <span className="font-bold text-accent">✓ Une clé est configurée.</span>
+            <span className="inline-flex items-center gap-1 font-bold text-accent">
+              <CircleCheck size={13} /> Une clé est configurée.
+            </span>
           ) : (
             <span className="text-danger">Aucune clé configurée.</span>
           )}
@@ -71,12 +85,15 @@ export default function SettingsForm({
       </section>
 
       <section className="card p-4">
-        <h2 className="text-[15px] font-extrabold">Modèle d&apos;IA par défaut</h2>
+        <h2 className="flex items-center gap-1.5 text-[15px] font-extrabold">
+          <Bot size={15} className="text-muted-2" /> Modèle d&apos;IA par défaut
+        </h2>
         <p className="mt-1 mb-2 text-xs text-muted-2">
           Utilisé pour les programmes, l&apos;échauffement, les substitutions
           d&apos;exercices et les adaptations. Épingle tes modèles favoris pour
           les retrouver en tête de liste ; le modèle enregistré ici est marqué
-          ⭐.
+          d&apos;une étoile{" "}
+          <Star size={12} className="inline align-[-1.5px]" aria-hidden />.
         </p>
         <ModelPicker
           value={model}
@@ -87,11 +104,15 @@ export default function SettingsForm({
       </section>
 
       <section className="card p-4">
-        <h2 className="text-[15px] font-extrabold">Clé Kie.ai</h2>
+        <h2 className="flex items-center gap-1.5 text-[15px] font-extrabold">
+          <Key size={15} className="text-muted-2" /> Clé Kie.ai
+        </h2>
         <p className="mt-1 text-xs text-muted-2">
           Nécessaire pour générer les images d&apos;exercices (GPT Image 2).{" "}
           {initial.hasKieKey ? (
-            <span className="font-bold text-accent">✓ Une clé est configurée.</span>
+            <span className="inline-flex items-center gap-1 font-bold text-accent">
+              <CircleCheck size={13} /> Une clé est configurée.
+            </span>
           ) : (
             <span className="text-danger">Aucune clé configurée.</span>
           )}
@@ -112,8 +133,9 @@ export default function SettingsForm({
       <section className="card p-4">
         <h2 className="text-[15px] font-extrabold">Voix</h2>
         <div className="mt-3 flex items-center justify-between gap-3 py-1.5">
-          <span className="text-sm">
-            🎤 Dictée vocale (poids/reps à la voix)
+          <span className="flex items-center gap-2 text-sm">
+            <Mic size={15} className="shrink-0 text-muted-2" /> Dictée vocale
+            (poids/reps à la voix)
           </span>
           <Toggle
             checked={voiceInput}
@@ -122,8 +144,9 @@ export default function SettingsForm({
           />
         </div>
         <div className="mt-1 flex items-center justify-between gap-3 py-1.5">
-          <span className="text-sm">
-            🔊 Annonces vocales (exercices, fin de repos)
+          <span className="flex items-center gap-2 text-sm">
+            <Volume2 size={15} className="shrink-0 text-muted-2" /> Annonces
+            vocales (exercices, fin de repos)
           </span>
           <Toggle
             checked={voiceAnnounce}
@@ -146,7 +169,17 @@ export default function SettingsForm({
       </section>
 
       <Button onClick={submit} disabled={pending} variant="primary" size="lg">
-        {pending ? "Enregistrement…" : saved ? "✓ Enregistré" : "Enregistrer"}
+        {pending ? (
+          <>
+            <Loader2 size={19} className="animate-spin" /> Enregistrement…
+          </>
+        ) : saved ? (
+          <>
+            <Check size={19} /> Enregistré
+          </>
+        ) : (
+          "Enregistrer"
+        )}
       </Button>
     </div>
   );

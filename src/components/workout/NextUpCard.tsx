@@ -18,7 +18,7 @@ export default function NextUpCard({ nextUp }: { nextUp: NextUpInfo }) {
         url={nextUp.imageUrl}
         alt=""
         className="h-[46px] w-[64px] shrink-0 rounded-[10px]"
-        emojiClassName="text-xl"
+        iconSize={20}
       />
       <div className="min-w-0 flex-1">
         <p className="overline-label text-[11px] text-muted">{nextUp.overline}</p>

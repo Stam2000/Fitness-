@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BicepsFlexed, Loader2, Sparkles } from "lucide-react";
 import BottomSheet from "@/components/ui/BottomSheet";
 import MediaThumb from "@/components/ui/MediaThumb";
 
@@ -209,7 +210,9 @@ export default function MusclePreviewSheet({
 
   return (
     <BottomSheet open={open} onClose={onClose}>
-      <h2 className="text-lg font-extrabold italic">💪 Muscles travaillés</h2>
+      <h2 className="flex items-center gap-2 text-lg font-extrabold italic">
+        <BicepsFlexed size={18} className="text-accent" /> Muscles travaillés
+      </h2>
 
       <div className="max-h-[70vh] overflow-y-auto">
       {muscles.length >= 2 && (
@@ -217,15 +220,18 @@ export default function MusclePreviewSheet({
           <MediaThumb
             url={comboImageUrl}
             alt={`Combinaison ${muscles.map((m) => m.name).join(" + ")}`}
-            emoji="🫀"
+            icon={BicepsFlexed}
             className="aspect-square max-h-56 w-full rounded-2xl border border-card-border"
-            emojiClassName="text-5xl"
+            iconSize={40}
           />
           <p className="text-sm font-bold">
             Vue combinée · {muscles.map((m) => m.name).join(" + ")}
           </p>
           {comboBusy && (
-            <p className="text-xs text-muted">⏳ Génération en cours…</p>
+            <p className="flex items-center gap-1.5 text-xs text-muted">
+              <Loader2 size={13} className="animate-spin" /> Génération en
+              cours…
+            </p>
           )}
           {comboState?.error && (
             <p className="text-xs text-danger">{comboState.error}</p>
@@ -234,9 +240,9 @@ export default function MusclePreviewSheet({
             <button
               type="button"
               onClick={generateCombo}
-              className="text-left text-xs font-semibold text-accent"
+              className="inline-flex items-center gap-1.5 text-left text-xs font-semibold text-accent"
             >
-              ✨ Générer l&apos;illustration combinée
+              <Sparkles size={13} /> Générer l&apos;illustration combinée
             </button>
           )}
         </div>
@@ -254,13 +260,16 @@ export default function MusclePreviewSheet({
               <MediaThumb
                 url={imageUrl}
                 alt={`Groupe musculaire ${m.name}`}
-                emoji="💪"
+                icon={BicepsFlexed}
                 className="aspect-square w-full rounded-2xl border border-card-border"
-                emojiClassName="text-4xl"
+                iconSize={32}
               />
               <p className="text-sm font-bold">{m.name}</p>
               {busy && (
-                <p className="text-xs text-muted">⏳ Génération en cours…</p>
+                <p className="flex items-center gap-1.5 text-xs text-muted">
+                  <Loader2 size={13} className="animate-spin" /> Génération en
+                  cours…
+                </p>
               )}
               {state?.error && (
                 <p className="text-xs text-danger">{state.error}</p>
@@ -269,9 +278,9 @@ export default function MusclePreviewSheet({
                 <button
                   type="button"
                   onClick={() => generate(key)}
-                  className="text-left text-xs font-semibold text-accent"
+                  className="inline-flex items-center gap-1.5 text-left text-xs font-semibold text-accent"
                 >
-                  ✨ Générer l&apos;image
+                  <Sparkles size={13} /> Générer l&apos;image
                 </button>
               )}
               {!muscleId && (

@@ -1,5 +1,7 @@
 "use client";
 
+import { X } from "lucide-react";
+
 /** Chrome haut des écrans repos/échauffement : ✕, jour, progression, compteur. */
 export default function SessionHeader({
   dayName,
@@ -17,9 +19,10 @@ export default function SessionHeader({
       <button
         onClick={onAbandon}
         aria-label="Abandonner la séance"
-        className="text-base text-muted-2"
+        title="Abandonner la séance"
+        className="text-muted-2"
       >
-        ✕
+        <X size={19} />
       </button>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold">{dayName}</p>

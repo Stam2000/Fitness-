@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { Pencil, Pin, PinOff, Plus, Star, Undo2 } from "lucide-react";
 import { togglePinnedModel } from "@/app/actions";
 
 type ModelOption = { id: string; name: string };
@@ -31,7 +32,7 @@ export default function ModelPicker({
   value: string;
   onChange: (model: string) => void;
   initialPinned: string[];
-  /** Modèle par défaut actuel ; affiché avec ⭐ dans les épinglés. */
+  /** Modèle par défaut actuel ; marqué d'une étoile dans les épinglés. */
   defaultModel?: string;
   /** Fourni uniquement là où promouvoir un modèle par défaut a du sens. */
   onSetDefault?: (model: string) => void;
@@ -65,7 +66,7 @@ export default function ModelPicker({
     const result: { label: string; models: ModelOption[] }[] = [];
     if (pinned.length > 0) {
       result.push({
-        label: "📌 Épinglés",
+        label: "Épinglés",
         models: pinned.map((id) => ({ id, name: labelOf(id) })),
       });
     }
@@ -112,29 +113,48 @@ export default function ModelPicker({
       <button
         onClick={togglePin}
         disabled={!current || pinPending}
-        className={isPinned ? "text-accent" : "text-muted"}
+        className={`flex items-center gap-1 ${isPinned ? "text-accent" : "text-muted"}`}
       >
-        {isPinned ? "📌 Retirer des épinglés" : "📌 Épingler ce modèle"}
+        {isPinned ? (
+          <>
+            <PinOff size={13} /> Retirer des épinglés
+          </>
+        ) : (
+          <>
+            <Pin size={13} /> Épingler ce modèle
+          </>
+        )}
       </button>
       {onSetDefault && current !== defaultModel && (
         <button
           onClick={() => onSetDefault(current)}
           disabled={!current}
-          className="text-muted"
+          className="flex items-center gap-1 text-muted"
         >
-          ⭐ Définir par défaut
+          <Star size={13} /> Définir par défaut
         </button>
       )}
       <button
         onClick={() => setManual(!manual)}
-        className="text-muted"
+        className="flex items-center gap-1 text-muted"
         hidden={failed}
       >
-        {manual ? "↩ Revenir à la liste" : "✏️ Saisir un identifiant"}
+        {manual ? (
+          <>
+            <Undo2 size={13} /> Revenir à la liste
+          </>
+        ) : (
+          <>
+            <Pencil size={13} /> Saisir un identifiant
+          </>
+        )}
       </button>
       {!manual && !showAll && otherCount > 0 && (
-        <button onClick={() => setShowAll(true)} className="text-muted">
-          + {otherCount} autres fournisseurs
+        <button
+          onClick={() => setShowAll(true)}
+          className="flex items-center gap-1 text-muted"
+        >
+          <Plus size={13} /> {otherCount} autres fournisseurs
         </button>
       )}
     </div>
@@ -148,14 +168,20 @@ export default function ModelPicker({
             <button
               key={id}
               onClick={() => onChange(id)}
-              className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
+              className={`inline-flex items-center gap-1 rounded-full px-3.5 py-2 text-xs font-semibold ${
                 id === current
                   ? "border-[1.5px] border-accent bg-accent/15 text-accent"
                   : "border-[1.5px] border-border bg-surface text-muted-2"
               }`}
             >
               {labelOf(id)}
-              {id === defaultModel && " ⭐"}
+              {id === defaultModel && (
+                <Star
+                  size={12}
+                  fill="currentColor"
+                  aria-label="Modèle par défaut"
+                />
+              )}
             </button>
           ))}
         </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowRightToLine, Flag, SkipForward } from "lucide-react";
 import { btn } from "@/components/ui/button";
 import SessionHeader from "@/components/workout/SessionHeader";
 import NextUpCard, { type NextUpInfo } from "@/components/workout/NextUpCard";
@@ -39,8 +40,14 @@ export default function RestScreen({
       />
       <div className="flex flex-1 flex-col justify-center gap-4">
         <div className="rounded-3xl border-[1.5px] border-accent/50 bg-accent/[0.08] px-5 py-8 text-center">
-          <p className="overline-label tracking-[0.16em] text-accent">
-            {kind === "transition" ? "🔀 Transition" : "Repos"}
+          <p className="overline-label flex items-center justify-center gap-1.5 tracking-[0.16em] text-accent">
+            {kind === "transition" ? (
+              <>
+                <ArrowRightToLine size={13} /> Transition
+              </>
+            ) : (
+              "Repos"
+            )}
           </p>
           <p className="my-4 font-mono text-[84px] font-black leading-none tabular-nums">
             {Math.floor(restLeft / 60)}:{String(restLeft % 60).padStart(2, "0")}
@@ -49,8 +56,13 @@ export default function RestScreen({
             <button onClick={onExtend} className={btn("outline", "lg")}>
               +30 s
             </button>
-            <button onClick={onSkip} className={btn("primary", "lg")}>
-              Passer ▶
+            <button
+              onClick={onSkip}
+              aria-label="Passer le repos"
+              title="Passer le repos"
+              className={btn("primary", "lg")}
+            >
+              <SkipForward size={19} fill="currentColor" />
             </button>
           </div>
         </div>
@@ -58,9 +70,9 @@ export default function RestScreen({
       </div>
       <button
         onClick={onFinishNow}
-        className="pb-2 text-center text-[13px] font-semibold text-muted"
+        className="inline-flex items-center justify-center gap-1.5 pb-2 text-center text-[13px] font-semibold text-muted"
       >
-        Terminer la séance maintenant
+        <Flag size={13} /> Terminer maintenant
       </button>
     </main>
   );

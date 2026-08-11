@@ -1,7 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Dumbbell,
+  Loader2,
+  Plus,
+  Repeat,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import IconButton from "@/components/ui/IconButton";
 
 // Variante d'un exercice (mêmes muscles), jouée en alternance selon les
 // passages. Non éditable ici : simple passthrough conservé à l'enregistrement.
@@ -208,7 +221,11 @@ export default function ProgramEditor({
               </p>
             </div>
             <span className={openDay === di ? "text-accent" : "text-muted-2"}>
-              {openDay === di ? "▾" : "▸"}
+              {openDay === di ? (
+                <ChevronDown size={17} />
+              ) : (
+                <ChevronRight size={17} />
+              )}
             </span>
           </button>
 
@@ -244,29 +261,32 @@ export default function ProgramEditor({
                       className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium outline-none focus:border-accent"
                     />
                     <div className="flex shrink-0 gap-1">
-                      <button
+                      <IconButton
                         onClick={() => moveExercise(di, ei, -1)}
                         disabled={ei === 0}
-                        className="rounded-lg border border-border px-2 py-1.5 text-xs disabled:opacity-30"
-                        aria-label="Monter"
+                        size="sm"
+                        aria-label="Monter l'exercice"
+                        className="disabled:opacity-30"
                       >
-                        ↑
-                      </button>
-                      <button
+                        <ChevronUp size={15} />
+                      </IconButton>
+                      <IconButton
                         onClick={() => moveExercise(di, ei, 1)}
                         disabled={ei === day.exercises.length - 1}
-                        className="rounded-lg border border-border px-2 py-1.5 text-xs disabled:opacity-30"
-                        aria-label="Descendre"
+                        size="sm"
+                        aria-label="Descendre l'exercice"
+                        className="disabled:opacity-30"
                       >
-                        ↓
-                      </button>
-                      <button
+                        <ChevronDown size={15} />
+                      </IconButton>
+                      <IconButton
                         onClick={() => removeExercise(di, ei)}
-                        className="rounded-lg border border-border px-2 py-1.5 text-xs text-danger"
-                        aria-label="Supprimer"
+                        size="sm"
+                        variant="danger"
+                        aria-label="Retirer l'exercice"
                       >
-                        ✕
-                      </button>
+                        <X size={15} />
+                      </IconButton>
                     </div>
                   </div>
                   <div className="mt-2 grid grid-cols-3 gap-2">
@@ -322,18 +342,27 @@ export default function ProgramEditor({
                     className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent"
                   />
                   {(ex.notes || ex.equipment.length > 0) && (
-                    <p className="mt-2 text-xs text-muted">
+                    <p className="mt-2 flex items-start gap-1.5 text-xs text-muted">
                       {ex.equipment.length > 0 && (
-                        <>🏋️ {ex.equipment.join(", ")} · </>
+                        <Dumbbell size={13} className="mt-0.5 shrink-0" />
                       )}
-                      {ex.notes}
+                      <span>
+                        {ex.equipment.length > 0 && (
+                          <>{ex.equipment.join(", ")} · </>
+                        )}
+                        {ex.notes}
+                      </span>
                     </p>
                   )}
                   {(ex.variations?.length ?? 0) > 0 && (
                     <div className="mt-2 flex flex-col gap-0.5">
                       {ex.variations!.map((v, vi) => (
-                        <p key={vi} className="text-xs text-muted">
-                          🔁 Variante : {v.name} — {v.sets} × {v.reps}
+                        <p
+                          key={vi}
+                          className="flex items-center gap-1.5 text-xs text-muted"
+                        >
+                          <Repeat size={13} className="shrink-0" /> Variante :{" "}
+                          {v.name} — {v.sets} × {v.reps}
                         </p>
                       ))}
                     </div>
@@ -344,17 +373,20 @@ export default function ProgramEditor({
               <div className="flex gap-2">
                 <button
                   onClick={() => addExercise(di)}
-                  className="min-h-[44px] flex-1 rounded-full border-[1.5px] border-dashed border-border text-sm font-semibold text-muted-2"
+                  className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-full border-[1.5px] border-dashed border-border text-sm font-semibold text-muted-2"
                 >
-                  + Exercice
+                  <Plus size={15} /> Exercice
                 </button>
                 {program.days.length > 1 && (
-                  <button
+                  <IconButton
                     onClick={() => removeDay(di)}
-                    className="min-h-[44px] rounded-full border-[1.5px] border-border px-4 text-sm font-semibold text-danger"
+                    variant="danger"
+                    size="md"
+                    aria-label="Supprimer le jour"
+                    className="self-center"
                   >
-                    Supprimer le jour
-                  </button>
+                    <Trash2 size={17} />
+                  </IconButton>
                 )}
               </div>
             </div>
@@ -364,9 +396,9 @@ export default function ProgramEditor({
 
       <button
         onClick={addDay}
-        className="min-h-[48px] rounded-full border-[1.5px] border-dashed border-border text-sm font-semibold text-muted-2"
+        className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border-[1.5px] border-dashed border-border text-sm font-semibold text-muted-2"
       >
-        + Ajouter un jour
+        <Plus size={15} /> Ajouter un jour
       </button>
 
       <Button
@@ -375,7 +407,15 @@ export default function ProgramEditor({
         variant="primary"
         size="lg"
       >
-        {saving ? "Enregistrement…" : saveLabel}
+        {saving ? (
+          <>
+            <Loader2 size={17} className="animate-spin" /> Enregistrement…
+          </>
+        ) : (
+          <>
+            <Check size={17} /> {saveLabel}
+          </>
+        )}
       </Button>
     </div>
   );

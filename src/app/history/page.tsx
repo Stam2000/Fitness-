@@ -1,3 +1,10 @@
+import {
+  Bot,
+  ChevronDown,
+  Shuffle,
+  Timer,
+  TrendingUp,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getExerciseProgress } from "@/lib/progress";
 import { getActivityStats } from "@/lib/activity";
@@ -41,7 +48,7 @@ export default async function HistoryPage() {
     <div className="grid gap-3 md:grid-cols-2 md:items-start">
       {sessions.length === 0 && (
         <div className="card p-6 text-center md:col-span-2">
-          <p className="text-4xl">📈</p>
+          <TrendingUp size={40} strokeWidth={1.5} className="mx-auto text-muted" />
           <p className="mt-3 text-sm text-muted-2">
             Aucune séance terminée pour l&apos;instant. Lance ta première
             séance depuis l&apos;accueil !
@@ -87,7 +94,7 @@ export default async function HistoryPage() {
                       .join(" · ")}
                   </p>
                 </div>
-                <span className="shrink-0 text-muted-2">›</span>
+                <ChevronDown size={17} className="shrink-0 text-muted-2" />
               </div>
             </summary>
             <div className="flex flex-col gap-2 border-t border-card-border p-4">
@@ -117,13 +124,14 @@ export default async function HistoryPage() {
                     <p className="text-sm font-medium">
                       {move}
                       {move !== ex.name && (
-                        <span className="ml-1.5 text-xs text-muted">
-                          🔁 variante
+                        <span className="ml-1.5 inline-flex items-baseline gap-1 text-xs text-muted">
+                          <Shuffle size={11} className="self-center" /> variante
                         </span>
                       )}
                       {mi === 0 && exSeconds != null && exSeconds > 0 && (
-                        <span className="ml-1.5 font-mono text-xs text-muted">
-                          ⏱ {Math.floor(exSeconds / 60)}:
+                        <span className="ml-1.5 inline-flex items-baseline gap-1 font-mono text-xs text-muted">
+                          <Timer size={11} className="self-center" />
+                          {Math.floor(exSeconds / 60)}:
                           {String(exSeconds % 60).padStart(2, "0")}
                         </span>
                       )}
@@ -142,8 +150,8 @@ export default async function HistoryPage() {
               })}
               {session.aiFeedback && (
                 <div className="mt-1 rounded-[14px] bg-surface-2 p-3">
-                  <p className="text-xs font-extrabold text-accent">
-                    🤖 Analyse du coach
+                  <p className="flex items-center gap-1.5 text-xs font-extrabold text-accent">
+                    <Bot size={13} /> Analyse du coach
                   </p>
                   <p className="mt-1 whitespace-pre-line text-xs text-muted-2">
                     {session.aiFeedback}
@@ -161,7 +169,7 @@ export default async function HistoryPage() {
     <main className="flex flex-col gap-4">
       <header className="pt-2">
         <h1 className="text-2xl font-extrabold italic tracking-tight">
-          Suivi 🗓️
+          Suivi
         </h1>
         <p className="text-sm text-muted-2">
           Ton activité, tes séances, ta progression.

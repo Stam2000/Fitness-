@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { CalendarDays, Dumbbell, TrendingUp } from "lucide-react";
 
 const TABS = [
-  { key: "activity", label: "🗓️ Activité" },
-  { key: "sessions", label: "Séances" },
-  { key: "progress", label: "📈 Progression" },
+  { key: "activity", label: "Activité", icon: CalendarDays },
+  { key: "sessions", label: "Séances", icon: Dumbbell },
+  { key: "progress", label: "Progression", icon: TrendingUp },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -28,13 +29,13 @@ export default function HistoryTabs({
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`flex-1 rounded-full py-2.5 text-[12.5px] ${
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-full py-2.5 text-[12.5px] ${
               tab === t.key
                 ? "bg-accent font-extrabold text-black"
                 : "font-semibold text-muted-2"
             }`}
           >
-            {t.label}
+            <t.icon size={14} /> {t.label}
           </button>
         ))}
       </div>

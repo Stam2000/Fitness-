@@ -11,8 +11,41 @@ import {
   startSession,
   updateProgram,
 } from "@/app/actions";
+import {
+  Archive,
+  ArrowLeftRight,
+  BicepsFlexed,
+  BookOpen,
+  Bot,
+  ChevronDown,
+  ChevronRight,
+  Clapperboard,
+  Copy,
+  Dumbbell,
+  FileDown,
+  Flag,
+  ImagePlus,
+  Lightbulb,
+  Loader2,
+  MonitorPlay,
+  Package,
+  Pencil,
+  Play,
+  Repeat,
+  RefreshCw,
+  Shuffle,
+  Sparkles,
+  Star,
+  Timer,
+  Trash2,
+  TriangleAlert,
+  WandSparkles,
+  Weight,
+  X,
+} from "lucide-react";
 import { btn } from "@/components/ui/button";
 import Chip from "@/components/ui/Chip";
+import IconButton from "@/components/ui/IconButton";
 import BottomSheet from "@/components/ui/BottomSheet";
 import MusclePreviewSheet, {
   type MuscleChipInfo,
@@ -457,20 +490,23 @@ export default function ProgramDetail({
           <h1 className="text-xl font-extrabold italic tracking-tight">
             {aiDraft ? "Relire les modifications IA" : "Modifier le programme"}
           </h1>
-          <button
+          <IconButton
+            aria-label="Annuler"
+            variant="ghost"
             onClick={() => {
               setEditing(false);
               setAiDraft(null);
             }}
-            className="text-sm text-muted"
           >
-            Annuler
-          </button>
+            <X size={20} />
+          </IconButton>
         </header>
         {aiDraft && (
-          <div className="rounded-2xl border-[1.5px] border-accent/50 bg-accent/10 p-3.5 text-sm font-semibold text-accent">
-            🤖 Modifications IA appliquées au brouillon. Relis, ajuste si
-            besoin, puis enregistre — rien n&apos;est encore sauvegardé.
+          <div className="flex items-start gap-2.5 rounded-2xl border-[1.5px] border-accent/50 bg-accent/10 p-3.5 text-sm font-semibold text-accent">
+            <Bot size={18} className="mt-0.5 shrink-0" />
+            <span>
+              Brouillon IA — relis, ajuste si besoin, puis enregistre.
+            </span>
           </div>
         )}
         <ProgramEditor
@@ -482,7 +518,7 @@ export default function ProgramDetail({
             }
           }
           onSave={save}
-          saveLabel="💾 Enregistrer les modifications"
+          saveLabel="Enregistrer"
           saving={saving}
         />
       </main>
@@ -496,12 +532,9 @@ export default function ProgramDetail({
           <h1 className="text-[21px] font-extrabold italic leading-tight tracking-tight">
             {program.name}
           </h1>
-          <button
-            onClick={() => setEditing(true)}
-            className="shrink-0 rounded-full border border-border px-3.5 py-2 text-sm"
-          >
-            ✏️
-          </button>
+          <IconButton aria-label="Modifier le programme" onClick={() => setEditing(true)}>
+            <Pencil size={17} />
+          </IconButton>
         </div>
         <p className="mt-1 text-[13.5px] text-muted-2">
           {[program.locationLabel, program.goal, program.level]
@@ -509,8 +542,9 @@ export default function ProgramDetail({
             .join(" · ")}
         </p>
         {program.blockCycles != null && !program.archived && (
-          <p className="mt-1 text-[13px] font-semibold text-muted">
-            📦 Bloc {program.blockNumber} · cycle{" "}
+          <p className="mt-1 flex items-center gap-1.5 text-[13px] font-semibold text-muted">
+            <Package size={14} />
+            Bloc {program.blockNumber} · cycle{" "}
             {Math.min(program.completedCycles + 1, program.blockCycles)}/
             {program.blockCycles}
           </p>
@@ -522,16 +556,16 @@ export default function ProgramDetail({
 
       {program.archived && (
         <div className="rounded-2xl border-[1.5px] border-border bg-surface-2 p-3.5 text-sm">
-          <p className="font-bold text-muted">
-            🗄️ Bloc {program.blockNumber} archivé — remplacé par la suite du
-            programme.
+          <p className="flex items-center gap-2 font-bold text-muted">
+            <Archive size={16} className="shrink-0" />
+            Bloc {program.blockNumber} archivé — remplacé par la suite.
           </p>
           {program.nextProgram && (
             <Link
               href={`/programs/${program.nextProgram.id}`}
-              className="mt-1 inline-block font-semibold text-accent"
+              className="mt-1 inline-flex items-center gap-1.5 font-semibold text-accent"
             >
-              → Bloc suivant : {program.nextProgram.name}
+              <ChevronRight size={15} /> {program.nextProgram.name}
             </Link>
           )}
         </div>
@@ -541,8 +575,9 @@ export default function ProgramDetail({
         program.blockCycles != null &&
         program.completedCycles >= program.blockCycles && (
           <div className="rounded-2xl border-[1.5px] border-accent/50 bg-accent/10 p-3.5">
-            <p className="text-sm font-extrabold text-accent">
-              🏁 Bloc terminé — {program.completedCycles} cycle
+            <p className="flex items-center gap-2 text-sm font-extrabold text-accent">
+              <Flag size={16} className="shrink-0" />
+              Bloc terminé — {program.completedCycles} cycle
               {program.completedCycles > 1 ? "s" : ""} complet
               {program.completedCycles > 1 ? "s" : ""} !
             </p>
@@ -555,7 +590,7 @@ export default function ProgramDetail({
                 href={`/programs/${program.id}/next-block`}
                 className={btn("primary", "md", "mt-2.5 w-full")}
               >
-                ✨ Générer le bloc suivant
+                <Sparkles size={17} /> Bloc suivant
               </Link>
             ) : (
               <p className="mt-2 text-xs text-danger">
@@ -570,28 +605,37 @@ export default function ProgramDetail({
           {missingImages > 0 && (
             <button
               onClick={() => generateAll("image")}
+              title={`Générer les ${missingImages} images manquantes`}
+              aria-label={`Générer les ${missingImages} images manquantes`}
               className={btn("tint", "md")}
             >
-              🎨 Images ({missingImages})
+              <ImagePlus size={17} /> {missingImages}
             </button>
           )}
           {missingVideos > 0 && (
             <button
               onClick={() => generateAll("video")}
+              title={`Générer les ${missingVideos} vidéos manquantes`}
+              aria-label={`Générer les ${missingVideos} vidéos manquantes`}
               className={btn("tint", "md")}
             >
-              🎬 Vidéos ({missingVideos})
+              <Clapperboard size={17} /> {missingVideos}
             </button>
           )}
           {hasOpenrouterKey && missingAnnotations > 0 && (
             <button
               onClick={annotateMuscles}
               disabled={annotating}
+              title={`Compléter muscles & temps (${missingAnnotations})`}
+              aria-label={`Compléter muscles & temps (${missingAnnotations})`}
               className={btn("tint", "md")}
             >
-              {annotating
-                ? "🤖 Annotation… (10-30 s)"
-                : `💪 Compléter muscles & temps (${missingAnnotations})`}
+              {annotating ? (
+                <Loader2 size={17} className="animate-spin" />
+              ) : (
+                <BicepsFlexed size={17} />
+              )}{" "}
+              {missingAnnotations}
             </button>
           )}
         </div>
@@ -627,7 +671,11 @@ export default function ProgramDetail({
               </p>
             </div>
             <span className={openDay === di ? "text-accent" : "text-muted-2"}>
-              {openDay === di ? "▾" : "▸"}
+              {openDay === di ? (
+                <ChevronDown size={18} />
+              ) : (
+                <ChevronRight size={18} />
+              )}
             </span>
           </button>
 
@@ -665,25 +713,21 @@ export default function ProgramDetail({
                     ) : (
                       <div className="relative flex aspect-[3/2] w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-surface-2 to-bg">
                         {img?.status === "generating" ? (
-                          <>
-                            <span className="animate-pulse text-3xl">🎨</span>
-                            <span className="text-xs text-muted">
-                              Génération de l&apos;image…
-                            </span>
-                          </>
+                          <Loader2 size={28} className="animate-spin text-muted" />
                         ) : (
                           <>
-                            <span className="text-3xl">🏋️</span>
-                            <button
+                            <IconButton
+                              aria-label={
+                                img?.status === "error"
+                                  ? "Réessayer l'image"
+                                  : "Générer l'image"
+                              }
                               onClick={() =>
                                 generateMedia("image", "exercise", ex.id)
                               }
-                              className="rounded-full border border-border px-3.5 py-1.5 text-xs text-muted-2"
                             >
-                              {img?.status === "error"
-                                ? "Réessayer l'image"
-                                : "Générer l'image"}
-                            </button>
+                              <ImagePlus size={18} />
+                            </IconButton>
                             {img?.status === "error" && (
                               <span className="max-w-[80%] text-center text-[10px] text-danger">
                                 {img.error}
@@ -706,18 +750,22 @@ export default function ProgramDetail({
                         <span className="rounded-full bg-accent px-3 py-1.5 text-[13.5px] font-extrabold text-black">
                           {ex.sets} × {ex.reps}
                         </span>
-                        <span className="rounded-full bg-surface-2 px-3 py-1.5 text-[12.5px] font-semibold">
-                          ⏱ {ex.restSeconds} s
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-3 py-1.5 text-[12.5px] font-semibold"
+                          title="Repos entre séries"
+                        >
+                          <Timer size={13} /> {ex.restSeconds} s
                         </span>
                         {ex.equipment.length > 0 && (
-                          <span className="max-w-full truncate rounded-full bg-surface-2 px-3 py-1.5 text-[12.5px] font-semibold text-muted-2">
-                            🏋️ {ex.equipment.join(", ")}
+                          <span className="inline-flex max-w-full items-center gap-1 truncate rounded-full bg-surface-2 px-3 py-1.5 text-[12.5px] font-semibold text-muted-2">
+                            <Dumbbell size={13} className="shrink-0" />{" "}
+                            {ex.equipment.join(", ")}
                           </span>
                         )}
                       </div>
                       {ex.muscles.length > 0 && (
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                          <span className="text-xs">💪</span>
+                          <BicepsFlexed size={14} className="text-muted" />
                           {ex.muscles.map((m) => (
                             <button
                               key={m}
@@ -732,81 +780,87 @@ export default function ProgramDetail({
                         </div>
                       )}
                       {ex.weightHint && (
-                        <p className="mt-1.5 text-xs text-muted-2">
-                          ⚖️ {ex.weightHint}
+                        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-2">
+                          <Weight size={13} className="mt-px shrink-0" />
+                          {ex.weightHint}
                         </p>
                       )}
                       {ex.notes && (
-                        <p className="mt-1.5 text-[13px] leading-relaxed text-muted-2">
-                          💡 {ex.notes}
+                        <p className="mt-1.5 flex items-start gap-1.5 text-[13px] leading-relaxed text-muted-2">
+                          <Lightbulb size={14} className="mt-0.5 shrink-0" />
+                          <span>{ex.notes}</span>
                         </p>
                       )}
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                        <IconButton
+                          aria-label="Comment exécuter ce mouvement"
+                          onClick={() => openHowTo(ex.id, ex.name)}
+                        >
+                          <BookOpen size={17} />
+                        </IconButton>
+                        <IconButton
+                          aria-label="Vidéos YouTube du mouvement"
+                          onClick={() => setVideosSheet(ex.name)}
+                        >
+                          <MonitorPlay size={17} />
+                        </IconButton>
+                        {hasOpenrouterKey && (
+                          <IconButton
+                            aria-label={
+                              ex.variations.length > 0
+                                ? "Proposer de nouvelles variantes IA"
+                                : "Générer des variantes IA"
+                            }
+                            onClick={() => generateVariants(ex)}
+                            disabled={variantsBusy === ex.id}
+                          >
+                            {variantsBusy === ex.id ? (
+                              <Loader2 size={17} className="animate-spin" />
+                            ) : (
+                              <Shuffle size={17} />
+                            )}
+                          </IconButton>
+                        )}
                         {img?.status === "done" && (
-                          <button
+                          <IconButton
+                            aria-label="Régénérer l'image"
+                            variant="ghost"
                             onClick={() =>
                               generateMedia("image", "exercise", ex.id)
                             }
-                            className="text-muted underline"
                           >
-                            🎨 régénérer l&apos;image
-                          </button>
+                            <RefreshCw size={16} />
+                          </IconButton>
                         )}
                         {vid?.status === "generating" ? (
-                          <span className="animate-pulse text-muted">
-                            🎬 Génération de la vidéo… (1-3 min)
+                          <span
+                            className="inline-flex h-10 items-center gap-1.5 text-xs text-muted"
+                            title="Génération de la vidéo (1-3 min)"
+                          >
+                            <Loader2 size={16} className="animate-spin" />
+                            <Clapperboard size={16} />
                           </span>
-                        ) : vid?.status === "done" ? (
-                          <button
-                            onClick={() =>
-                              generateMedia("video", "exercise", ex.id)
-                            }
-                            className="text-muted underline"
-                          >
-                            🎬 régénérer la vidéo
-                          </button>
                         ) : (
-                          <button
+                          <IconButton
+                            aria-label={
+                              vid?.status === "done"
+                                ? "Régénérer la vidéo"
+                                : vid?.status === "error"
+                                  ? "Réessayer la vidéo"
+                                  : "Générer la vidéo de démonstration"
+                            }
+                            variant={vid?.status === "done" ? "ghost" : "outline"}
                             onClick={() =>
                               generateMedia("video", "exercise", ex.id)
                             }
-                            className="rounded-full border border-border px-3 py-1.5 text-muted-2"
                           >
-                            🎬{" "}
-                            {vid?.status === "error"
-                              ? "Réessayer la vidéo"
-                              : "Générer la vidéo"}
-                          </button>
+                            <Clapperboard size={17} />
+                          </IconButton>
                         )}
                         {vid?.status === "error" && (
                           <span className="text-[10px] text-danger">
                             {vid.error}
                           </span>
-                        )}
-                        <button
-                          onClick={() => openHowTo(ex.id, ex.name)}
-                          className="rounded-full border border-border px-3 py-1.5 text-muted-2"
-                        >
-                          📖 Exécution
-                        </button>
-                        <button
-                          onClick={() => setVideosSheet(ex.name)}
-                          className="rounded-full border border-border px-3 py-1.5 text-muted-2"
-                        >
-                          📺 Vidéos
-                        </button>
-                        {hasOpenrouterKey && (
-                          <button
-                            onClick={() => generateVariants(ex)}
-                            disabled={variantsBusy === ex.id}
-                            className="rounded-full border border-border px-3 py-1.5 text-muted-2 disabled:opacity-60"
-                          >
-                            {variantsBusy === ex.id
-                              ? "🔀 Génération…"
-                              : ex.variations.length > 0
-                                ? "🔀 Nouvelles variantes"
-                                : "🔀 Variantes IA"}
-                          </button>
                         )}
                         {variantsError?.id === ex.id && (
                           <span className="text-[10px] text-danger">
@@ -816,8 +870,8 @@ export default function ProgramDetail({
                       </div>
                       {ex.variations.length > 0 && (
                         <div className="mt-2.5 border-t border-card-border pt-2.5">
-                          <p className="text-xs font-bold text-muted-2">
-                            🔁 En alternance selon les semaines :
+                          <p className="flex items-center gap-1.5 text-xs font-bold text-muted-2">
+                            <Repeat size={13} /> En alternance
                           </p>
                           {ex.variations.map((v, vi) => {
                             const vimg = media[mediaKey("image", v.id)];
@@ -839,13 +893,14 @@ export default function ProgramDetail({
                                     onClick={() =>
                                       generateMedia("image", "variation", v.id)
                                     }
-                                    className="flex h-[34px] w-[46px] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-surface-2 to-bg text-sm"
+                                    className="flex h-[34px] w-[46px] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-surface-2 to-bg text-muted"
                                     aria-label={`Générer l'image de ${v.name}`}
+                                    title={`Générer l'image de ${v.name}`}
                                   >
                                     {vimg?.status === "generating" ? (
-                                      <span className="animate-pulse">🎨</span>
+                                      <Loader2 size={15} className="animate-spin" />
                                     ) : (
-                                      "🏋️"
+                                      <ImagePlus size={15} />
                                     )}
                                   </button>
                                 )}
@@ -892,35 +947,41 @@ export default function ProgramDetail({
                                     }
                                   }}
                                   disabled={promoting !== null}
-                                  className="shrink-0 rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-muted-2 disabled:opacity-60"
+                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-muted-2 disabled:opacity-60"
                                   title={`Faire de « ${v.name} » l'exercice par défaut`}
+                                  aria-label={`Faire de « ${v.name} » l'exercice par défaut`}
                                 >
-                                  {promoting === v.id ? "…" : "⬆️ Par défaut"}
+                                  {promoting === v.id ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                  ) : (
+                                    <Star size={14} />
+                                  )}
                                 </button>
                                 <button
                                   onClick={() => setVideosSheet(v.name)}
-                                  className="shrink-0 text-sm"
+                                  className="shrink-0 text-muted-2"
                                   title={`Vidéos YouTube de ${v.name}`}
                                   aria-label={`Vidéos YouTube de ${v.name}`}
                                 >
-                                  📺
+                                  <MonitorPlay size={16} />
                                 </button>
                                 {vvid?.status === "done" && vvid.url ? (
                                   <a
                                     href={vvid.url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="shrink-0 text-sm"
+                                    className="shrink-0 text-accent"
+                                    title={`Voir la vidéo de ${v.name}`}
                                     aria-label={`Voir la vidéo de ${v.name}`}
                                   >
-                                    🎬
+                                    <Play size={16} />
                                   </a>
                                 ) : (
                                   <button
                                     onClick={() =>
                                       generateMedia("video", "variation", v.id)
                                     }
-                                    className="shrink-0 text-sm opacity-60"
+                                    className="shrink-0 text-muted"
                                     aria-label={`Générer la vidéo de ${v.name}`}
                                     title={
                                       vvid?.status === "error"
@@ -929,11 +990,11 @@ export default function ProgramDetail({
                                     }
                                   >
                                     {vvid?.status === "generating" ? (
-                                      <span className="animate-pulse">🎬</span>
+                                      <Loader2 size={16} className="animate-spin" />
                                     ) : vvid?.status === "error" ? (
-                                      "⚠️"
+                                      <TriangleAlert size={16} className="text-danger" />
                                     ) : (
-                                      "🎬"
+                                      <Clapperboard size={16} />
                                     )}
                                   </button>
                                 )}
@@ -953,7 +1014,7 @@ export default function ProgramDetail({
                   type="submit"
                   className={btn("primary", "lg", "w-full text-[17px]")}
                 >
-                  ▶️ Démarrer cette séance
+                  <Play size={19} fill="currentColor" /> Démarrer
                 </button>
               </form>
             </div>
@@ -961,8 +1022,10 @@ export default function ProgramDetail({
         </section>
       ))}
 
-      <div className="flex flex-wrap gap-2">
-        <button
+      <div className="flex items-center justify-center gap-2.5">
+        <IconButton
+          aria-label="Dupliquer le programme"
+          size="lg"
           onClick={async () => {
             setDuplicating(true);
             try {
@@ -973,36 +1036,56 @@ export default function ProgramDetail({
             }
           }}
           disabled={duplicating}
-          className={btn("outline", "md", "flex-1")}
         >
-          {duplicating ? "Duplication…" : "📋 Dupliquer"}
-        </button>
+          {duplicating ? (
+            <Loader2 size={19} className="animate-spin" />
+          ) : (
+            <Copy size={19} />
+          )}
+        </IconButton>
         {hasOpenrouterKey && (
-          <button
+          <IconButton
+            aria-label="Modifier le programme par IA"
+            size="lg"
             onClick={() => {
               setAiEditError(null);
               setAiEditOpen(true);
             }}
-            className={btn("outline", "md", "flex-1")}
           >
-            🤖 Modifier par IA
-          </button>
+            <WandSparkles size={19} />
+          </IconButton>
         )}
         {hasOpenrouterKey && locations.length > 1 && (
-          <button
+          <IconButton
+            aria-label="Adapter à un autre lieu"
+            size="lg"
+            variant={showConvert ? "tint" : "outline"}
             onClick={() => setShowConvert((v) => !v)}
-            className={btn("outline", "md", "flex-1")}
           >
-            🔄 Adapter
-          </button>
+            <ArrowLeftRight size={19} />
+          </IconButton>
         )}
         <a
           href={`/api/programs/${program.id}/export`}
           download
-          className={btn("outline", "md", "flex-1")}
+          title="Exporter en fichier texte"
+          aria-label="Exporter en fichier texte"
+          className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-[1.5px] border-border text-muted-2 transition-colors hover:text-ink"
         >
-          ⬇️ TXT
+          <FileDown size={19} />
         </a>
+        <IconButton
+          aria-label="Supprimer le programme"
+          size="lg"
+          variant="danger"
+          onClick={() => {
+            if (confirm(`Supprimer le programme « ${program.name} » ?`)) {
+              deleteProgram(program.id);
+            }
+          }}
+        >
+          <Trash2 size={19} />
+        </IconButton>
       </div>
 
       {showConvert && (
@@ -1051,27 +1134,22 @@ export default function ProgramDetail({
             disabled={!convertTarget || converting}
             className={btn("primary", "md", "mt-3 w-full")}
           >
-            {converting
-              ? "🤖 Adaptation en cours… (10-30 s)"
-              : "Créer le programme adapté"}
+            {converting ? (
+              <>
+                <Loader2 size={17} className="animate-spin" /> Adaptation…
+              </>
+            ) : (
+              <>
+                <ArrowLeftRight size={17} /> Adapter
+              </>
+            )}
           </button>
         </div>
       )}
 
-      <button
-        onClick={() => {
-          if (confirm(`Supprimer le programme « ${program.name} » ?`)) {
-            deleteProgram(program.id);
-          }
-        }}
-        className="pb-2 text-sm font-semibold text-danger"
-      >
-        Supprimer ce programme
-      </button>
-
       <BottomSheet open={aiEditOpen} onClose={() => setAiEditOpen(false)}>
-        <h2 className="text-lg font-extrabold italic">
-          🤖 Modifier le programme par IA
+        <h2 className="flex items-center gap-2 text-lg font-extrabold italic">
+          <WandSparkles size={18} className="text-accent" /> Modifier par IA
         </h2>
         <p className="mt-1 text-sm text-muted-2">
           Décris les changements souhaités : l&apos;IA modifie uniquement ce
@@ -1093,20 +1171,25 @@ export default function ProgramDetail({
           disabled={aiEditBusy || aiInstructions.trim().length < 3}
           className={btn("primary", "lg", "mt-3 w-full")}
         >
-          {aiEditBusy
-            ? "🤖 Modification en cours… (10-30 s)"
-            : "Proposer les modifications"}
+          {aiEditBusy ? (
+            <>
+              <Loader2 size={17} className="animate-spin" /> Modification…
+            </>
+          ) : (
+            "Proposer"
+          )}
         </button>
       </BottomSheet>
 
       <BottomSheet open={howToSheet !== null} onClose={() => setHowToSheet(null)}>
-        <h2 className="text-lg font-extrabold italic">
-          📖 {howToSheet?.name}
+        <h2 className="flex items-center gap-2 text-lg font-extrabold italic">
+          <BookOpen size={18} className="shrink-0 text-accent" />
+          {howToSheet?.name}
         </h2>
         <div className="mt-3 max-h-[60vh] overflow-y-auto">
           {howToLoading ? (
-            <p className="animate-pulse text-sm text-muted">
-              🤖 Génération de la description… (5-15 s)
+            <p className="flex items-center gap-2 text-sm text-muted">
+              <Loader2 size={16} className="animate-spin" /> Génération… (5-15 s)
             </p>
           ) : howToError ? (
             <p className="text-sm text-danger">{howToError}</p>
@@ -1119,9 +1202,9 @@ export default function ProgramDetail({
         {howToText && !howToLoading && howToSheet && hasOpenrouterKey && (
           <button
             onClick={() => openHowTo(howToSheet.id, howToSheet.name, true)}
-            className="mt-3 text-xs font-semibold text-muted underline"
+            className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-muted underline"
           >
-            ↺ Régénérer la description
+            <RefreshCw size={13} /> Régénérer
           </button>
         )}
       </BottomSheet>

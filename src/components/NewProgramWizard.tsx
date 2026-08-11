@@ -3,6 +3,18 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  Check,
+  ChevronLeft,
+  Loader2,
+  MapPin,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Sparkles,
+  Timer,
+  TriangleAlert,
+} from "lucide-react";
 import ProgramEditor, { type EditableProgram } from "@/components/ProgramEditor";
 import ModelPicker from "@/components/ModelPicker";
 import { saveProgram, setDefaultModel } from "@/app/actions";
@@ -22,17 +34,17 @@ const DURATIONS = [30, 45, 60, 90];
 const CREATIVITY_OPTIONS = [
   {
     value: "conservateur",
-    label: "♻️ Conservateur",
+    label: "Conservateur",
     hint: "Réutilise au maximum les exercices de tes programmes existants (historique de charge préservé).",
   },
   {
     value: "normal",
-    label: "⚖️ Équilibré",
+    label: "Équilibré",
     hint: "Mélange d'exercices que tu connais déjà et de nouveautés pertinentes.",
   },
   {
     value: "creatif",
-    label: "✨ Créatif",
+    label: "Créatif",
     hint: "Privilégie la variété et les mouvements que tu n'as pas encore pratiqués.",
   },
 ] as const;
@@ -190,7 +202,7 @@ export default function NewProgramWizard({
   if (locations.length === 0) {
     return (
       <div className="card p-6 text-center">
-        <p className="text-4xl">📍</p>
+        <MapPin size={36} className="mx-auto text-muted-2" strokeWidth={1.75} />
         <h2 className="mt-3 text-lg font-extrabold italic">
           Commence par créer un contexte
         </h2>
@@ -209,10 +221,15 @@ export default function NewProgramWizard({
   if (draft) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="rounded-2xl border-[1.5px] border-accent/50 bg-accent/10 p-3.5 text-sm font-semibold text-accent">
+        <div className="flex items-start gap-2 rounded-2xl border-[1.5px] border-accent/50 bg-accent/10 p-3.5 text-sm font-semibold text-accent">
+          {manual ? (
+            <Pencil size={15} className="mt-0.5 shrink-0" />
+          ) : (
+            <Sparkles size={15} className="mt-0.5 shrink-0" />
+          )}
           {manual
-            ? "✍️ Programme vierge : nomme-le, ajoute tes jours et exercices, puis enregistre."
-            : "✨ Programme généré ! Modifie-le si besoin puis enregistre-le."}
+            ? "Programme vierge : nomme-le, ajoute tes jours et exercices, puis enregistre."
+            : "Programme généré ! Modifie-le si besoin puis enregistre-le."}
         </div>
         {error && (
           <div className="rounded-2xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
@@ -222,14 +239,14 @@ export default function NewProgramWizard({
         <ProgramEditor
           initial={draft}
           onSave={save}
-          saveLabel="💾 Enregistrer le programme"
+          saveLabel="Enregistrer"
           saving={saving}
         />
         <button
           onClick={() => setDraft(null)}
-          className="pb-2 text-sm font-semibold text-muted"
+          className="inline-flex items-center gap-1.5 pb-2 text-sm font-semibold text-muted"
         >
-          ← Revenir au formulaire et régénérer
+          <ChevronLeft size={15} /> Revenir au formulaire et régénérer
         </button>
       </div>
     );
@@ -238,12 +255,15 @@ export default function NewProgramWizard({
   return (
     <div className="flex max-w-2xl flex-col gap-5">
       {!hasOpenrouterKey && (
-        <div className="rounded-2xl border border-danger/40 bg-danger/10 p-3.5 text-sm">
-          ⚠️ Aucune clé OpenRouter configurée.{" "}
+        <div className="flex items-start gap-2 rounded-2xl border border-danger/40 bg-danger/10 p-3.5 text-sm">
+          <TriangleAlert size={15} className="mt-0.5 shrink-0 text-danger" />
+          <span>
+          Aucune clé OpenRouter configurée.{" "}
           <Link href="/settings" className="font-semibold underline">
             Ajoute ta clé dans Réglages
           </Link>{" "}
           pour générer un programme.
+          </span>
         </div>
       )}
 
@@ -264,7 +284,7 @@ export default function NewProgramWizard({
             </Chip>
           ))}
           <Link href="/equipment" className={btn("tint", "md")}>
-            ＋ Ajouter
+            <Plus size={17} /> Ajouter
           </Link>
         </div>
         <p className="mt-1.5 text-xs text-muted">
@@ -286,7 +306,7 @@ export default function NewProgramWizard({
                 dimmed={full}
                 onClick={() => toggleGoal(g)}
               >
-                {selected && goals.length > 1 ? "✓ " : ""}
+                {selected && goals.length > 1 && <Check size={15} />}
                 {g}
               </Chip>
             );
@@ -379,9 +399,9 @@ export default function NewProgramWizard({
           {model.trim() !== currentDefault && (
             <button
               onClick={() => setModel(currentDefault)}
-              className="text-xs font-semibold text-accent"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent"
             >
-              ↺ Revenir au défaut
+              <RotateCcw size={13} /> Revenir au défaut
             </button>
           )}
         </div>
@@ -422,18 +442,27 @@ export default function NewProgramWizard({
         size="lg"
         className="text-[17px]"
       >
-        {generating ? "🤖 Génération en cours…" : "✨ Générer mon programme"}
+        {generating ? (
+          <>
+            <Loader2 size={17} className="animate-spin" /> Génération…
+          </>
+        ) : (
+          <>
+            <Sparkles size={17} /> Générer
+          </>
+        )}
       </Button>
-      <p className="-mt-2 text-center text-xs text-muted">
-        🤖 10 à 30 secondes selon le modèle choisi
+      <p className="-mt-2 flex items-center justify-center gap-1.5 text-center text-xs text-muted">
+        <Timer size={13} /> 10 à 30 secondes selon le modèle choisi
       </p>
 
       <button
         onClick={startManual}
         disabled={!locationId}
         className={btn("outline", "md")}
+        title="Créer mon programme manuellement, sans IA"
       >
-        ✍️ Ou créer mon programme manuellement
+        <Pencil size={17} /> Créer manuellement
       </button>
       <p className="-mt-3 text-center text-xs text-muted">
         Sans IA : tu pars d&apos;une page blanche, dans le contexte sélectionné.

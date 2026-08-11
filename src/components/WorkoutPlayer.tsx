@@ -1,6 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  BicepsFlexed,
+  ChevronLeft,
+  ChevronRight,
+  Flag,
+  Lightbulb,
+  Mic,
+  Repeat,
+  Replace,
+  Square,
+  Target,
+  Weight,
+} from "lucide-react";
 import { abandonSession, setSessionVariation } from "@/app/actions";
 import { blobToWavBase64 } from "@/lib/audio";
 import { btn } from "@/components/ui/button";
@@ -710,7 +723,7 @@ export default function WorkoutPlayer({
   }
 
   async function applyVoiceTranscript(transcript: string) {
-    setVoiceMessage(`🤖 « ${transcript} » — interprétation…`);
+    setVoiceMessage(`« ${transcript} » — interprétation…`);
     const { weightKg, reps } = await interpretTranscript(transcript);
     if (weightKg === null && reps === null) {
       setVoiceMessage(`« ${transcript} » — je n'ai pas compris de nombres.`);
@@ -722,7 +735,7 @@ export default function WorkoutPlayer({
   // ---------- Dictée audio directe (modèle vocal via OpenRouter) ----------
 
   async function processAudioBlob(blob: Blob) {
-    setVoiceMessage("🤖 Interprétation de l'audio…");
+    setVoiceMessage("Interprétation de l'audio…");
     try {
       const wav = await blobToWavBase64(blob);
       const res = await fetch("/api/voice/parse", {
@@ -787,7 +800,7 @@ export default function WorkoutPlayer({
       };
       recorder.start();
       setListening(true);
-      setVoiceMessage("🎙️ J'écoute… appuie à nouveau pour terminer.");
+      setVoiceMessage("J'écoute… appuie à nouveau pour terminer.");
       // Garde-fou : arrêt automatique après 15 s.
       autoStopRef.current = setTimeout(() => stopAudioRecording(), 15_000);
       return true;
@@ -1146,7 +1159,7 @@ export default function WorkoutPlayer({
 
       {active.muscles.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-sm">💪</span>
+          <BicepsFlexed size={15} className="text-muted" />
           {active.muscles.map((m) => (
             <button
               key={m}
@@ -1181,14 +1194,15 @@ export default function WorkoutPlayer({
               <Chip
                 onClick={() => setShowSubstitute(true)}
                 aria-label="Remplacer cet exercice"
+                title="Remplacer cet exercice"
               >
-                🔄{exercise.options.length > 1 ? "" : " Remplacer"}
+                <Replace size={16} />
               </Chip>
             )}
           </div>
           {exercise.options.length > 1 && (
-            <p className="mt-1.5 text-xs text-muted">
-              🔁 Rotation auto — ce passage :{" "}
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted">
+              <Repeat size={12} /> Rotation auto — ce passage :{" "}
               {String.fromCharCode(65 + exercise.autoIndex)}
             </p>
           )}
@@ -1197,25 +1211,29 @@ export default function WorkoutPlayer({
 
       {active.suggestion ? (
         <div className="rounded-xl bg-accent/10 px-3.5 py-2.5">
-          <p className="text-sm font-extrabold text-accent">
-            🎯 Objectif : {active.sets} × {active.reps} @{" "}
-            {active.suggestion.suggestion} kg
+          <p className="flex items-center gap-1.5 text-sm font-extrabold text-accent">
+            <Target size={15} className="shrink-0" />
+            {active.sets} × {active.reps} @ {active.suggestion.suggestion} kg
           </p>
           <p className="mt-0.5 text-xs font-semibold text-accent/80">
             Dernière fois : {active.suggestion.lastWeight} kg —{" "}
             {active.suggestion.suggestion > active.suggestion.lastWeight
-              ? "toutes les séries au max, on charge +2,5 kg 💪"
+              ? "toutes les séries au max, on charge +2,5 kg"
               : "consolide cette charge"}
           </p>
         </div>
       ) : (
         active.weightHint && (
-          <p className="text-sm text-muted-2">⚖️ {active.weightHint}</p>
+          <p className="flex items-start gap-1.5 text-sm text-muted-2">
+            <Weight size={15} className="mt-0.5 shrink-0" />
+            {active.weightHint}
+          </p>
         )
       )}
       {active.notes && (
-        <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[13px] leading-relaxed text-muted-2">
-          💡 {active.notes}
+        <p className="flex items-start gap-2 rounded-xl bg-surface-2 px-3.5 py-2.5 text-[13px] leading-relaxed text-muted-2">
+          <Lightbulb size={15} className="mt-0.5 shrink-0" />
+          <span>{active.notes}</span>
         </p>
       )}
       </div>
@@ -1264,7 +1282,11 @@ export default function WorkoutPlayer({
                 : "Dicter poids et répétitions"
             }
           >
-            {listening ? "⏹" : "🎤"}
+            {listening ? (
+              <Square size={26} fill="currentColor" className="text-accent" />
+            ) : (
+              <Mic size={30} className="text-accent" />
+            )}
           </button>
           <p className="text-center text-[13px] text-muted-2">
             {listening
@@ -1283,23 +1305,27 @@ export default function WorkoutPlayer({
         <button
           onClick={() => goTo(current - 1)}
           disabled={current === 0}
+          aria-label="Exercice précédent"
+          title="Exercice précédent"
           className={btn("outline", "lg", "flex-1 text-muted-2")}
         >
-          ← Précédent
+          <ChevronLeft size={22} />
         </button>
         {current < exercises.length - 1 ? (
           <button
             onClick={() => goTo(current + 1)}
-            className={btn("primary", "lg", "flex-1")}
+            aria-label="Exercice suivant"
+            title="Exercice suivant"
+            className={btn("primary", "lg", "flex-[2]")}
           >
-            Suivant →
+            <ChevronRight size={22} />
           </button>
         ) : (
           <button
             onClick={finishSession}
-            className={btn("primary", "lg", "flex-1")}
+            className={btn("primary", "lg", "flex-[2]")}
           >
-            🏁 Terminer
+            <Flag size={19} /> Terminer
           </button>
         )}
       </div>
@@ -1307,9 +1333,9 @@ export default function WorkoutPlayer({
       {current < exercises.length - 1 && (
         <button
           onClick={finishSession}
-          className="text-sm font-semibold text-muted"
+          className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold text-muted"
         >
-          Terminer la séance maintenant
+          <Flag size={14} /> Terminer maintenant
         </button>
       )}
       </div>

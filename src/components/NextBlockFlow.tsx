@@ -3,6 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  Bot,
+  ChevronLeft,
+  Loader2,
+  Sparkles,
+  Timer,
+  TriangleAlert,
+} from "lucide-react";
 import ProgramEditor, { type EditableProgram } from "@/components/ProgramEditor";
 import { saveNextBlock } from "@/app/actions";
 import { btn, Button } from "@/components/ui/button";
@@ -89,9 +97,12 @@ export default function NextBlockFlow({
   if (draft) {
     return (
       <main className="flex flex-col gap-4 pt-2">
-        <div className="rounded-2xl border-[1.5px] border-accent/50 bg-accent/10 p-3.5 text-sm font-semibold text-accent">
-          ✨ Bloc {blockNumber + 1} généré à partir de tes performances !
-          Modifie-le si besoin puis enregistre-le.
+        <div className="flex items-start gap-2 rounded-2xl border-[1.5px] border-accent/50 bg-accent/10 p-3.5 text-sm font-semibold text-accent">
+          <Sparkles size={15} className="mt-0.5 shrink-0" />
+          <span>
+            Bloc {blockNumber + 1} généré à partir de tes performances !
+            Modifie-le si besoin puis enregistre-le.
+          </span>
         </div>
         {error && (
           <div className="rounded-2xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
@@ -101,14 +112,14 @@ export default function NextBlockFlow({
         <ProgramEditor
           initial={draft}
           onSave={save}
-          saveLabel={`💾 Enregistrer le bloc ${blockNumber + 1}`}
+          saveLabel="Enregistrer"
           saving={saving}
         />
         <button
           onClick={() => setDraft(null)}
-          className="pb-2 text-sm font-semibold text-muted"
+          className="inline-flex items-center gap-1.5 pb-2 text-sm font-semibold text-muted"
         >
-          ← Revenir et régénérer
+          <ChevronLeft size={15} /> Revenir et régénérer
         </button>
       </main>
     );
@@ -129,11 +140,14 @@ export default function NextBlockFlow({
       </header>
 
       <div className="card p-4 text-sm leading-relaxed text-muted-2">
-        <p>
-          🤖 L&apos;IA va analyser les charges, répétitions et séries manquées
-          de tout le bloc, puis concevoir la suite : nouvelles fourchettes,
-          charges de départ concrètes, variantes plus difficiles ou décharge si
-          besoin.
+        <p className="flex items-start gap-1.5">
+          <Bot size={15} className="mt-0.5 shrink-0" />
+          <span>
+            L&apos;IA va analyser les charges, répétitions et séries manquées
+            de tout le bloc, puis concevoir la suite : nouvelles fourchettes,
+            charges de départ concrètes, variantes plus difficiles ou décharge
+            si besoin.
+          </span>
         </p>
         <p className="mt-2">
           L&apos;ancien bloc sera archivé, mais ton historique et tes courbes
@@ -142,12 +156,15 @@ export default function NextBlockFlow({
       </div>
 
       {!hasOpenrouterKey && (
-        <div className="rounded-2xl border border-danger/40 bg-danger/10 p-3.5 text-sm">
-          ⚠️ Aucune clé OpenRouter configurée.{" "}
-          <Link href="/settings" className="font-semibold underline">
-            Ajoute ta clé dans Réglages
-          </Link>{" "}
-          pour générer le bloc suivant.
+        <div className="flex items-start gap-2 rounded-2xl border border-danger/40 bg-danger/10 p-3.5 text-sm">
+          <TriangleAlert size={15} className="mt-0.5 shrink-0 text-danger" />
+          <span>
+            Aucune clé OpenRouter configurée.{" "}
+            <Link href="/settings" className="font-semibold underline">
+              Ajoute ta clé dans Réglages
+            </Link>{" "}
+            pour générer le bloc suivant.
+          </span>
         </div>
       )}
 
@@ -163,20 +180,28 @@ export default function NextBlockFlow({
         variant="primary"
         size="lg"
         className="text-[17px]"
+        title={`Générer le bloc ${blockNumber + 1}`}
       >
-        {generating
-          ? "🤖 Analyse et génération en cours…"
-          : `✨ Générer le bloc ${blockNumber + 1}`}
+        {generating ? (
+          <>
+            <Loader2 size={17} className="animate-spin" /> Génération…
+          </>
+        ) : (
+          <>
+            <Sparkles size={17} /> Générer
+          </>
+        )}
       </Button>
-      <p className="-mt-2 text-center text-xs text-muted">
-        🤖 10 à 30 secondes selon le modèle choisi
+      <p className="-mt-2 flex items-center justify-center gap-1.5 text-center text-xs text-muted">
+        <Timer size={13} /> 10 à 30 secondes selon le modèle choisi
       </p>
 
       <Link
         href={`/programs/${programId}`}
         className={btn("outline", "md", "text-center")}
+        title="Revenir au programme"
       >
-        ← Revenir au programme
+        <ChevronLeft size={17} /> Retour
       </Link>
     </main>
   );

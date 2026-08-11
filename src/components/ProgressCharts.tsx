@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { TrendingUp, Trophy } from "lucide-react";
 import type { ExerciseProgress } from "@/lib/progress";
 
 // Couleur de série validée pour surface sombre (contraste ≥ 3:1).
@@ -120,7 +121,7 @@ function Chart({ exercise }: { exercise: ExerciseProgress }) {
           fontWeight="600"
         >
           {values[active]} {unit}
-          {active === prIndex ? " ★" : ""}
+          {active === prIndex ? " · record" : ""}
         </text>
       )}
 
@@ -151,7 +152,7 @@ export default function ProgressCharts({
   if (exercises.length === 0) {
     return (
       <div className="card p-6 text-center">
-        <p className="text-4xl">📈</p>
+        <TrendingUp size={40} strokeWidth={1.5} className="mx-auto text-muted" />
         <p className="mt-3 text-sm text-muted-2">
           Termine quelques séances pour voir ta progression exercice par
           exercice.
@@ -176,7 +177,9 @@ export default function ProgressCharts({
             </div>
             <div className="mt-2 flex gap-4 text-sm">
               <div>
-                <p className="text-[11px] text-muted">Record ★</p>
+                <p className="flex items-center gap-1 text-[11px] text-muted">
+                  <Trophy size={11} /> Record
+                </p>
                 <p className="font-mono text-[15px] font-extrabold text-accent">
                   {ex.metric === "weight"
                     ? `${ex.prWeight} kg`

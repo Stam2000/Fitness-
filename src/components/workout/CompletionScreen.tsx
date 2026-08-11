@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Bot, Loader2, PartyPopper, Timer, Trophy } from "lucide-react";
 import { btn } from "@/components/ui/button";
 import StatTile from "@/components/ui/StatTile";
 
@@ -42,7 +43,9 @@ export default function CompletionScreen({
 }) {
   return (
     <main className="mx-auto flex min-h-[70vh] w-full max-w-md flex-col items-center justify-center gap-4 text-center">
-      <p className="text-[56px] leading-none">🎉</p>
+      <span className="flex h-20 w-20 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <PartyPopper size={40} strokeWidth={1.75} />
+      </span>
       <div>
         <h1 className="text-[27px] font-extrabold italic tracking-tight">
           Séance terminée !
@@ -68,7 +71,9 @@ export default function CompletionScreen({
       </div>
       {exerciseTimes.length > 0 && (
         <div className="card w-full p-4 text-left">
-          <p className="overline-label">⏱ Temps par exercice</p>
+          <p className="overline-label flex items-center gap-1.5">
+            <Timer size={13} /> Temps par exercice
+          </p>
           <ul className="mt-2 flex flex-col gap-1.5">
             {exerciseTimes.map((t) => (
               <li
@@ -87,8 +92,8 @@ export default function CompletionScreen({
 
       {prs.length > 0 && (
         <div className="w-full rounded-2xl border-[1.5px] border-accent/50 bg-accent/[0.08] p-4 text-left">
-          <p className="overline-label text-accent">
-            ★ Nouveau record personnel
+          <p className="overline-label flex items-center gap-1.5 text-accent">
+            <Trophy size={13} /> Nouveau record personnel
           </p>
           {prs.map((pr) => (
             <p key={pr.name} className="mt-1.5 text-[15px]">
@@ -106,8 +111,8 @@ export default function CompletionScreen({
         <div className="w-full">
           {feedback ? (
             <div className="card p-4 text-left">
-              <p className="text-sm font-extrabold text-accent">
-                🤖 Analyse du coach
+              <p className="flex items-center gap-1.5 text-sm font-extrabold text-accent">
+                <Bot size={16} /> Analyse du coach
               </p>
               <p className="mt-2 whitespace-pre-line text-sm text-muted-2">
                 {feedback}
@@ -119,9 +124,15 @@ export default function CompletionScreen({
               disabled={feedbackLoading}
               className={btn("tint", "lg", "w-full")}
             >
-              {feedbackLoading
-                ? "🤖 Le coach analyse ta séance…"
-                : "🤖 Demander l'analyse du coach"}
+              {feedbackLoading ? (
+                <>
+                  <Loader2 size={17} className="animate-spin" /> Analyse…
+                </>
+              ) : (
+                <>
+                  <Bot size={17} /> Analyse du coach
+                </>
+              )}
             </button>
           )}
           {feedbackError && (

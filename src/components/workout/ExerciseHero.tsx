@@ -1,5 +1,7 @@
 "use client";
 
+import { Check, Dumbbell, X } from "lucide-react";
+
 type HeroOption = {
   name: string;
   sets: number;
@@ -31,17 +33,19 @@ export default function ExerciseHero({
   onAbandon: () => void;
 }) {
   const counter = (
-    <div className="absolute right-3.5 top-3.5 rounded-full bg-bg/70 px-3 py-2 font-mono text-[12.5px] font-bold">
-      {currentIndex}/{totalExercises} · {doneCount}/{totalSets} ✓
+    <div className="absolute right-3.5 top-3.5 flex items-center gap-1 rounded-full bg-bg/70 px-3 py-2 font-mono text-[12.5px] font-bold">
+      {currentIndex}/{totalExercises} · {doneCount}/{totalSets}
+      <Check size={13} strokeWidth={3} className="text-accent" />
     </div>
   );
   const closeBtn = (
     <button
       onClick={onAbandon}
       aria-label="Abandonner la séance"
-      className="absolute left-3.5 top-3.5 flex h-9 w-9 items-center justify-center rounded-full bg-bg/70 text-[15px]"
+      title="Abandonner la séance"
+      className="absolute left-3.5 top-3.5 flex h-9 w-9 items-center justify-center rounded-full bg-bg/70"
     >
-      ✕
+      <X size={17} />
     </button>
   );
   const targets = (
@@ -94,7 +98,7 @@ export default function ExerciseHero({
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-2 to-bg">
-          <span className="text-5xl opacity-60">🏋️</span>
+          <Dumbbell size={48} strokeWidth={1.5} className="text-muted/60" />
         </div>
       )}
       <div className="absolute inset-0 bg-gradient-to-b from-bg/55 via-bg/0 to-bg/95" />

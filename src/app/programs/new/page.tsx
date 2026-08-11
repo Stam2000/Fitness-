@@ -1,3 +1,4 @@
+import { Sparkles } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import NewProgramWizard from "@/components/NewProgramWizard";
@@ -16,8 +17,8 @@ export default async function NewProgramPage() {
   return (
     <main className="flex flex-col gap-4">
       <header className="pt-2">
-        <h1 className="text-2xl font-extrabold italic tracking-tight">
-          Créer un programme ✨
+        <h1 className="flex items-center gap-2 text-2xl font-extrabold italic tracking-tight">
+          Créer un programme <Sparkles size={20} className="text-accent" />
         </h1>
         <p className="text-sm text-muted-2">
           L&apos;IA le bâtit avec ton équipement.

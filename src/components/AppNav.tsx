@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Dumbbell } from "lucide-react";
 import { NAV_TABS, isTabActive } from "@/components/nav-tabs";
 
 /**
- * Navigation adaptative :
+ * Navigation adaptative, icônes seules (libellés en infobulle/aria) :
  * - téléphone (< md) : barre du bas, masquée pendant une séance
  * - tablette (md)    : barre latérale réduite aux icônes
- * - ordinateur (lg+) : barre latérale avec libellés
+ * - ordinateur (lg+) : barre latérale icône + libellé
  */
 export default function AppNav() {
   const pathname = usePathname();
@@ -18,8 +19,10 @@ export default function AppNav() {
     <>
       {/* Barre latérale — tablette et ordinateur */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[4.5rem] flex-col border-r border-card-border bg-surface/95 backdrop-blur md:flex lg:w-60">
-        <div className="flex items-center gap-2 px-3 py-5 lg:px-5">
-          <span className="text-2xl">💪</span>
+        <div className="flex items-center justify-center gap-2 px-3 py-5 lg:justify-start lg:px-5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-black">
+            <Dumbbell size={20} strokeWidth={2.25} />
+          </span>
           <span className="hidden text-base font-extrabold italic leading-tight tracking-tight lg:block">
             Mon Coach
             <span className="block text-xs font-normal not-italic tracking-normal text-muted">
@@ -30,43 +33,55 @@ export default function AppNav() {
         <nav className="flex flex-1 flex-col gap-1 px-2 lg:px-3">
           {NAV_TABS.map((tab) => {
             const active = isTabActive(tab.href, pathname);
+            const Icon = tab.icon;
             return (
               <Link
                 key={tab.href}
                 href={tab.href}
                 title={tab.label}
-                className={`flex flex-col items-center gap-0.5 rounded-[14px] px-2 py-2.5 text-[11px] lg:flex-row lg:gap-3 lg:rounded-full lg:px-4 lg:py-3 lg:text-sm ${
+                aria-label={tab.label}
+                aria-current={active ? "page" : undefined}
+                className={`flex items-center justify-center rounded-[14px] py-3 lg:justify-start lg:gap-3 lg:rounded-full lg:px-4 ${
                   active
-                    ? "bg-accent/[0.12] font-extrabold text-accent"
-                    : "font-medium text-muted hover:bg-surface-2 hover:text-ink"
+                    ? "bg-accent/[0.12] text-accent"
+                    : "text-muted hover:bg-surface-2 hover:text-ink"
                 }`}
               >
-                <span className="text-xl leading-none">{tab.icon}</span>
-                <span className="lg:text-[15px]">{tab.label}</span>
+                <Icon size={21} strokeWidth={active ? 2.5 : 2} />
+                <span
+                  className={`hidden text-[15px] lg:block ${
+                    active ? "font-extrabold" : "font-medium"
+                  }`}
+                >
+                  {tab.label}
+                </span>
               </Link>
             );
           })}
         </nav>
       </aside>
 
-      {/* Barre du bas — téléphone uniquement */}
+      {/* Barre du bas — téléphone uniquement, icônes seules */}
       {!inWorkout && (
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-card-border bg-[#10151c]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-          <div className="mx-auto flex max-w-lg items-center justify-around px-2 py-1.5">
+          <div className="mx-auto flex max-w-lg items-center justify-around px-2 py-2">
             {NAV_TABS.map((tab) => {
               const active = isTabActive(tab.href, pathname);
+              const Icon = tab.icon;
               return (
                 <Link
                   key={tab.href}
                   href={tab.href}
-                  className={`flex flex-col items-center gap-0.5 rounded-[14px] text-[11px] ${
+                  title={tab.label}
+                  aria-label={tab.label}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex h-11 items-center justify-center rounded-full transition-colors ${
                     active
-                      ? "bg-accent/[0.12] px-3.5 py-1.5 font-extrabold text-accent"
-                      : "px-2 py-1.5 font-medium text-muted"
+                      ? "w-14 bg-accent/[0.12] text-accent"
+                      : "w-11 text-muted"
                   }`}
                 >
-                  <span className="text-xl leading-none">{tab.icon}</span>
-                  {tab.label}
+                  <Icon size={22} strokeWidth={active ? 2.5 : 2} />
                 </Link>
               );
             })}

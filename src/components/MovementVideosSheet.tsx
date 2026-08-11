@@ -1,8 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Loader2,
+  MonitorPlay,
+  Plus,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 import BottomSheet from "@/components/ui/BottomSheet";
-import { btn, Button } from "@/components/ui/button";
+import IconButton from "@/components/ui/IconButton";
 
 type MovementVideoView = {
   id: string;
@@ -102,7 +109,10 @@ export default function MovementVideosSheet({
 
   return (
     <BottomSheet open={open} onClose={onClose}>
-      <h2 className="text-lg font-extrabold italic">📺 {movementName}</h2>
+      <h2 className="flex items-center gap-2 text-lg font-extrabold italic">
+        <MonitorPlay size={18} className="shrink-0 text-accent" />
+        <span className="min-w-0 truncate">{movementName}</span>
+      </h2>
       <p className="mt-1 text-xs text-muted-2">
         Colle un lien YouTube : la vidéo est téléchargée dans l&apos;app et
         reste consultable, même hors ligne.
@@ -117,15 +127,20 @@ export default function MovementVideosSheet({
           className="min-w-0 flex-1 rounded-[18px] border-[1.5px] border-border bg-surface px-4 py-3 text-sm outline-none focus:border-accent"
           aria-label="Lien YouTube"
         />
-        <Button
+        <IconButton
           onClick={addVideo}
           disabled={adding || !url.trim()}
-          variant="primary"
-          size="md"
-          className="shrink-0"
+          variant="solid"
+          size="lg"
+          aria-label="Ajouter la vidéo"
+          className="self-center"
         >
-          {adding ? "…" : "＋"}
-        </Button>
+          {adding ? (
+            <Loader2 size={17} className="animate-spin" />
+          ) : (
+            <Plus size={17} />
+          )}
+        </IconButton>
       </div>
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
 
@@ -147,25 +162,28 @@ export default function MovementVideosSheet({
                   className="w-full rounded-2xl border border-card-border bg-black"
                 />
               ) : v.status === "downloading" ? (
-                <p className="animate-pulse rounded-2xl bg-surface-2 px-3.5 py-3 text-sm text-muted">
-                  ⏳ Téléchargement en cours… (selon la durée de la vidéo)
+                <p className="flex animate-pulse items-center gap-1.5 rounded-2xl bg-surface-2 px-3.5 py-3 text-sm text-muted">
+                  <Loader2 size={15} className="shrink-0 animate-spin" />
+                  Téléchargement en cours… (selon la durée de la vidéo)
                 </p>
               ) : (
-                <p className="rounded-2xl bg-danger/10 px-3.5 py-3 text-xs text-danger">
-                  ✗ Échec : {v.error ?? "erreur inconnue"}
+                <p className="flex items-start gap-1.5 rounded-2xl bg-danger/10 px-3.5 py-3 text-xs text-danger">
+                  <TriangleAlert size={13} className="mt-0.5 shrink-0" />
+                  Échec : {v.error ?? "erreur inconnue"}
                 </p>
               )}
               <div className="flex items-center justify-between gap-2">
                 <p className="min-w-0 flex-1 truncate text-xs font-semibold text-muted-2">
                   {v.title ?? v.sourceUrl}
                 </p>
-                <button
+                <IconButton
                   onClick={() => removeVideo(v.id)}
-                  className={btn("ghost", "sm")}
+                  variant="ghost"
+                  size="sm"
                   aria-label="Supprimer la vidéo"
                 >
-                  🗑
-                </button>
+                  <Trash2 size={15} />
+                </IconButton>
               </div>
             </div>
           ))

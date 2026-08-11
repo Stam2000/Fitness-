@@ -1,3 +1,4 @@
+import { Dumbbell } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import EquipmentManager from "@/components/EquipmentManager";
@@ -17,8 +18,8 @@ export default async function EquipmentPage() {
   return (
     <main className="flex flex-col gap-4">
       <header className="pt-2">
-        <h1 className="text-2xl font-extrabold italic tracking-tight">
-          Matériel 🏋️
+        <h1 className="flex items-center gap-2 text-2xl font-extrabold italic tracking-tight">
+          <Dumbbell size={20} className="text-accent" /> Matériel
         </h1>
         <p className="text-sm text-muted-2">
           Coche l&apos;équipement dispo dans chaque contexte.

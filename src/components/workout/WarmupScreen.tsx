@@ -1,5 +1,6 @@
 "use client";
 
+import { Flame, Loader2, WandSparkles } from "lucide-react";
 import { btn } from "@/components/ui/button";
 import Chip from "@/components/ui/Chip";
 import SessionHeader from "@/components/workout/SessionHeader";
@@ -69,8 +70,8 @@ export default function WarmupScreen({
       <div className="flex flex-1 flex-col justify-center gap-3.5">
         {warmupLeft === null ? (
           <div className="rounded-3xl border-[1.5px] border-warm/50 bg-warm/[0.08] px-5 py-8 text-center">
-            <p className="overline-label tracking-[0.14em] text-warm-light">
-              🔥 Échauffement avant de commencer ?
+            <p className="overline-label flex items-center justify-center gap-1.5 tracking-[0.14em] text-warm-light">
+              <Flame size={14} /> Échauffement ?
             </p>
             <div className="mt-5 flex flex-wrap justify-center gap-2">
               {[2, 5, 10].map((min) => (
@@ -80,7 +81,12 @@ export default function WarmupScreen({
               ))}
               {hasOpenrouterKey && (
                 <Chip tone="warm" active disabled={aiWarmupLoading} onClick={onLoadAi}>
-                  {aiWarmupLoading ? "🤖 Génération…" : "🤖 Sur mesure"}
+                  {aiWarmupLoading ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <WandSparkles size={15} />
+                  )}{" "}
+                  Sur mesure
                 </Chip>
               )}
               <Chip onClick={onFinish}>Passer</Chip>
@@ -91,8 +97,8 @@ export default function WarmupScreen({
           </div>
         ) : (
           <div className="rounded-3xl border-[1.5px] border-warm/50 bg-warm/[0.08] px-5 py-6 text-center">
-            <p className="overline-label tracking-[0.14em] text-warm-light">
-              🔥 Échauffement{aiWarmup ? " · Sur mesure" : ""}
+            <p className="overline-label flex items-center justify-center gap-1.5 tracking-[0.14em] text-warm-light">
+              <Flame size={14} /> Échauffement{aiWarmup ? " · Sur mesure" : ""}
             </p>
             <p className="my-3 font-mono text-[72px] font-black leading-none tabular-nums">
               {Math.floor(warmupLeft / 60)}:

@@ -3,11 +3,26 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  BicepsFlexed,
+  Camera,
+  CircleCheck,
+  FileUp,
+  Loader2,
+  Percent,
+  PersonStanding,
+  Plus,
+  Trash2,
+  Weight,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+import {
   addBodyMeasurement,
   deleteBodyMeasurement,
   deleteProgressPhoto,
 } from "@/app/actions";
 import { btn, Button } from "@/components/ui/button";
+import IconButton from "@/components/ui/IconButton";
 
 type MeasurementView = {
   id: string;
@@ -45,10 +60,12 @@ const inputClass =
 // Courbe simple d'une métrique corporelle dans le temps (SVG, même style
 // que les graphiques de progression des exercices).
 function MetricChart({
+  icon: Icon,
   label,
   unit,
   points,
 }: {
+  icon: LucideIcon;
   label: string;
   unit: string;
   points: { dateIso: string; value: number }[];
@@ -78,7 +95,9 @@ function MetricChart({
   return (
     <div className="card p-4">
       <div className="flex items-baseline justify-between">
-        <h3 className="text-sm font-extrabold">{label}</h3>
+        <h3 className="flex items-center gap-1.5 text-sm font-extrabold">
+          <Icon size={15} className="text-muted-2" /> {label}
+        </h3>
         <p className="font-mono text-sm font-bold text-accent">
           {current.value} {unit}
           <span className="ml-1.5 text-xs font-medium text-muted">
@@ -266,7 +285,7 @@ export default function BodyTracker({
       if (json.skippedInvalid > 0) {
         parts.push(`${json.skippedInvalid} ligne(s) ignorée(s)`);
       }
-      setImportMsg(`✓ ${parts.join(" · ")}`);
+      setImportMsg(parts.join(" · "));
       if (importInput.current) importInput.current.value = "";
       router.refresh();
     } catch {
@@ -290,8 +309,8 @@ export default function BodyTracker({
   return (
     <main className="flex flex-col gap-5 pb-6">
       <header className="pt-2">
-        <h1 className="text-[21px] font-extrabold italic leading-tight tracking-tight">
-          🧍 Suivi corporel
+        <h1 className="flex items-center gap-2 text-[21px] font-extrabold italic leading-tight tracking-tight">
+          <PersonStanding size={20} className="text-accent" /> Suivi corporel
         </h1>
         <p className="mt-1 text-[13.5px] text-muted-2">
           Poids, masse musculaire et photos de progression — recopie les
@@ -353,12 +372,21 @@ export default function BodyTracker({
           variant="primary"
           size="md"
         >
-          {savingMeasure ? "Enregistrement…" : "＋ Enregistrer la mesure"}
+          {savingMeasure ? (
+            <>
+              <Loader2 size={17} className="animate-spin" /> Enregistrement…
+            </>
+          ) : (
+            <>
+              <Plus size={17} /> Enregistrer
+            </>
+          )}
         </Button>
 
         <div className="mt-1 flex flex-col gap-2 border-t border-border pt-3">
-          <p className="text-xs font-extrabold">
-            📥 Importer un export Samsung Health
+          <p className="flex items-center gap-1.5 text-xs font-extrabold">
+            <FileUp size={15} className="shrink-0" /> Importer un export
+            Samsung Health
           </p>
           <p className="text-xs leading-relaxed text-muted">
             Samsung Health → Paramètres → Télécharger les données personnelles,
@@ -376,14 +404,26 @@ export default function BodyTracker({
           />
           {importError && <p className="text-sm text-danger">{importError}</p>}
           {importMsg && (
-            <p className="text-sm font-semibold text-accent">{importMsg}</p>
+            <p className="flex items-start gap-1.5 text-sm font-semibold text-accent">
+              <CircleCheck size={15} className="mt-0.5 shrink-0" /> {importMsg}
+            </p>
           )}
           <button
             onClick={importCsv}
             disabled={importing}
+            aria-label="Importer le fichier CSV"
+            title="Importer le fichier CSV"
             className={btn("outline", "md")}
           >
-            {importing ? "Import en cours…" : "Importer le CSV"}
+            {importing ? (
+              <>
+                <Loader2 size={17} className="animate-spin" /> Import…
+              </>
+            ) : (
+              <>
+                <FileUp size={17} /> Importer
+              </>
+            )}
           </button>
         </div>
       </section>
@@ -393,13 +433,19 @@ export default function BodyTracker({
         musclePoints.length > 0 ||
         fatPoints.length > 0) && (
         <section className="flex flex-col gap-3">
-          <MetricChart label="⚖️ Poids" unit="kg" points={weightPoints} />
+          <MetricChart icon={Weight} label="Poids" unit="kg" points={weightPoints} />
           <MetricChart
-            label="💪 Masse musculaire"
+            icon={BicepsFlexed}
+            label="Masse musculaire"
             unit="kg"
             points={musclePoints}
           />
-          <MetricChart label="🧈 Masse grasse" unit="%" points={fatPoints} />
+          <MetricChart
+            icon={Percent}
+            label="Masse grasse"
+            unit="%"
+            points={fatPoints}
+          />
         </section>
       )}
 
@@ -413,26 +459,28 @@ export default function BodyTracker({
                 <span className="w-20 shrink-0 font-mono text-xs text-muted">
                   {formatDate(m.dateIso)}
                 </span>
-                <span className="flex-1 font-semibold">
-                  {[
-                    m.weightKg != null ? `${m.weightKg} kg` : null,
-                    m.muscleMassKg != null ? `💪 ${m.muscleMassKg} kg` : null,
-                    m.bodyFatPct != null ? `${m.bodyFatPct} %` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
+                <span className="flex flex-1 flex-wrap items-center gap-x-2.5 gap-y-0.5 font-semibold">
+                  {m.weightKg != null && <span>{m.weightKg} kg</span>}
+                  {m.muscleMassKg != null && (
+                    <span className="flex items-center gap-1">
+                      <BicepsFlexed size={13} className="text-muted" />
+                      {m.muscleMassKg} kg
+                    </span>
+                  )}
+                  {m.bodyFatPct != null && <span>{m.bodyFatPct} %</span>}
                 </span>
-                <button
+                <IconButton
                   onClick={() => {
                     if (confirm("Supprimer cette mesure ?")) {
                       deleteBodyMeasurement(m.id);
                     }
                   }}
                   aria-label="Supprimer la mesure"
-                  className="shrink-0 px-1.5 text-muted"
+                  variant="ghost"
+                  size="sm"
                 >
-                  ✕
-                </button>
+                  <X size={15} />
+                </IconButton>
               </li>
             ))}
           </ul>
@@ -472,7 +520,15 @@ export default function BodyTracker({
           variant="primary"
           size="md"
         >
-          {uploading ? "Envoi…" : "📸 Ajouter la photo"}
+          {uploading ? (
+            <>
+              <Loader2 size={17} className="animate-spin" /> Envoi…
+            </>
+          ) : (
+            <>
+              <Camera size={17} /> Ajouter
+            </>
+          )}
         </Button>
       </section>
 
@@ -566,23 +622,27 @@ export default function BodyTracker({
                 )}
               </p>
               <div className="flex gap-2">
-                <button
+                <IconButton
                   onClick={() => {
                     if (confirm("Supprimer cette photo ?")) {
                       deleteProgressPhoto(viewer.id);
                       setViewer(null);
                     }
                   }}
-                  className={btn("danger", "md")}
+                  aria-label="Supprimer la photo"
+                  variant="danger"
+                  size="md"
                 >
-                  Supprimer
-                </button>
-                <button
+                  <Trash2 size={17} />
+                </IconButton>
+                <IconButton
                   onClick={() => setViewer(null)}
-                  className={btn("outline", "md")}
+                  aria-label="Fermer"
+                  variant="overlay"
+                  size="md"
                 >
-                  Fermer
-                </button>
+                  <X size={17} />
+                </IconButton>
               </div>
             </div>
           </div>

@@ -1,21 +1,23 @@
+import { Dumbbell, type LucideIcon } from "lucide-react";
+
 type MediaThumbProps = {
   url: string | null | undefined;
   alt: string;
-  emoji?: string;
+  icon?: LucideIcon;
   className?: string;
-  emojiClassName?: string;
+  iconSize?: number;
 };
 
 /**
  * Image avec repli gracieux : sans URL (pas de clé Kie.ai ou média non
- * généré), affiche un bloc dégradé avec un emoji centré.
+ * généré), affiche un bloc dégradé avec une icône centrée.
  */
 export default function MediaThumb({
   url,
   alt,
-  emoji = "🏋️",
+  icon: Icon = Dumbbell,
   className = "",
-  emojiClassName = "text-3xl",
+  iconSize = 28,
 }: MediaThumbProps) {
   if (url) {
     // eslint-disable-next-line @next/next/no-img-element
@@ -25,9 +27,9 @@ export default function MediaThumb({
     <div
       role="img"
       aria-label={alt}
-      className={`flex items-center justify-center bg-gradient-to-br from-surface-2 to-bg ${className}`}
+      className={`flex items-center justify-center bg-gradient-to-br from-surface-2 to-bg text-muted ${className}`}
     >
-      <span className={emojiClassName}>{emoji}</span>
+      <Icon size={iconSize} strokeWidth={1.75} />
     </div>
   );
 }

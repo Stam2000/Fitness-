@@ -1,3 +1,4 @@
+import { Settings } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import SettingsForm from "@/components/SettingsForm";
 
@@ -13,8 +14,8 @@ export default async function SettingsPage() {
   return (
     <main className="flex flex-col gap-4">
       <header className="pt-2">
-        <h1 className="text-2xl font-extrabold italic tracking-tight">
-          Réglages ⚙️
+        <h1 className="flex items-center gap-2 text-2xl font-extrabold italic tracking-tight">
+          <Settings size={20} className="text-accent" /> Réglages
         </h1>
         <p className="text-sm text-muted-2">
           Clés API, modèle d&apos;IA et options vocales.

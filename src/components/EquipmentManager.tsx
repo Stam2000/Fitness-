@@ -3,6 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
+  Check,
+  CircleCheck,
+  Dumbbell,
+  ImagePlus,
+  Loader2,
+  MapPin,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import {
   createEquipment,
   createLocation,
   deleteLocation,
@@ -11,6 +22,7 @@ import {
 } from "@/app/actions";
 import { btn, Button } from "@/components/ui/button";
 import Chip from "@/components/ui/Chip";
+import IconButton from "@/components/ui/IconButton";
 
 type LocationView = {
   id: string;
@@ -300,7 +312,7 @@ export default function EquipmentManager({
     return (
       <div className="flex flex-col gap-4">
         <div className="card p-6 text-center">
-          <p className="text-4xl">📍</p>
+          <MapPin size={36} className="mx-auto text-accent" />
           <h2 className="mt-3 text-lg font-extrabold italic">
             Crée ton premier contexte
           </h2>
@@ -338,7 +350,7 @@ export default function EquipmentManager({
           onClick={() => setShowNewLocation((v) => !v)}
           className={btn("tint", "md")}
         >
-          ＋ Nouveau
+          <Plus size={17} /> Nouveau
         </button>
       </div>
 
@@ -351,9 +363,12 @@ export default function EquipmentManager({
       )}
 
       {createdNotice && (
-        <p className="rounded-2xl border border-accent/40 bg-accent/10 p-3 text-sm text-accent">
-          ✓ Contexte « {createdNotice} » créé — coche ci-dessous l&apos;équipement
-          qui s&apos;y trouve.
+        <p className="flex items-start gap-2 rounded-2xl border border-accent/40 bg-accent/10 p-3 text-sm text-accent">
+          <CircleCheck size={15} className="mt-0.5 shrink-0" />
+          <span>
+            Contexte « {createdNotice} » créé — coche ci-dessous
+            l&apos;équipement qui s&apos;y trouve.
+          </span>
         </p>
       )}
 
@@ -365,12 +380,14 @@ export default function EquipmentManager({
               {active.icon} {active.name}
             </span>
           </p>
-          <button
+          <IconButton
             onClick={() => setEditingLocation(true)}
-            className="shrink-0 rounded-full border border-border px-3 py-1.5 text-xs text-muted-2"
+            aria-label="Renommer le contexte"
+            variant="outline"
+            size="sm"
           >
-            ✏️ Renommer
-          </button>
+            <Pencil size={15} />
+          </IconButton>
         </div>
       )}
 
@@ -393,28 +410,48 @@ export default function EquipmentManager({
         <button
           onClick={generateAll}
           disabled={generatingAll}
+          aria-label={
+            generatingAll
+              ? `Génération en cours (${generatingCount} restantes)`
+              : `Générer les ${missingImages} images manquantes`
+          }
+          title={
+            generatingAll
+              ? `Génération en cours (${generatingCount} restantes)`
+              : `Générer les ${missingImages} images manquantes`
+          }
           className={btn("tint", "md", "w-full")}
         >
-          {generatingAll
-            ? `🎨 Génération en cours… (${generatingCount} restantes)`
-            : `🎨 Générer les images des équipements (${missingImages})`}
+          {generatingAll ? (
+            <>
+              <Loader2 size={17} className="animate-spin" /> Génération… (
+              {generatingCount})
+            </>
+          ) : (
+            <>
+              <ImagePlus size={17} /> {missingImages}
+            </>
+          )}
         </button>
       )}
 
       {/* Sans clé, la génération était masquée sans explication. */}
       {!hasKieKey && missingImages > 0 && (
-        <p className="card p-3.5 text-sm text-muted-2">
-          🎨 Les images des équipements ne sont pas encore générées.{" "}
-          <Link href="/settings" className="font-semibold text-accent underline">
-            Ajoute ta clé Kie.ai dans Réglages
-          </Link>{" "}
-          pour faire apparaître le bouton de génération.
+        <p className="card flex items-start gap-2 p-3.5 text-sm text-muted-2">
+          <ImagePlus size={15} className="mt-0.5 shrink-0" />
+          <span>
+            Les images des équipements ne sont pas encore générées.{" "}
+            <Link href="/settings" className="font-semibold text-accent underline">
+              Ajoute ta clé Kie.ai dans Réglages
+            </Link>{" "}
+            pour faire apparaître le bouton de génération.
+          </span>
         </p>
       )}
       {generatingCount > 0 && !generatingAll && (
-        <p className="text-center text-xs text-muted">
-          🎨 {generatingCount} image{generatingCount > 1 ? "s" : ""} en cours de
-          génération…
+        <p className="flex items-center justify-center gap-1.5 text-xs text-muted">
+          <Loader2 size={13} className="animate-spin" /> {generatingCount} image
+          {generatingCount > 1 ? "s" : ""} en cours de génération…
         </p>
       )}
       {imageError && (
@@ -461,34 +498,36 @@ export default function EquipmentManager({
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-[40px]">
+                          <div className="flex h-full w-full items-center justify-center text-muted">
                             {img?.status === "generating" ? (
-                              <span className="animate-pulse">🎨</span>
+                              <Loader2 size={26} className="animate-spin" />
                             ) : (
-                              "🏋️"
+                              <Dumbbell size={30} />
                             )}
                           </div>
                         )}
                         <span
-                          className={`absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-[13px] font-extrabold ${
+                          className={`absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full ${
                             on
                               ? "bg-accent text-black"
                               : "bg-black/50 text-muted"
                           }`}
                         >
-                          {on ? "✓" : ""}
+                          {on && <Check size={14} strokeWidth={3} />}
                         </span>
                         {hasKieKey && img?.status !== "generating" && (
-                          <button
+                          <IconButton
                             onClick={(e) => {
                               e.stopPropagation();
                               generateImage(eq.id);
                             }}
                             aria-label={`Générer l'image de ${eq.name}`}
-                            className="absolute right-2 top-2 flex h-[26px] w-[26px] items-center justify-center rounded-full bg-black/50 text-xs"
+                            variant="overlay"
+                            size="sm"
+                            className="absolute right-2 top-2"
                           >
-                            🎨
-                          </button>
+                            <ImagePlus size={15} />
+                          </IconButton>
                         )}
                       </div>
                       <p
@@ -539,9 +578,9 @@ export default function EquipmentManager({
             </div>
             <button
               type="submit"
-              className="min-h-[44px] rounded-full bg-surface-2 px-4 text-sm font-bold"
+              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-surface-2 px-4 text-sm font-bold"
             >
-              + Ajouter
+              <Plus size={17} /> Ajouter
             </button>
           </form>
 
@@ -560,9 +599,9 @@ export default function EquipmentManager({
                 });
               }
             }}
-            className="text-sm font-semibold text-danger"
+            className="flex items-center justify-center gap-1.5 text-sm font-semibold text-danger"
           >
-            Supprimer ce contexte
+            <Trash2 size={15} /> Supprimer ce contexte
           </button>
         </>
       )}

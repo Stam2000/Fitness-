@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight, Flame } from "lucide-react";
 import type { ActivityStats } from "@/lib/activity";
 import StatTile from "@/components/ui/StatTile";
+import IconButton from "@/components/ui/IconButton";
 
 // Couleur de série validée pour surface sombre (contraste ≥ 3:1).
 const SERIES = "var(--color-accent-dark)";
@@ -133,7 +135,7 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
   if (stats.totalSessions === 0) {
     return (
       <div className="card p-6 text-center">
-        <p className="text-4xl">🗓️</p>
+        <CalendarDays size={40} strokeWidth={1.5} className="mx-auto text-muted" />
         <p className="mt-3 text-sm text-muted-2">
           Tes jours d&apos;entraînement apparaîtront ici dès ta première séance
           terminée.
@@ -153,9 +155,12 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
           className="flex-1"
           value={`${stats.currentStreakWeeks}`}
           label={
-            stats.currentStreakWeeks > 1
-              ? "semaines d'affilée 🔥"
-              : "semaine d'affilée 🔥"
+            <span className="inline-flex items-center gap-1">
+              <Flame size={11} />
+              {stats.currentStreakWeeks > 1
+                ? "semaines d'affilée"
+                : "semaine d'affilée"}
+            </span>
           }
           hint={`record : ${stats.bestStreakWeeks}`}
         />
@@ -196,13 +201,14 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start">
       <section className="card p-4">
         <div className="flex items-center justify-between">
-          <button
+          <IconButton
             onClick={() => shiftMonth(-1)}
             aria-label="Mois précédent"
-            className="rounded-[10px] border border-border px-3.5 py-1.5 text-sm text-muted-2"
+            variant="outline"
+            size="md"
           >
-            ‹
-          </button>
+            <ChevronLeft size={18} />
+          </IconButton>
           <div className="text-center">
             <p className="text-[15px] font-extrabold capitalize">
               {MONTHS[view.month]} {view.year}
@@ -212,13 +218,14 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
               d&apos;entraînement
             </p>
           </div>
-          <button
+          <IconButton
             onClick={() => shiftMonth(1)}
             aria-label="Mois suivant"
-            className="rounded-[10px] border border-border px-3.5 py-1.5 text-sm text-muted-2"
+            variant="outline"
+            size="md"
           >
-            ›
-          </button>
+            <ChevronRight size={18} />
+          </IconButton>
         </div>
 
         <div className="mx-auto mt-3 grid max-w-md grid-cols-7 gap-1">

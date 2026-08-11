@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2, Replace } from "lucide-react";
 import { btn } from "@/components/ui/button";
 import Chip from "@/components/ui/Chip";
 import BottomSheet from "@/components/ui/BottomSheet";
@@ -42,7 +43,6 @@ export default function SubstituteSheet({
               active={reason === r}
               onClick={() => onReason(reason === r ? "" : r)}
             >
-              {reason === r ? "✓ " : ""}
               {r}
             </Chip>
           ))}
@@ -59,9 +59,15 @@ export default function SubstituteSheet({
           disabled={busy}
           className={btn("primary", "lg", "w-full")}
         >
-          {busy
-            ? "🤖 Recherche d'une alternative…"
-            : "🤖 Remplacer par une alternative IA"}
+          {busy ? (
+            <>
+              <Loader2 size={17} className="animate-spin" /> Recherche…
+            </>
+          ) : (
+            <>
+              <Replace size={17} /> Remplacer
+            </>
+          )}
         </button>
         <p className="text-center text-xs text-muted">
           Recherche 10 à 30 s · les séries déjà faites sont conservées
