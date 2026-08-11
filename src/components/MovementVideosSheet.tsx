@@ -20,6 +20,14 @@ type MovementVideoView = {
   error: string | null;
 };
 
+// Lecture de secours quand le téléchargement local a échoué (YouTube bloque
+// parfois yt-dlp côté serveur) : URL d'intégration dérivée du lien source,
+// sur le domaine « nocookie » (mode confidentialité renforcée).
+function embedUrl(sourceUrl: string): string | null {
+  const id = sourceUrl.match(/[?&]v=([\w-]{6,})/)?.[1];
+  return id ? `https://www.youtube-nocookie.com/embed/${id}` : null;
+}
+
 /**
  * Vidéos YouTube de démonstration d'un mouvement : colle un lien, le serveur
  * télécharge la vidéo en local (yt-dlp) et elle reste consultable dans
@@ -166,6 +174,21 @@ export default function MovementVideosSheet({
                   <Loader2 size={15} className="shrink-0 animate-spin" />
                   Téléchargement en cours… (selon la durée de la vidéo)
                 </p>
+              ) : embedUrl(v.sourceUrl) ? (
+                <>
+                  <iframe
+                    src={embedUrl(v.sourceUrl)!}
+                    title={v.title ?? "Vidéo YouTube"}
+                    allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    className="aspect-video w-full rounded-2xl border border-card-border bg-black"
+                  />
+                  <p className="flex items-start gap-1.5 text-xs text-muted">
+                    <TriangleAlert size={13} className="mt-0.5 shrink-0" />
+                    Téléchargement local impossible — lecture directe depuis
+                    YouTube (connexion requise).
+                  </p>
+                </>
               ) : (
                 <p className="flex items-start gap-1.5 rounded-2xl bg-danger/10 px-3.5 py-3 text-xs text-danger">
                   <TriangleAlert size={13} className="mt-0.5 shrink-0" />
