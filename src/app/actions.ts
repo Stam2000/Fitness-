@@ -161,6 +161,8 @@ export async function saveProgram(
               weightHint: ex.weightHint ?? null,
               equipment: ex.equipment ?? [],
               muscles: ex.muscles ?? [],
+              targetSeconds: ex.targetSeconds ?? null,
+              transitionSeconds: ex.transitionSeconds ?? null,
               notes: ex.notes ?? null,
               variations: {
                 create: (ex.variations ?? []).map((v, vi) => ({
@@ -172,6 +174,7 @@ export async function saveProgram(
                   weightHint: v.weightHint ?? null,
                   equipment: v.equipment ?? [],
                   muscles: v.muscles ?? [],
+                  targetSeconds: v.targetSeconds ?? null,
                   notes: v.notes ?? null,
                 })),
               },
@@ -305,6 +308,8 @@ export async function duplicateProgram(id: string): Promise<string> {
               weightHint: ex.weightHint,
               equipment: ex.equipment,
               muscles: ex.muscles,
+              targetSeconds: ex.targetSeconds,
+              transitionSeconds: ex.transitionSeconds,
               notes: ex.notes,
               imageUrl: ex.imageUrl,
               videoUrl: ex.videoUrl,
@@ -319,6 +324,7 @@ export async function duplicateProgram(id: string): Promise<string> {
                   weightHint: v.weightHint,
                   equipment: v.equipment,
                   muscles: v.muscles,
+                  targetSeconds: v.targetSeconds,
                   notes: v.notes,
                   imageUrl: v.imageUrl,
                   videoUrl: v.videoUrl,

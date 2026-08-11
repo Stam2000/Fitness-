@@ -114,6 +114,8 @@ export default function NewProgramWizard({
               weightHint: ex.weightHint ?? null,
               equipment: ex.equipment ?? [],
               muscles: ex.muscles ?? [],
+              targetSeconds: ex.targetSeconds ?? null,
+              transitionSeconds: ex.transitionSeconds ?? null,
               notes: ex.notes ?? null,
               variations: (ex.variations ?? []).map((v) => ({
                 ...v,

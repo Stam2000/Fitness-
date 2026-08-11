@@ -75,7 +75,8 @@ ${body.data.reason ? `Raison : ${body.data.reason}` : ""}
 Exercices déjà présents dans la séance (à ne PAS proposer) : ${otherNames.join(", ") || "aucun"}
 
 Propose UN exercice de remplacement ciblant les mêmes muscles, adapté à la raison donnée. Réponds UNIQUEMENT avec un objet JSON :
-{"name": "...", "sets": 4, "reps": "8-12", "restSeconds": 90, "weightHint": "..." , "equipment": ["..."], "muscles": ["1 à 4 muscles principaux, ex. Dos, Biceps"], "notes": "conseil de technique court"}`;
+{"name": "...", "sets": 4, "reps": "8-12", "restSeconds": 90, "weightHint": "..." , "equipment": ["..."], "muscles": ["1 à 4 muscles principaux, ex. Dos, Biceps"], "targetSeconds": 360, "notes": "conseil de technique court"}
+("targetSeconds" = temps cible pour boucler l'exercice, toutes séries et repos compris.)`;
 
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -128,6 +129,7 @@ Propose UN exercice de remplacement ciblant les mêmes muscles, adapté à la ra
           weightHint: replacement.weightHint ?? null,
           equipment: replacement.equipment ?? [],
           muscles: replacement.muscles ?? [],
+          targetSeconds: replacement.targetSeconds ?? null,
           notes: replacement.notes ?? null,
           imageUrl: null,
           imageTaskId: null,

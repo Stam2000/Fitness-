@@ -9,6 +9,8 @@ const exerciseBaseShape = {
   equipment: z.array(z.string()).default([]),
   // Muscles principaux travaillés (1 à 4, en français).
   muscles: z.array(z.string().min(1)).max(6).default([]),
+  // Temps cible pour boucler l'exercice, séries + repos compris (secondes).
+  targetSeconds: z.number().int().min(30).max(3600).nullish(),
   notes: z.string().nullish(),
 };
 
@@ -17,6 +19,8 @@ export const variationSchema = z.object(exerciseBaseShape);
 
 export const exerciseSchema = z.object({
   ...exerciseBaseShape,
+  // Temps de transition vers l'exercice suivant, installation comprise.
+  transitionSeconds: z.number().int().min(0).max(600).nullish(),
   variations: z.array(variationSchema).max(2).default([]),
 });
 

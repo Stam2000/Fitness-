@@ -58,6 +58,7 @@ export default async function WorkoutPage({
         weightHint: ex.weightHint,
         equipment: ex.equipment,
         muscles: ex.muscles,
+        targetSeconds: ex.targetSeconds,
         notes: ex.notes,
         imageUrl: ex.imageUrl,
         videoUrl: ex.videoUrl,
@@ -70,6 +71,7 @@ export default async function WorkoutPage({
         weightHint: v.weightHint,
         equipment: v.equipment,
         muscles: v.muscles,
+        targetSeconds: v.targetSeconds,
         notes: v.notes,
         imageUrl: v.imageUrl,
         videoUrl: v.videoUrl,
@@ -107,7 +109,13 @@ export default async function WorkoutPage({
     const autoIndex =
       options.length > 1 ? session.cycleIndex % options.length : 0;
     const activeIndex = activeVariationIndex(session, ex);
-    return { id: ex.id, options, activeIndex, autoIndex };
+    return {
+      id: ex.id,
+      options,
+      activeIndex,
+      autoIndex,
+      transitionSeconds: ex.transitionSeconds,
+    };
   });
 
   return (

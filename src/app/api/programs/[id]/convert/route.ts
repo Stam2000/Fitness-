@@ -81,6 +81,8 @@ export async function POST(
         weightHint: ex.weightHint,
         equipment: ex.equipment,
         muscles: ex.muscles,
+        targetSeconds: ex.targetSeconds,
+        transitionSeconds: ex.transitionSeconds,
         notes: ex.notes,
         variations: ex.variations.map((v) => ({
           name: v.name,
@@ -90,6 +92,7 @@ export async function POST(
           weightHint: v.weightHint,
           equipment: v.equipment,
           muscles: v.muscles,
+          targetSeconds: v.targetSeconds,
           notes: v.notes,
         })),
       })),
@@ -169,6 +172,8 @@ Réponds UNIQUEMENT avec l'objet JSON du programme adapté, au même format que 
                 weightHint: ex.weightHint ?? null,
                 equipment: ex.equipment ?? [],
                 muscles: ex.muscles ?? [],
+                targetSeconds: ex.targetSeconds ?? null,
+                transitionSeconds: ex.transitionSeconds ?? null,
                 notes: ex.notes ?? null,
                 variations: {
                   create: (ex.variations ?? []).map((v, vi) => ({
@@ -180,6 +185,7 @@ Réponds UNIQUEMENT avec l'objet JSON du programme adapté, au même format que 
                     weightHint: v.weightHint ?? null,
                     equipment: v.equipment ?? [],
                     muscles: v.muscles ?? [],
+                    targetSeconds: v.targetSeconds ?? null,
                     notes: v.notes ?? null,
                   })),
                 },

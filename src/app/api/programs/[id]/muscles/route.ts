@@ -3,13 +3,16 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 
-// Réponse attendue du modèle : les muscles principaux de chaque mouvement.
+// Réponse attendue du modèle : muscles + temps cible (et transition pour les
+// exercices de base) de chaque mouvement.
 const responseSchema = z.object({
   items: z
     .array(
       z.object({
         id: z.string(),
-        muscles: z.array(z.string().min(1)).max(6),
+        muscles: z.array(z.string().min(1)).max(6).optional(),
+        targetSeconds: z.number().int().min(30).max(3600).optional(),
+        transitionSeconds: z.number().int().min(0).max(600).optional(),
       })
     )
     .min(1),
@@ -26,8 +29,8 @@ function extractJson(text: string): unknown {
   return JSON.parse(candidate.slice(start, end + 1));
 }
 
-// Rattrapage : annote les muscles travaillés des exercices (et variantes)
-// d'un programme existant qui n'en ont pas encore.
+// Rattrapage : annote muscles travaillés, temps cible et temps de transition
+// des exercices (et variantes) d'un programme existant qui n'en ont pas.
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -60,17 +63,42 @@ export async function POST(
     return NextResponse.json({ error: "Programme introuvable" }, { status: 404 });
   }
 
-  // Un même mouvement peut être un exercice ou une variante : on aplatit.
-  const pending: { kind: "exercise" | "variation"; id: string; name: string }[] =
-    [];
+  // Un même mouvement peut être un exercice ou une variante : on aplatit, en
+  // ne gardant que ceux auxquels il manque quelque chose.
+  type Pending = {
+    kind: "exercise" | "variation";
+    id: string;
+    label: string;
+    needsMuscles: boolean;
+    needsTarget: boolean;
+    needsTransition: boolean;
+  };
+  const pending: Pending[] = [];
   for (const day of program.days) {
     for (const ex of day.exercises) {
-      if (ex.muscles.length === 0) {
-        pending.push({ kind: "exercise", id: ex.id, name: ex.name });
+      const needs = {
+        needsMuscles: ex.muscles.length === 0,
+        needsTarget: ex.targetSeconds == null,
+        needsTransition: ex.transitionSeconds == null,
+      };
+      if (needs.needsMuscles || needs.needsTarget || needs.needsTransition) {
+        pending.push({
+          kind: "exercise",
+          id: ex.id,
+          label: `${ex.name} — ${ex.sets} × ${ex.reps}, repos ${ex.restSeconds}s`,
+          ...needs,
+        });
       }
       for (const v of ex.variations) {
-        if (v.muscles.length === 0) {
-          pending.push({ kind: "variation", id: v.id, name: v.name });
+        if (v.muscles.length === 0 || v.targetSeconds == null) {
+          pending.push({
+            kind: "variation",
+            id: v.id,
+            label: `${v.name} — ${v.sets} × ${v.reps}, repos ${v.restSeconds}s`,
+            needsMuscles: v.muscles.length === 0,
+            needsTarget: v.targetSeconds == null,
+            needsTransition: false,
+          });
         }
       }
     }
@@ -79,13 +107,21 @@ export async function POST(
     return NextResponse.json({ updated: 0 });
   }
 
-  const prompt = `Pour chaque exercice de musculation/fitness ci-dessous, liste ses muscles principaux réellement sollicités (1 à 4), en français, avec des noms courts et cohérents (ex. "Dos", "Biceps", "Pectoraux", "Épaules", "Quadriceps", "Ischio-jambiers", "Fessiers", "Abdominaux", "Mollets", "Triceps", "Cardio").
+  const prompt = `Pour chaque exercice de musculation/fitness ci-dessous, donne :
+- "muscles" : ses 1 à 4 muscles principaux réellement sollicités, en français, noms courts et cohérents (ex. "Dos", "Biceps", "Pectoraux", "Épaules", "Quadriceps", "Ischio-jambiers", "Fessiers", "Abdominaux", "Mollets", "Triceps", "Cardio").
+- "targetSeconds" : temps cible réaliste pour boucler l'exercice, TOUTES séries et repos compris (secondes), cohérent avec les séries/reps/repos indiqués.
+- "transitionSeconds" (uniquement si demandé) : temps pour passer à l'exercice suivant, installation comprise (30 à 120 s en général).
 
 Exercices :
-${pending.map((p) => `- id "${p.id}" : ${p.name}`).join("\n")}
+${pending
+  .map(
+    (p) =>
+      `- id "${p.id}" : ${p.label}${p.needsTransition ? " (donner aussi transitionSeconds)" : ""}`
+  )
+  .join("\n")}
 
 Réponds UNIQUEMENT avec un objet JSON :
-{"items": [{"id": "…", "muscles": ["…", "…"]}]}
+{"items": [{"id": "…", "muscles": ["…"], "targetSeconds": 360, "transitionSeconds": 60}]}
 Un élément par exercice listé, avec son id exact.`;
 
   try {
@@ -125,20 +161,32 @@ Un élément par exercice listé, avec son id exact.`;
       );
     }
     const parsed = responseSchema.parse(extractJson(content));
-    const byId = new Map(parsed.items.map((i) => [i.id, i.muscles]));
+    const byId = new Map(parsed.items.map((i) => [i.id, i]));
 
     let updated = 0;
     await prisma.$transaction(async (tx) => {
       for (const p of pending) {
-        const muscles = byId.get(p.id);
-        if (!muscles || muscles.length === 0) continue;
+        const item = byId.get(p.id);
+        if (!item) continue;
+        const data: {
+          muscles?: string[];
+          targetSeconds?: number;
+          transitionSeconds?: number;
+        } = {};
+        if (p.needsMuscles && item.muscles && item.muscles.length > 0) {
+          data.muscles = item.muscles;
+        }
+        if (p.needsTarget && item.targetSeconds != null) {
+          data.targetSeconds = item.targetSeconds;
+        }
+        if (p.needsTransition && item.transitionSeconds != null) {
+          data.transitionSeconds = item.transitionSeconds;
+        }
+        if (Object.keys(data).length === 0) continue;
         if (p.kind === "exercise") {
-          await tx.exercise.update({ where: { id: p.id }, data: { muscles } });
+          await tx.exercise.update({ where: { id: p.id }, data });
         } else {
-          await tx.exerciseVariation.update({
-            where: { id: p.id },
-            data: { muscles },
-          });
+          await tx.exerciseVariation.update({ where: { id: p.id }, data });
         }
         updated++;
       }

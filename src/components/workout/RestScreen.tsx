@@ -7,6 +7,7 @@ import NextUpCard, { type NextUpInfo } from "@/components/workout/NextUpCard";
 /** Repos plein écran : gros timer mono, +30 s / Passer, carte « Ensuite ». */
 export default function RestScreen({
   restLeft,
+  kind = "rest",
   dayName,
   doneCount,
   totalSets,
@@ -17,6 +18,8 @@ export default function RestScreen({
   onFinishNow,
 }: {
   restLeft: number;
+  /** rest = entre séries ; transition = passage à l'exercice suivant. */
+  kind?: "rest" | "transition";
   dayName: string;
   doneCount: number;
   totalSets: number;
@@ -36,7 +39,9 @@ export default function RestScreen({
       />
       <div className="flex flex-1 flex-col justify-center gap-4">
         <div className="rounded-3xl border-[1.5px] border-accent/50 bg-accent/[0.08] px-5 py-8 text-center">
-          <p className="overline-label tracking-[0.16em] text-accent">Repos</p>
+          <p className="overline-label tracking-[0.16em] text-accent">
+            {kind === "transition" ? "🔀 Transition" : "Repos"}
+          </p>
           <p className="my-4 font-mono text-[84px] font-black leading-none tabular-nums">
             {Math.floor(restLeft / 60)}:{String(restLeft % 60).padStart(2, "0")}
           </p>

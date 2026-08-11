@@ -21,6 +21,7 @@ type VariationView = {
   weightHint: string | null;
   equipment: string[];
   muscles: string[];
+  targetSeconds: number | null;
   notes: string | null;
   imageUrl: string | null;
   imageTaskId: string | null;
@@ -37,6 +38,8 @@ type ExerciseView = {
   weightHint: string | null;
   equipment: string[];
   muscles: string[];
+  targetSeconds: number | null;
+  transitionSeconds: number | null;
   notes: string | null;
   imageUrl: string | null;
   imageTaskId: string | null;
@@ -258,10 +261,18 @@ export default function ProgramDetail({
   const missingVideos = allIds.filter(
     (id) => media[mediaKey("video", id)]?.status !== "done"
   ).length;
-  const missingMuscles = program.days
+  // Annotations IA manquantes : muscles, temps cible ou temps de transition.
+  const missingAnnotations = program.days
     .flatMap((d) => d.exercises)
-    .flatMap((ex) => [ex.muscles, ...ex.variations.map((v) => v.muscles)])
-    .filter((m) => m.length === 0).length;
+    .flatMap((ex) => [
+      ex.muscles.length === 0 ||
+        ex.targetSeconds == null ||
+        ex.transitionSeconds == null,
+      ...ex.variations.map(
+        (v) => v.muscles.length === 0 || v.targetSeconds == null
+      ),
+    ])
+    .filter(Boolean).length;
 
   async function annotateMuscles() {
     setAnnotating(true);
@@ -332,7 +343,7 @@ export default function ProgramDetail({
         )}
       </header>
 
-      {(missingImages > 0 || missingVideos > 0 || (hasOpenrouterKey && missingMuscles > 0)) && (
+      {(missingImages > 0 || missingVideos > 0 || (hasOpenrouterKey && missingAnnotations > 0)) && (
         <div className="flex flex-wrap gap-2">
           {missingImages > 0 && (
             <button
@@ -350,7 +361,7 @@ export default function ProgramDetail({
               🎬 Vidéos ({missingVideos})
             </button>
           )}
-          {hasOpenrouterKey && missingMuscles > 0 && (
+          {hasOpenrouterKey && missingAnnotations > 0 && (
             <button
               onClick={annotateMuscles}
               disabled={annotating}
@@ -358,7 +369,7 @@ export default function ProgramDetail({
             >
               {annotating
                 ? "🤖 Annotation… (10-30 s)"
-                : `💪 Compléter les muscles (${missingMuscles})`}
+                : `💪 Compléter muscles & temps (${missingAnnotations})`}
             </button>
           )}
         </div>

@@ -10,6 +10,7 @@ import WarmupScreen from "@/components/workout/WarmupScreen";
 import CompletionScreen from "@/components/workout/CompletionScreen";
 import SubstituteSheet from "@/components/workout/SubstituteSheet";
 import SetRow from "@/components/workout/SetRow";
+import TimeBar from "@/components/workout/TimeBar";
 import type { NextUpInfo } from "@/components/workout/NextUpCard";
 
 // Une « option » d'exercice : l'exercice de base (index 0) ou une variante,
@@ -22,6 +23,8 @@ type VariantView = {
   weightHint: string | null;
   equipment: string[];
   muscles: string[];
+  // Temps cible IA pour boucler l'exercice (null = estimation locale).
+  targetSeconds: number | null;
   notes: string | null;
   imageUrl: string | null;
   videoUrl: string | null;
@@ -39,7 +42,17 @@ type ExerciseView = {
   options: VariantView[]; // index 0 = exercice de base
   activeIndex: number; // option active au chargement (override ou rotation)
   autoIndex: number; // option désignée par la rotation automatique
+  // Temps de transition IA vers l'exercice suivant (null = 60 s).
+  transitionSeconds: number | null;
 };
+
+// Temps cible d'un exercice : valeur IA, sinon estimation locale
+// séries × (repos + ~45 s d'exécution).
+function targetSecondsOf(option: VariantView): number {
+  return (
+    option.targetSeconds ?? option.sets * (option.restSeconds + 45)
+  );
+}
 
 type LogEntry = {
   exerciseId: string;
@@ -173,6 +186,9 @@ export default function WorkoutPlayer({
     return map;
   });
   const [restLeft, setRestLeft] = useState<number | null>(null);
+  // Nature du décompte en cours : repos entre séries ou transition
+  // vers l'exercice suivant (après la dernière série d'un exercice).
+  const [restKind, setRestKind] = useState<"rest" | "transition">("rest");
   // Échauffement proposé tant qu'aucune série n'est faite.
   const [warmupDone, setWarmupDone] = useState(() =>
     initialLogs.some((l) => l.done)
@@ -191,6 +207,10 @@ export default function WorkoutPlayer({
   const [exerciseSeconds, setExerciseSeconds] = useState<Record<string, number>>(
     initialExerciseSeconds
   );
+  // Pause manuelle du chrono d'exercice (bouton ⏸ de la barre de temps).
+  const [exercisePaused, setExercisePaused] = useState(false);
+  // Horloge murale pour le temps de séance affiché (mise à jour chaque seconde).
+  const [nowMs, setNowMs] = useState<number | null>(null);
   const [showSubstitute, setShowSubstitute] = useState(false);
   const [substituteReason, setSubstituteReason] = useState("");
   const [substituting, setSubstituting] = useState(false);
@@ -322,10 +342,11 @@ export default function WorkoutPlayer({
   }, []);
 
   // Chrono automatique par exercice : s'accumule sur l'exercice courant tant
-  // que la séance est active (échauffement exclu, repos entre séries inclus).
+  // que la séance est active (échauffement exclu, repos entre séries inclus,
+  // pause manuelle possible).
   const currentExerciseId = exercise.id;
   useEffect(() => {
-    if (finished || !warmupDone) return;
+    if (finished || !warmupDone || exercisePaused) return;
     const tick = setInterval(() => {
       setExerciseSeconds((prev) => ({
         ...prev,
@@ -333,7 +354,19 @@ export default function WorkoutPlayer({
       }));
     }, 1000);
     return () => clearInterval(tick);
-  }, [finished, warmupDone, currentExerciseId]);
+  }, [finished, warmupDone, exercisePaused, currentExerciseId]);
+
+  // Horloge du temps de séance affiché dans la barre de temps.
+  useEffect(() => {
+    if (finished) return;
+    const update = () => setNowMs(Date.now());
+    const first = setTimeout(update, 0);
+    const clock = setInterval(update, 1000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(clock);
+    };
+  }, [finished]);
 
   // Persistance : carte complète envoyée en arrière-plan (changement
   // d'exercice, fin de séance, et toutes les 30 s par sécurité).
@@ -355,6 +388,21 @@ export default function WorkoutPlayer({
     const save = setInterval(saveExerciseSeconds, 30_000);
     return () => clearInterval(save);
   }, [finished, saveExerciseSeconds]);
+
+  // Après une série cochée : repos normal, ou transition (temps IA) si
+  // c'était la dernière série de l'exercice. Rien après la toute dernière.
+  function startRestAfterSet(setIndex: number) {
+    const isLastSet = setIndex === active.sets - 1;
+    const isLastExercise = current === exercises.length - 1;
+    if (isLastSet && isLastExercise) return;
+    if (isLastSet) {
+      setRestKind("transition");
+      startRest(exercise.transitionSeconds ?? 60);
+    } else {
+      setRestKind("rest");
+      startRest(active.restSeconds);
+    }
+  }
 
   function startWarmup(seconds: number) {
     if (warmupInterval.current) clearInterval(warmupInterval.current);
@@ -391,9 +439,7 @@ export default function WorkoutPlayer({
       saveLog(exercise.id, setIndex, nextState, activeVariationName);
       return { ...prev, [key]: nextState };
     });
-    const isLastSet = setIndex === active.sets - 1;
-    const isLastExercise = current === exercises.length - 1;
-    if (!(isLastSet && isLastExercise)) startRest(active.restSeconds);
+    startRestAfterSet(setIndex);
   }
 
   function startSetTimer(setIndex: number) {
@@ -446,13 +492,7 @@ export default function WorkoutPlayer({
     const state = logs[key];
     const nowDone = !state.done;
     patchSet(exercise.id, setIndex, { done: nowDone }, true);
-    if (nowDone) {
-      const isLastSet = setIndex === active.sets - 1;
-      const isLastExercise = current === exercises.length - 1;
-      if (!(isLastSet && isLastExercise)) {
-        startRest(active.restSeconds);
-      }
-    }
+    if (nowDone) startRestAfterSet(setIndex);
   }
 
   function firstOpenSetIndex(): number {
@@ -511,9 +551,7 @@ export default function WorkoutPlayer({
       setVoiceMessage(
         `✓ Série ${setIndex + 1} : ${nextState.weightKg || "?"} kg × ${nextState.reps || "?"} reps`
       );
-      const isLastSet = setIndex === active.sets - 1;
-      const isLastExercise = current === exercises.length - 1;
-      if (!(isLastSet && isLastExercise)) startRest(active.restSeconds);
+      startRestAfterSet(setIndex);
     };
     recognition.onerror = () => {
       setVoiceMessage("Je n'ai rien entendu. Réessaie.");
@@ -526,6 +564,7 @@ export default function WorkoutPlayer({
   function goTo(index: number) {
     if (index < 0 || index >= exercises.length) return;
     saveExerciseSeconds();
+    setExercisePaused(false);
     setCurrent(index);
     const o = activeOf(exercises[index]);
     speak(
@@ -772,6 +811,7 @@ export default function WorkoutPlayer({
     return (
       <RestScreen
         restLeft={restLeft}
+        kind={restKind}
         dayName={dayName}
         doneCount={doneCount}
         totalSets={totalSets}
@@ -789,6 +829,12 @@ export default function WorkoutPlayer({
 
   // ---------- Vue exercice ----------
   const currentSetIdx = firstOpenSetIndex();
+  const sessionSeconds =
+    startedAtMs != null && nowMs != null
+      ? Math.max(0, Math.floor((nowMs - startedAtMs) / 1000))
+      : null;
+  const exerciseRemaining =
+    targetSecondsOf(active) - (exerciseSeconds[exercise.id] ?? 0);
 
   return (
     <main className="flex flex-col gap-4 pb-6">
@@ -801,8 +847,14 @@ export default function WorkoutPlayer({
         totalExercises={exercises.length}
         doneCount={doneCount}
         totalSets={totalSets}
-        elapsedSeconds={exerciseSeconds[exercise.id] ?? 0}
         onAbandon={abandon}
+      />
+
+      <TimeBar
+        sessionSeconds={sessionSeconds}
+        remainingSeconds={exerciseRemaining}
+        paused={exercisePaused}
+        onTogglePause={() => setExercisePaused((p) => !p)}
       />
 
       {active.muscles.length > 0 && (
