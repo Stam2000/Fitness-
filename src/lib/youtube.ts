@@ -86,9 +86,16 @@ export async function downloadMovementVideo(
     const dir = await ensureMediaDir();
     const target = path.join(dir, fileName);
     const cookies = await findCookiesFile(dir);
+    // Fournisseur de PO tokens (plugin bgutil) : jetons que YouTube exige
+    // des IP de datacenter. Sans le plugin ou le service, l'argument est
+    // simplement ignoré par yt-dlp.
+    const potProvider = process.env.POT_PROVIDER_URL?.trim() || null;
     const args = [
       "--no-playlist",
       "--no-progress",
+      ...(potProvider
+        ? ["--extractor-args", `youtubepot-bgutilhttp:base_url=${potProvider}`]
+        : []),
       "-f",
       "bv*[ext=mp4][height<=720]+ba[ext=m4a]/b[ext=mp4][height<=720]/b[height<=720]/b",
       "--merge-output-format",

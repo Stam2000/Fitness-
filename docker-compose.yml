@@ -41,6 +41,14 @@ services:
       db:
         condition: service_healthy
 
+  # Fournisseur de « PO tokens » pour yt-dlp (plugin bgutil, installé dans
+  # l'image app/dev) : YouTube exige ces jetons des IP de datacenter, sans
+  # quoi les téléchargements échouent en vérification anti-robot. Service
+  # interne au réseau compose, aucun port publié.
+  pot-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    restart: unless-stopped
+
   app:
     build:
       context: .
@@ -56,6 +64,8 @@ services:
       # export Netscape. À défaut, /app/data/media/cookies/cookies.txt est
       # utilisé s'il existe (déposable via `docker compose cp`).
       YTDLP_COOKIES: ${YTDLP_COOKIES:-}
+      # URL du fournisseur de PO tokens (service pot-provider ci-dessus).
+      POT_PROVIDER_URL: ${POT_PROVIDER_URL:-http://pot-provider:4416}
       # Le calendrier de suivi utilise la date locale du serveur.
       TZ: ${TZ:-Europe/Paris}
     volumes:
@@ -90,6 +100,8 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       # Cookies YouTube pour yt-dlp — voir le commentaire du service « app ».
       YTDLP_COOKIES: ${YTDLP_COOKIES:-}
+      # URL du fournisseur de PO tokens (service pot-provider).
+      POT_PROVIDER_URL: ${POT_PROVIDER_URL:-http://pot-provider:4416}
       # Le calendrier de suivi utilise la date locale du serveur.
       TZ: ${TZ:-Europe/Paris}
     volumes:

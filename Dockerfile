@@ -14,10 +14,14 @@ WORKDIR /app
 # yt-dlp vient de GitHub (dernière release) et non d'apk : le paquet Alpine
 # a des mois de retard, et un yt-dlp périmé déclenche les blocages YouTube
 # (« Sign in to confirm you're not a bot »). Rebuilder l'image le met à jour.
-RUN apk add --no-cache ffmpeg python3 \
+# Le plugin bgutil-ytdlp-pot-provider fournit à yt-dlp les « PO tokens »
+# que YouTube exige des IP de datacenter — il dialogue avec le service
+# pot-provider du docker-compose (variable POT_PROVIDER_URL).
+RUN apk add --no-cache ffmpeg python3 py3-pip \
   && wget -qO /usr/local/bin/yt-dlp \
        https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
-  && chmod a+rx /usr/local/bin/yt-dlp
+  && chmod a+rx /usr/local/bin/yt-dlp \
+  && pip install --no-cache-dir --break-system-packages bgutil-ytdlp-pot-provider
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -58,11 +62,12 @@ ENV PORT=3000
 ENV CHECKPOINT_DISABLE=1
 
 # yt-dlp + ffmpeg : téléchargement des vidéos YouTube de démonstration.
-# Dernière release GitHub plutôt qu'apk — voir le commentaire de l'étape dev.
-RUN apk add --no-cache ffmpeg python3 \
+# Dernière release GitHub plutôt qu'apk, + plugin PO token — voir l'étape dev.
+RUN apk add --no-cache ffmpeg python3 py3-pip \
   && wget -qO /usr/local/bin/yt-dlp \
        https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
-  && chmod a+rx /usr/local/bin/yt-dlp
+  && chmod a+rx /usr/local/bin/yt-dlp \
+  && pip install --no-cache-dir --break-system-packages bgutil-ytdlp-pot-provider
 
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
