@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { abandonSession, setSessionVariation } from "@/app/actions";
+import { blobToWavBase64 } from "@/lib/audio";
 import { btn } from "@/components/ui/button";
 import Chip from "@/components/ui/Chip";
 import ExerciseHero from "@/components/workout/ExerciseHero";
@@ -265,6 +266,10 @@ export default function WorkoutPlayer({
   const setTimerInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+  // Dictée audio directe : enregistreur micro et arrêt automatique.
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const autoStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const exercise = exercises[current];
   // Option active d'un exercice, clampée si les variantes ont changé.
@@ -377,7 +382,10 @@ export default function WorkoutPlayer({
       if (restInterval.current) clearInterval(restInterval.current);
       if (warmupInterval.current) clearInterval(warmupInterval.current);
       if (setTimerInterval.current) clearInterval(setTimerInterval.current);
+      if (autoStopRef.current) clearTimeout(autoStopRef.current);
       recognitionRef.current?.abort?.();
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") recorder.stop();
     };
   }, []);
 
@@ -614,15 +622,9 @@ export default function WorkoutPlayer({
     }
   }
 
-  async function applyVoiceTranscript(transcript: string) {
-    setVoiceMessage(`🤖 « ${transcript} » — interprétation…`);
-    const { weightKg, reps } = await interpretTranscript(transcript);
-    if (weightKg === null && reps === null) {
-      setVoiceMessage(`« ${transcript} » — je n'ai pas compris de nombres.`);
-      return;
-    }
-    // La dictée ne fait que remplir les champs de la série en cours :
-    // pas de validation ni de repos — l'utilisateur coche lui-même.
+  // La dictée ne fait que remplir les champs de la série en cours :
+  // pas de validation ni de repos — l'utilisateur coche lui-même.
+  function fillCurrentSet(weightKg: number | null, reps: number | null) {
     const setIndex = firstOpenSetIndex();
     const key = `${exercise.id}:${setIndex}`;
     setLogs((prev) => {
@@ -638,6 +640,114 @@ export default function WorkoutPlayer({
       );
       return { ...prev, [key]: nextState };
     });
+  }
+
+  async function applyVoiceTranscript(transcript: string) {
+    setVoiceMessage(`🤖 « ${transcript} » — interprétation…`);
+    const { weightKg, reps } = await interpretTranscript(transcript);
+    if (weightKg === null && reps === null) {
+      setVoiceMessage(`« ${transcript} » — je n'ai pas compris de nombres.`);
+      return;
+    }
+    fillCurrentSet(weightKg, reps);
+  }
+
+  // ---------- Dictée audio directe (modèle vocal via OpenRouter) ----------
+
+  async function processAudioBlob(blob: Blob) {
+    setVoiceMessage("🤖 Interprétation de l'audio…");
+    try {
+      const wav = await blobToWavBase64(blob);
+      const res = await fetch("/api/voice/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          audio: wav,
+          exercise: active.name,
+          targetReps: active.reps,
+        }),
+      });
+      if (!res.ok) throw new Error("voice-parse");
+      const json = (await res.json()) as {
+        weightKg?: number | null;
+        reps?: number | null;
+      };
+      const weightKg = json.weightKg ?? null;
+      const reps = json.reps ?? null;
+      if (weightKg === null && reps === null) {
+        setVoiceMessage("Je n'ai pas compris de nombres. Réessaie.");
+        return;
+      }
+      fillCurrentSet(weightKg, reps);
+    } catch {
+      setVoiceMessage(
+        "Interprétation impossible (modèle vocal). Réessaie ou saisis à la main."
+      );
+    }
+  }
+
+  async function startAudioRecording(): Promise<boolean> {
+    if (
+      typeof MediaRecorder === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      return false;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        mediaRecorderRef.current = null;
+        if (autoStopRef.current) {
+          clearTimeout(autoStopRef.current);
+          autoStopRef.current = null;
+        }
+        setListening(false);
+        const blob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+        if (blob.size < 1000) {
+          setVoiceMessage("Je n'ai rien entendu. Réessaie.");
+          return;
+        }
+        void processAudioBlob(blob);
+      };
+      recorder.start();
+      setListening(true);
+      setVoiceMessage("🎙️ J'écoute… appuie à nouveau pour terminer.");
+      // Garde-fou : arrêt automatique après 15 s.
+      autoStopRef.current = setTimeout(() => stopAudioRecording(), 15_000);
+      return true;
+    } catch {
+      // micro refusé ou indisponible : repli sur la dictée du navigateur
+      return false;
+    }
+  }
+
+  function stopAudioRecording() {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+  }
+
+  // Un appui démarre l'écoute (modèle vocal si clé, sinon navigateur) ;
+  // un second appui termine l'enregistrement.
+  async function onMicTap() {
+    if (mediaRecorderRef.current) {
+      stopAudioRecording();
+      return;
+    }
+    if (listening) return; // reconnaissance navigateur en cours
+    if (hasOpenrouterKey) {
+      const ok = await startAudioRecording();
+      if (ok) return;
+    }
+    startVoice();
   }
 
   function startVoice() {
@@ -1080,20 +1190,23 @@ export default function WorkoutPlayer({
       {voiceInput && (
         <div className="flex flex-col items-center gap-2 py-1">
           <button
-            onClick={startVoice}
-            disabled={listening}
+            onClick={onMicTap}
             className={`flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 text-[28px] ${
               listening
                 ? "recording border-accent bg-accent/20"
                 : "border-accent/50 bg-accent/10"
             }`}
-            aria-label="Dicter poids et répétitions"
+            aria-label={
+              listening
+                ? "Terminer la dictée"
+                : "Dicter poids et répétitions"
+            }
           >
-            🎤
+            {listening ? "⏹" : "🎤"}
           </button>
           <p className="text-center text-[13px] text-muted-2">
             {listening
-              ? "Je t'écoute… dis par ex. « 80 kilos 10 répétitions »"
+              ? "Je t'écoute… appuie à nouveau pour terminer."
               : "« 62 kilos, 11 répétitions »"}
           </p>
           {voiceMessage && (

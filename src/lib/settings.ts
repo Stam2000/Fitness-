@@ -7,6 +7,7 @@ export type ResolvedSettings = {
   kieApiKey: string | null;
   voiceInput: boolean;
   voiceAnnounce: boolean;
+  voiceModel: string;
 };
 
 // Les clés saisies dans Réglages (DB) priment sur les variables d'environnement.
@@ -24,5 +25,6 @@ export async function getSettings(): Promise<ResolvedSettings> {
     kieApiKey: s.kieApiKey || process.env.KIE_API_KEY || null,
     voiceInput: s.voiceInput,
     voiceAnnounce: s.voiceAnnounce,
+    voiceModel: s.voiceModel,
   };
 }

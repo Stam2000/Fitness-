@@ -30,6 +30,7 @@ export default async function SettingsPage() {
           pinnedModels: s.pinnedModels,
           voiceInput: s.voiceInput,
           voiceAnnounce: s.voiceAnnounce,
+          voiceModel: s.voiceModel,
         }}
       />
     </main>

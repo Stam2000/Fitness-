@@ -76,6 +76,7 @@ export async function saveSettings(data: {
   kieApiKey?: string;
   voiceInput?: boolean;
   voiceAnnounce?: boolean;
+  voiceModel?: string;
 }) {
   const update: Record<string, string | boolean | null> = {};
   // Champ vide = ne pas changer ; "-" seul = effacer la clé.
@@ -90,6 +91,7 @@ export async function saveSettings(data: {
   if (data.voiceInput !== undefined) update.voiceInput = data.voiceInput;
   if (data.voiceAnnounce !== undefined)
     update.voiceAnnounce = data.voiceAnnounce;
+  if (data.voiceModel) update.voiceModel = data.voiceModel.trim();
 
   await prisma.settings.upsert({
     where: { id: 1 },

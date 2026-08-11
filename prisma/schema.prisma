@@ -168,4 +168,6 @@ model Settings {
   kieApiKey        String?
   voiceInput       Boolean @default(true)
   voiceAnnounce    Boolean @default(true)
+  // Modèle acceptant l'audio (dictée directe au micro via OpenRouter).
+  voiceModel       String  @default("google/gemini-2.5-flash")
 }

@@ -2,12 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSettings } from "@/lib/settings";
 
-const requestSchema = z.object({
-  transcript: z.string().min(1).max(300),
-  // Contexte optionnel pour aider le modèle à interpréter.
-  exercise: z.string().max(200).optional(),
-  targetReps: z.string().max(50).optional(),
-});
+const requestSchema = z
+  .object({
+    // Mode texte : phrase déjà transcrite par le navigateur.
+    transcript: z.string().min(1).max(300).optional(),
+    // Mode audio : enregistrement WAV base64, écouté par le modèle vocal.
+    audio: z.string().min(100).max(4_000_000).optional(),
+    // Contexte optionnel pour aider le modèle à interpréter.
+    exercise: z.string().max(200).optional(),
+    targetReps: z.string().max(50).optional(),
+  })
+  .refine((d) => d.transcript || d.audio, {
+    message: "transcript ou audio requis",
+  });
 
 const responseSchema = z.object({
   weightKg: z.number().min(0).max(2000).nullable(),
@@ -33,7 +40,7 @@ export async function POST(req: NextRequest) {
   if (!body.success) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
-  const { transcript, exercise, targetReps } = body.data;
+  const { transcript, audio, exercise, targetReps } = body.data;
 
   const settings = await getSettings();
   if (!settings.openrouterApiKey) {
@@ -43,10 +50,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const prompt = `Phrase dictée pendant une série de musculation : « ${transcript} »
-${exercise ? `Exercice en cours : ${exercise}${targetReps ? ` (objectif ${targetReps} répétitions)` : ""}` : ""}
-
-Extrais le poids utilisé (en kg) et le nombre de répétitions effectuées.
+  const context = exercise
+    ? `Exercice en cours : ${exercise}${targetReps ? ` (objectif ${targetReps} répétitions)` : ""}`
+    : "";
+  const rules = `Extrais le poids utilisé (en kg) et le nombre de répétitions effectuées.
 Règles :
 - Les nombres peuvent être en toutes lettres (« soixante-deux ») ou en chiffres.
 - « et demi » / « virgule cinq » → +0,5 sur le poids.
@@ -55,6 +62,27 @@ Règles :
 - Si la phrase n'a aucun rapport avec une performance, renvoie les deux à null.
 
 Réponds UNIQUEMENT avec un objet JSON : {"weightKg": nombre ou null, "reps": entier ou null}`;
+
+  // Mode audio : le modèle vocal écoute l'enregistrement lui-même ;
+  // mode texte : le modèle par défaut interprète la transcription.
+  const userContent = audio
+    ? [
+        {
+          type: "text",
+          text: `Écoute cette phrase dictée en français pendant une série de musculation.
+${context}
+
+${rules}`,
+        },
+        {
+          type: "input_audio",
+          input_audio: { data: audio, format: "wav" },
+        },
+      ]
+    : `Phrase dictée pendant une série de musculation : « ${transcript} »
+${context}
+
+${rules}`;
 
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -66,14 +94,14 @@ Réponds UNIQUEMENT avec un objet JSON : {"weightKg": nombre ou null, "reps": en
         "X-Title": "Mon Coach Fitness",
       },
       body: JSON.stringify({
-        model: settings.openrouterModel,
+        model: audio ? settings.voiceModel : settings.openrouterModel,
         messages: [
           {
             role: "system",
             content:
               "Tu extrais des données d'entraînement dictées en français. Tu réponds uniquement en JSON valide.",
           },
-          { role: "user", content: prompt },
+          { role: "user", content: userContent },
         ],
         temperature: 0,
       }),

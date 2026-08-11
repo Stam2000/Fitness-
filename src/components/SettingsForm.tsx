@@ -16,6 +16,7 @@ export default function SettingsForm({
     pinnedModels: string[];
     voiceInput: boolean;
     voiceAnnounce: boolean;
+    voiceModel: string;
   };
 }) {
   const [openrouterKey, setOpenrouterKey] = useState("");
@@ -23,6 +24,7 @@ export default function SettingsForm({
   const [model, setModel] = useState(initial.openrouterModel);
   const [voiceInput, setVoiceInput] = useState(initial.voiceInput);
   const [voiceAnnounce, setVoiceAnnounce] = useState(initial.voiceAnnounce);
+  const [voiceModel, setVoiceModel] = useState(initial.voiceModel);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -34,6 +36,7 @@ export default function SettingsForm({
         openrouterModel: model.trim(),
         voiceInput,
         voiceAnnounce,
+        voiceModel: voiceModel.trim(),
       });
       setOpenrouterKey("");
       setKieKey("");
@@ -126,6 +129,18 @@ export default function SettingsForm({
             checked={voiceAnnounce}
             onChange={setVoiceAnnounce}
             aria-label="Annonces vocales"
+          />
+        </div>
+        <div className="mt-3 border-t border-card-border pt-3">
+          <p className="text-sm font-bold">Modèle vocal (dictée au micro)</p>
+          <p className="mb-2 mt-1 text-xs text-muted-2">
+            Écoute et interprète directement ta voix : choisis un modèle qui
+            accepte l&apos;audio (ex. Gemini Flash, GPT-4o audio).
+          </p>
+          <ModelPicker
+            value={voiceModel}
+            onChange={setVoiceModel}
+            initialPinned={initial.pinnedModels}
           />
         </div>
       </section>
