@@ -57,6 +57,13 @@ export function mediaFilePath(fileName: string): string | null {
   return path.join(MEDIA_DIR, fileName);
 }
 
+// Crée le dossier média au besoin et renvoie son chemin (utilisé aussi par
+// le téléchargement yt-dlp qui écrit directement dedans).
+export async function ensureMediaDir(): Promise<string> {
+  await mkdir(MEDIA_DIR, { recursive: true });
+  return MEDIA_DIR;
+}
+
 // Écrit un fichier uploadé (photo de suivi…) dans le dossier persistant.
 // Nom dérivé du contenu : re-uploader la même photo ne duplique pas.
 export async function persistMediaBuffer(

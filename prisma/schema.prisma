@@ -187,6 +187,24 @@ model SetLog {
   @@unique([sessionId, exerciseId, setIndex])
 }
 
+// Vidéo YouTube de démonstration téléchargée pour un mouvement. Rattachée par
+// nom normalisé (movementKey) : partagée entre l'exercice de base, ses
+// variantes et tous les programmes portant le même mouvement.
+model MovementVideo {
+  id           String   @id @default(cuid())
+  movementName String
+  movementKey  String
+  sourceUrl    String
+  title        String?
+  // Fichier local (/api/media/…) une fois le téléchargement terminé.
+  videoUrl     String?
+  status       String   @default("downloading") // downloading | ready | failed
+  error        String?
+  createdAt    DateTime @default(now())
+
+  @@index([movementKey])
+}
+
 // Mesure corporelle saisie manuellement (valeurs lues p. ex. sur une montre
 // à impédancemétrie — Galaxy Watch / balance connectée).
 model BodyMeasurement {

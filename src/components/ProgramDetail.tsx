@@ -18,6 +18,7 @@ import MusclePreviewSheet, {
   type MuscleChipInfo,
   type MuscleComboInfo,
 } from "@/components/MusclePreviewSheet";
+import MovementVideosSheet from "@/components/MovementVideosSheet";
 import { muscleComboKey, normalizeName } from "@/lib/normalize";
 
 type VariationView = {
@@ -139,6 +140,8 @@ export default function ProgramDetail({
   const [variantsBusy, setVariantsBusy] = useState<string | null>(null);
   // Promotion d'une variante en exercice par défaut (id en cours).
   const [promoting, setPromoting] = useState<string | null>(null);
+  // Vidéos YouTube du mouvement affiché (null = fermé).
+  const [videosSheet, setVideosSheet] = useState<string | null>(null);
   const [variantsError, setVariantsError] = useState<{
     id: string;
     msg: string;
@@ -786,6 +789,12 @@ export default function ProgramDetail({
                         >
                           📖 Exécution
                         </button>
+                        <button
+                          onClick={() => setVideosSheet(ex.name)}
+                          className="rounded-full border border-border px-3 py-1.5 text-muted-2"
+                        >
+                          📺 Vidéos
+                        </button>
                         {hasOpenrouterKey && (
                           <button
                             onClick={() => generateVariants(ex)}
@@ -887,6 +896,14 @@ export default function ProgramDetail({
                                   title={`Faire de « ${v.name} » l'exercice par défaut`}
                                 >
                                   {promoting === v.id ? "…" : "⬆️ Par défaut"}
+                                </button>
+                                <button
+                                  onClick={() => setVideosSheet(v.name)}
+                                  className="shrink-0 text-sm"
+                                  title={`Vidéos YouTube de ${v.name}`}
+                                  aria-label={`Vidéos YouTube de ${v.name}`}
+                                >
+                                  📺
                                 </button>
                                 {vvid?.status === "done" && vvid.url ? (
                                   <a
@@ -1101,6 +1118,12 @@ export default function ProgramDetail({
           </button>
         )}
       </BottomSheet>
+
+      <MovementVideosSheet
+        open={videosSheet !== null}
+        onClose={() => setVideosSheet(null)}
+        movementName={videosSheet}
+      />
 
       <MusclePreviewSheet
         open={muscleSheet !== null}

@@ -10,6 +10,8 @@ RUN npm ci
 # en continu par `docker compose watch` (voir docker-compose.yml, service « dev »).
 FROM node:22-alpine AS dev
 WORKDIR /app
+# yt-dlp + ffmpeg : téléchargement des vidéos YouTube de démonstration.
+RUN apk add --no-cache ffmpeg yt-dlp
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -48,6 +50,9 @@ ENV PORT=3000
 # La CLI Prisma interroge checkpoint.prisma.io au lancement (vérification de
 # version) ; inutile ici, et cet appel traîne derrière un réseau sortant filtré.
 ENV CHECKPOINT_DISABLE=1
+
+# yt-dlp + ffmpeg : téléchargement des vidéos YouTube de démonstration.
+RUN apk add --no-cache ffmpeg yt-dlp
 
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
