@@ -611,19 +611,20 @@ export default function WorkoutPlayer({
         setVoiceMessage(`« ${transcript} » — je n'ai pas compris de nombres.`);
         return;
       }
+      // La dictée ne fait que remplir les champs de la série en cours :
+      // pas de validation ni de repos — l'utilisateur coche lui-même.
       const setIndex = firstOpenSetIndex();
       const key = `${exercise.id}:${setIndex}`;
       const nextState: SetState = {
         weightKg: weightKg !== null ? String(weightKg) : logs[key]?.weightKg ?? "",
         reps: reps !== null ? String(reps) : logs[key]?.reps ?? "",
-        done: true,
+        done: logs[key]?.done ?? false,
       };
       setLogs((prev) => ({ ...prev, [key]: nextState }));
       saveLog(exercise.id, setIndex, nextState, activeVariationName);
       setVoiceMessage(
-        `✓ Série ${setIndex + 1} : ${nextState.weightKg || "?"} kg × ${nextState.reps || "?"} reps`
+        `Série ${setIndex + 1} remplie : ${nextState.weightKg || "?"} kg × ${nextState.reps || "?"} reps — coche-la quand c'est fait.`
       );
-      startRestAfterSet(setIndex);
     };
     recognition.onerror = () => {
       setVoiceMessage("Je n'ai rien entendu. Réessaie.");
