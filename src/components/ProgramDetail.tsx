@@ -996,6 +996,13 @@ export default function ProgramDetail({
             🔄 Adapter
           </button>
         )}
+        <a
+          href={`/api/programs/${program.id}/export`}
+          download
+          className={btn("outline", "md", "flex-1")}
+        >
+          ⬇️ TXT
+        </a>
       </div>
 
       {showConvert && (
