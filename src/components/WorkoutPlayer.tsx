@@ -270,6 +270,8 @@ export default function WorkoutPlayer({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const autoStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Dernière série (clé exercice:série) déjà signalée en dépassement.
+  const overtimeBeepedRef = useRef<string | null>(null);
 
   const exercise = exercises[current];
   // Option active d'un exercice, clampée si les variantes ont changé.
@@ -292,16 +294,26 @@ export default function WorkoutPlayer({
   const currentSetIdx = firstOpenSetIndex();
   const currentSetKey = `${exercise.id}:${currentSetIdx}`;
   const resting = restLeft !== null;
+  // Temps écoulé / restant de la série en cours (voir effet setClock).
+  const setElapsed =
+    setClock.key === currentSetKey
+      ? setClock.base +
+        (setClock.anchorMs != null && nowMs != null
+          ? Math.max(0, Math.floor((nowMs - setClock.anchorMs) / 1000))
+          : 0)
+      : 0;
+  const setRemaining = setSecondsOf(active) - setElapsed;
 
-  // Double bip court (fin de chrono), indépendant des annonces vocales.
-  const beep = useCallback(() => {
+  // Bips courts (fin de chrono, compte à rebours), indépendants des
+  // annonces vocales. `times` bips espacés de 250 ms (défaut : double bip).
+  const beep = useCallback((times = 2) => {
     try {
       type AudioWindow = Window & { webkitAudioContext?: typeof AudioContext };
       const w = window as AudioWindow;
       const Ctx = window.AudioContext ?? w.webkitAudioContext;
       if (!Ctx) return;
       const ctx = new Ctx();
-      [0, 0.25].forEach((delay) => {
+      Array.from({ length: times }, (_, i) => i * 0.25).forEach((delay) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
@@ -370,11 +382,14 @@ export default function WorkoutPlayer({
             speak("Repos terminé, c'est reparti !");
             return null;
           }
-          return prev - 1;
+          const next = prev - 1;
+          // Compte à rebours sonore avant la fin du repos : bip à 3, 2, 1.
+          if (next <= 3) beep(1);
+          return next;
         });
       }, 1000);
     },
-    [speak]
+    [speak, beep]
   );
 
   useEffect(() => {
@@ -447,6 +462,17 @@ export default function WorkoutPlayer({
       );
     };
   }, [finished, warmupDone, resting, exercisePaused, currentSetKey]);
+
+  // Triple bip (une seule fois par série) quand le temps cible de la série
+  // est dépassé : le décompte vient de passer en négatif.
+  const setOverdue = setRemaining <= 0;
+  useEffect(() => {
+    if (finished || !warmupDone || resting) return;
+    if (!setOverdue) return;
+    if (overtimeBeepedRef.current === currentSetKey) return;
+    overtimeBeepedRef.current = currentSetKey;
+    beep(3);
+  }, [finished, warmupDone, resting, setOverdue, currentSetKey, beep]);
 
   // Persistance : carte complète envoyée en arrière-plan (changement
   // d'exercice, fin de séance, et toutes les 30 s par sécurité).
@@ -1054,14 +1080,6 @@ export default function WorkoutPlayer({
     startedAtMs != null && nowMs != null
       ? Math.max(0, Math.floor((nowMs - startedAtMs) / 1000))
       : null;
-  const setElapsed =
-    setClock.key === currentSetKey
-      ? setClock.base +
-        (setClock.anchorMs != null && nowMs != null
-          ? Math.max(0, Math.floor((nowMs - setClock.anchorMs) / 1000))
-          : 0)
-      : 0;
-  const setRemaining = setSecondsOf(active) - setElapsed;
 
   return (
     <main className="flex flex-col gap-4 pb-6">
