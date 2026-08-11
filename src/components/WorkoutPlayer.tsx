@@ -583,6 +583,63 @@ export default function WorkoutPlayer({
     });
   }
 
+  // Interprète la phrase dictée : modèle OpenRouter si une clé est
+  // configurée (plus précis — nombres en toutes lettres, tournures libres),
+  // sinon ou en cas d'échec, l'analyseur local parseVoiceEntry.
+  async function interpretTranscript(
+    transcript: string
+  ): Promise<{ weightKg: number | null; reps: number | null }> {
+    if (!hasOpenrouterKey) return parseVoiceEntry(transcript);
+    try {
+      const res = await fetch("/api/voice/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transcript,
+          exercise: active.name,
+          targetReps: active.reps,
+        }),
+      });
+      if (!res.ok) return parseVoiceEntry(transcript);
+      const json = (await res.json()) as {
+        weightKg?: number | null;
+        reps?: number | null;
+      };
+      const weightKg = json.weightKg ?? null;
+      const reps = json.reps ?? null;
+      if (weightKg === null && reps === null) return parseVoiceEntry(transcript);
+      return { weightKg, reps };
+    } catch {
+      return parseVoiceEntry(transcript);
+    }
+  }
+
+  async function applyVoiceTranscript(transcript: string) {
+    setVoiceMessage(`🤖 « ${transcript} » — interprétation…`);
+    const { weightKg, reps } = await interpretTranscript(transcript);
+    if (weightKg === null && reps === null) {
+      setVoiceMessage(`« ${transcript} » — je n'ai pas compris de nombres.`);
+      return;
+    }
+    // La dictée ne fait que remplir les champs de la série en cours :
+    // pas de validation ni de repos — l'utilisateur coche lui-même.
+    const setIndex = firstOpenSetIndex();
+    const key = `${exercise.id}:${setIndex}`;
+    setLogs((prev) => {
+      const cur = prev[key];
+      const nextState: SetState = {
+        weightKg: weightKg !== null ? String(weightKg) : cur?.weightKg ?? "",
+        reps: reps !== null ? String(reps) : cur?.reps ?? "",
+        done: cur?.done ?? false,
+      };
+      saveLog(exercise.id, setIndex, nextState, activeVariationName);
+      setVoiceMessage(
+        `Série ${setIndex + 1} remplie : ${nextState.weightKg || "?"} kg × ${nextState.reps || "?"} reps — coche-la quand c'est fait.`
+      );
+      return { ...prev, [key]: nextState };
+    });
+  }
+
   function startVoice() {
     const SpeechRecognition =
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -606,25 +663,7 @@ export default function WorkoutPlayer({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recognition.onresult = (event: any) => {
       const transcript: string = event.results[0][0].transcript;
-      const { weightKg, reps } = parseVoiceEntry(transcript);
-      if (weightKg === null && reps === null) {
-        setVoiceMessage(`« ${transcript} » — je n'ai pas compris de nombres.`);
-        return;
-      }
-      // La dictée ne fait que remplir les champs de la série en cours :
-      // pas de validation ni de repos — l'utilisateur coche lui-même.
-      const setIndex = firstOpenSetIndex();
-      const key = `${exercise.id}:${setIndex}`;
-      const nextState: SetState = {
-        weightKg: weightKg !== null ? String(weightKg) : logs[key]?.weightKg ?? "",
-        reps: reps !== null ? String(reps) : logs[key]?.reps ?? "",
-        done: logs[key]?.done ?? false,
-      };
-      setLogs((prev) => ({ ...prev, [key]: nextState }));
-      saveLog(exercise.id, setIndex, nextState, activeVariationName);
-      setVoiceMessage(
-        `Série ${setIndex + 1} remplie : ${nextState.weightKg || "?"} kg × ${nextState.reps || "?"} reps — coche-la quand c'est fait.`
-      );
+      void applyVoiceTranscript(transcript);
     };
     recognition.onerror = () => {
       setVoiceMessage("Je n'ai rien entendu. Réessaie.");
