@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { getCompletedCycles } from "@/lib/progress";
 import ProgramDetail from "@/components/ProgramDetail";
 
 export const dynamic = "force-dynamic";
@@ -11,11 +12,12 @@ export default async function ProgramPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [program, locations, settings] = await Promise.all([
+  const [program, locations, settings, completedCycles] = await Promise.all([
     prisma.program.findUnique({
       where: { id },
       include: {
         location: true,
+        nextProgram: { select: { id: true, name: true } },
         days: {
           orderBy: { dayIndex: "asc" },
           include: {
@@ -29,6 +31,7 @@ export default async function ProgramPage({
     }),
     prisma.location.findMany({ orderBy: { createdAt: "asc" } }),
     getSettings(),
+    getCompletedCycles(id),
   ]);
   if (!program) notFound();
 
@@ -49,6 +52,13 @@ export default async function ProgramPage({
         locationLabel: program.location
           ? `${program.location.icon ?? ""} ${program.location.name}`.trim()
           : null,
+        blockCycles: program.blockCycles,
+        blockNumber: program.blockNumber,
+        archived: Boolean(program.archivedAt),
+        nextProgram: program.nextProgram
+          ? { id: program.nextProgram.id, name: program.nextProgram.name }
+          : null,
+        completedCycles,
         days: program.days.map((d) => ({
           id: d.id,
           name: d.name,

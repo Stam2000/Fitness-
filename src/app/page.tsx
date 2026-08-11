@@ -12,12 +12,20 @@ export default async function HomePage() {
       orderBy: { createdAt: "asc" },
       include: {
         programs: {
+          // Les blocs archivés (remplacés par leur suite) n'encombrent pas
+          // l'accueil ; ils restent accessibles depuis leur successeur.
+          where: { archivedAt: null },
           orderBy: { createdAt: "desc" },
           include: {
             days: {
               orderBy: { dayIndex: "asc" },
               include: {
-                _count: { select: { exercises: true } },
+                _count: {
+                  select: {
+                    exercises: true,
+                    sessions: { where: { completedAt: { not: null } } },
+                  },
+                },
                 exercises: {
                   where: { imageUrl: { not: null } },
                   orderBy: { order: "asc" },
@@ -31,13 +39,18 @@ export default async function HomePage() {
       },
     }),
     prisma.program.findMany({
-      where: { locationId: null },
+      where: { locationId: null, archivedAt: null },
       orderBy: { createdAt: "desc" },
       include: {
         days: {
           orderBy: { dayIndex: "asc" },
           include: {
-            _count: { select: { exercises: true } },
+            _count: {
+              select: {
+                exercises: true,
+                sessions: { where: { completedAt: { not: null } } },
+              },
+            },
             exercises: {
               where: { imageUrl: { not: null } },
               orderBy: { order: "asc" },
@@ -153,6 +166,15 @@ export default async function HomePage() {
               .flatMap((d) => d.exercises.map((e) => e.imageUrl))
               .filter((u): u is string => Boolean(u))
               .slice(0, 2);
+            // Cycles complets = min des séances terminées par jour ; le bloc
+            // est fini quand chaque jour a bouclé blockCycles passages.
+            const completedCycles =
+              program.days.length > 0
+                ? Math.min(...program.days.map((d) => d._count.sessions))
+                : 0;
+            const blockDone =
+              program.blockCycles != null &&
+              completedCycles >= program.blockCycles;
             return (
             <div key={program.id} className="card overflow-hidden">
               <Link href={`/programs/${program.id}`} className="block">
@@ -187,6 +209,17 @@ export default async function HomePage() {
                 </div>
               </Link>
               <div className="flex flex-col gap-2 p-4 pt-2.5">
+                {blockDone && (
+                  <Link
+                    href={`/programs/${program.id}/next-block`}
+                    className="flex items-center gap-2.5 rounded-2xl border-[1.5px] border-accent/50 bg-accent/10 p-3 text-sm font-bold text-accent"
+                  >
+                    <span className="min-w-0 flex-1">
+                      🏁 Bloc {program.blockNumber} terminé — générer la suite
+                    </span>
+                    <span>→</span>
+                  </Link>
+                )}
                 {program.days.map((day) => (
                   <form
                     key={day.id}

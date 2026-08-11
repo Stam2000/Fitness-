@@ -172,13 +172,24 @@ export default function WorkoutPlayer({
       // Autant de clés que la plus généreuse des options, pour que la
       // bascule vers une variante à plus de séries ne casse rien.
       const maxSets = Math.max(...ex.options.map((o) => o.sets));
+      // Prescription : le poids suggéré (double progression) préremplit les
+      // séries vierges de l'option active. Init seulement — un changement de
+      // variante en cours de séance n'écrase pas une saisie.
+      const suggested = completed
+        ? null
+        : ex.options[ex.activeIndex].suggestion?.suggestion ?? null;
       for (let i = 0; i < maxSets; i++) {
         const existing = initialLogs.find(
           (l) => l.exerciseId === ex.id && l.setIndex === i
         );
         map[`${ex.id}:${i}`] = {
           reps: existing?.reps != null ? String(existing.reps) : "",
-          weightKg: existing?.weightKg != null ? String(existing.weightKg) : "",
+          weightKg:
+            existing?.weightKg != null
+              ? String(existing.weightKg)
+              : suggested != null
+                ? String(suggested)
+                : "",
           done: existing?.done ?? false,
         };
       }
@@ -905,16 +916,23 @@ export default function WorkoutPlayer({
         </div>
       )}
 
-      {active.suggestion && (
-        <p className="rounded-xl bg-accent/10 px-3.5 py-2.5 text-sm font-semibold text-accent">
-          📊 Dernière fois : {active.suggestion.lastWeight} kg —{" "}
-          {active.suggestion.suggestion > active.suggestion.lastWeight
-            ? `essaie ${active.suggestion.suggestion} kg 💪`
-            : "consolide cette charge"}
-        </p>
-      )}
-      {active.weightHint && (
-        <p className="text-sm text-muted-2">⚖️ {active.weightHint}</p>
+      {active.suggestion ? (
+        <div className="rounded-xl bg-accent/10 px-3.5 py-2.5">
+          <p className="text-sm font-extrabold text-accent">
+            🎯 Objectif : {active.sets} × {active.reps} @{" "}
+            {active.suggestion.suggestion} kg
+          </p>
+          <p className="mt-0.5 text-xs font-semibold text-accent/80">
+            Dernière fois : {active.suggestion.lastWeight} kg —{" "}
+            {active.suggestion.suggestion > active.suggestion.lastWeight
+              ? "toutes les séries au max, on charge +2,5 kg 💪"
+              : "consolide cette charge"}
+          </p>
+        </div>
+      ) : (
+        active.weightHint && (
+          <p className="text-sm text-muted-2">⚖️ {active.weightHint}</p>
+        )
       )}
       {active.notes && (
         <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-[13px] leading-relaxed text-muted-2">

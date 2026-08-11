@@ -134,6 +134,52 @@ export async function setDefaultModel(model: string) {
 
 // ---------- Programmes ----------
 
+// Données imbriquées communes à la création d'un programme depuis un draft
+// (création initiale et blocs suivants) : préserve muscles, temps et variations.
+function draftCreateData(parsed: ProgramDraft) {
+  return {
+    name: parsed.name,
+    description: parsed.description ?? null,
+    blockCycles: parsed.blockCycles ?? null,
+    days: {
+      create: parsed.days.map((day, di) => ({
+        dayIndex: di,
+        name: day.name,
+        focus: day.focus ?? null,
+        exercises: {
+          create: day.exercises.map((ex, ei) => ({
+            order: ei,
+            name: ex.name,
+            sets: ex.sets,
+            reps: ex.reps,
+            restSeconds: ex.restSeconds,
+            weightHint: ex.weightHint ?? null,
+            equipment: ex.equipment ?? [],
+            muscles: ex.muscles ?? [],
+            targetSeconds: ex.targetSeconds ?? null,
+            transitionSeconds: ex.transitionSeconds ?? null,
+            notes: ex.notes ?? null,
+            variations: {
+              create: (ex.variations ?? []).map((v, vi) => ({
+                order: vi,
+                name: v.name,
+                sets: v.sets,
+                reps: v.reps,
+                restSeconds: v.restSeconds,
+                weightHint: v.weightHint ?? null,
+                equipment: v.equipment ?? [],
+                muscles: v.muscles ?? [],
+                targetSeconds: v.targetSeconds ?? null,
+                notes: v.notes ?? null,
+              })),
+            },
+          })),
+        },
+      })),
+    },
+  };
+}
+
 export async function saveProgram(
   draft: ProgramDraft,
   meta: { locationId?: string | null; goal?: string | null; level?: string | null }
@@ -141,50 +187,46 @@ export async function saveProgram(
   const parsed = programDraftSchema.parse(draft);
   const program = await prisma.program.create({
     data: {
-      name: parsed.name,
-      description: parsed.description ?? null,
+      ...draftCreateData(parsed),
       goal: meta.goal ?? null,
       level: meta.level ?? null,
       locationId: meta.locationId ?? null,
-      days: {
-        create: parsed.days.map((day, di) => ({
-          dayIndex: di,
-          name: day.name,
-          focus: day.focus ?? null,
-          exercises: {
-            create: day.exercises.map((ex, ei) => ({
-              order: ei,
-              name: ex.name,
-              sets: ex.sets,
-              reps: ex.reps,
-              restSeconds: ex.restSeconds,
-              weightHint: ex.weightHint ?? null,
-              equipment: ex.equipment ?? [],
-              muscles: ex.muscles ?? [],
-              targetSeconds: ex.targetSeconds ?? null,
-              transitionSeconds: ex.transitionSeconds ?? null,
-              notes: ex.notes ?? null,
-              variations: {
-                create: (ex.variations ?? []).map((v, vi) => ({
-                  order: vi,
-                  name: v.name,
-                  sets: v.sets,
-                  reps: v.reps,
-                  restSeconds: v.restSeconds,
-                  weightHint: v.weightHint ?? null,
-                  equipment: v.equipment ?? [],
-                  muscles: v.muscles ?? [],
-                  targetSeconds: v.targetSeconds ?? null,
-                  notes: v.notes ?? null,
-                })),
-              },
-            })),
-          },
-        })),
-      },
     },
   });
   revalidatePath("/");
+  return program.id;
+}
+
+// Enregistre le bloc suivant d'un programme : nouveau programme chaîné au
+// précédent (même contexte/objectif/niveau), le prédécesseur est archivé.
+export async function saveNextBlock(
+  previousProgramId: string,
+  draft: ProgramDraft
+): Promise<string> {
+  const parsed = programDraftSchema.parse(draft);
+  const prev = await prisma.program.findUniqueOrThrow({
+    where: { id: previousProgramId },
+    select: { goal: true, level: true, locationId: true, blockNumber: true },
+  });
+  const program = await prisma.$transaction(async (tx) => {
+    const created = await tx.program.create({
+      data: {
+        ...draftCreateData(parsed),
+        goal: prev.goal,
+        level: prev.level,
+        locationId: prev.locationId,
+        blockNumber: prev.blockNumber + 1,
+        previousProgramId,
+      },
+    });
+    await tx.program.update({
+      where: { id: previousProgramId },
+      data: { archivedAt: new Date() },
+    });
+    return created;
+  });
+  revalidatePath("/");
+  revalidatePath(`/programs/${previousProgramId}`);
   return program.id;
 }
 

@@ -40,6 +40,57 @@ export function suggestNextWeight(
   };
 }
 
+// Derniers logs validés par nom effectif de mouvement (variationName ?? nom
+// de l'exercice), tous programmes confondus : pour chaque nom, les séries de
+// la séance terminée la plus récente qui le contient. Sert de repli quand un
+// exercice n'a pas d'historique sur son jour (ex. premier passage d'un
+// nouveau bloc dont les Exercise sont de nouvelles lignes).
+export type LastLogByName = {
+  setIndex: number;
+  weightKg: number | null;
+  reps: number | null;
+  done: boolean;
+};
+
+export async function getLastLogsByName(
+  names: string[],
+  excludeSessionId?: string
+): Promise<Record<string, LastLogByName[]>> {
+  if (names.length === 0) return {};
+  const wanted = new Set(names);
+  const logs = await prisma.setLog.findMany({
+    where: {
+      done: true,
+      session: {
+        completedAt: { not: null },
+        ...(excludeSessionId ? { id: { not: excludeSessionId } } : {}),
+      },
+    },
+    include: {
+      exercise: { select: { name: true } },
+      session: { select: { id: true, completedAt: true } },
+    },
+    orderBy: { session: { completedAt: "desc" } },
+  });
+  const result: Record<string, LastLogByName[]> = {};
+  const pickedSession: Record<string, string> = {};
+  for (const log of logs) {
+    const name = log.variationName ?? log.exercise.name;
+    if (!wanted.has(name)) continue;
+    // Les logs sont triés par séance décroissante : la première séance vue
+    // pour un nom est la plus récente, on ignore les suivantes.
+    if (pickedSession[name] === undefined) pickedSession[name] = log.session.id;
+    if (pickedSession[name] !== log.session.id) continue;
+    (result[name] ??= []).push({
+      setIndex: log.setIndex,
+      weightKg: log.weightKg,
+      reps: log.reps,
+      done: log.done,
+    });
+  }
+  return result;
+}
+
 // Progression par exercice (regroupé par nom, tous programmes confondus).
 export async function getExerciseProgress(): Promise<ExerciseProgress[]> {
   const sessions = await prisma.workoutSession.findMany({
@@ -108,6 +159,22 @@ export async function getExerciseProgress(): Promise<ExerciseProgress[]> {
   // Les exercices les plus pratiqués d'abord.
   result.sort((a, b) => b.points.length - a.points.length);
   return result;
+}
+
+// Nombre de cycles complets d'un programme : un cycle est bouclé quand chaque
+// jour a une séance terminée de plus. Un jour sauté retient donc le compteur
+// (cohérent avec cycleIndex, calculé par jour au démarrage d'une séance).
+export async function getCompletedCycles(programId: string): Promise<number> {
+  const days = await prisma.programDay.findMany({
+    where: { programId },
+    select: {
+      _count: {
+        select: { sessions: { where: { completedAt: { not: null } } } },
+      },
+    },
+  });
+  if (days.length === 0) return 0;
+  return Math.min(...days.map((d) => d._count.sessions));
 }
 
 // Poids max historique par nom d'exercice (pour détecter les PR d'une séance).

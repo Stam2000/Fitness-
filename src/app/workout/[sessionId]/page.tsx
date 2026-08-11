@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
-import { getHistoricalMaxByName, suggestNextWeight } from "@/lib/progress";
+import {
+  getHistoricalMaxByName,
+  getLastLogsByName,
+  suggestNextWeight,
+} from "@/lib/progress";
 import { activeVariationIndex } from "@/lib/variants";
 import WorkoutPlayer from "@/components/WorkoutPlayer";
 
@@ -43,9 +47,17 @@ export default async function WorkoutPage({
     include: { setLogs: true },
   });
 
-  const [settings, historicalMax] = await Promise.all([
+  // Noms de tous les mouvements (base + variantes) : sert au repli par nom
+  // quand ce jour n'a pas encore d'historique (ex. début d'un nouveau bloc).
+  const optionNames = session.day.exercises.flatMap((ex) => [
+    ex.name,
+    ...ex.variations.map((v) => v.name),
+  ]);
+
+  const [settings, historicalMax, lastLogsByName] = await Promise.all([
     getSettings(),
     getHistoricalMaxByName(session.id),
+    getLastLogsByName(optionNames, session.id),
   ]);
 
   const exercises = session.day.exercises.map((ex) => {
@@ -87,11 +99,14 @@ export default async function WorkoutPage({
             l.done
         )
       );
-      const lastLogs = (lastSession?.setLogs ?? []).filter(
+      const dayLogs = (lastSession?.setLogs ?? []).filter(
         (l) =>
           l.exerciseId === ex.id &&
           (l.variationName ?? null) === variationName
       );
+      // Pas d'historique sur ce jour → repli sur la dernière séance (tous
+      // programmes confondus) où ce mouvement a été joué, retrouvée par nom.
+      const lastLogs = dayLogs.length > 0 ? dayLogs : lastLogsByName[o.name] ?? [];
       return {
         ...o,
         suggestion: lastLogs.length > 0 ? suggestNextWeight(lastLogs, o.reps) : null,

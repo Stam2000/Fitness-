@@ -33,6 +33,8 @@ export const daySchema = z.object({
 export const programDraftSchema = z.object({
   name: z.string().min(1),
   description: z.string().nullish(),
+  // Durée du bloc en cycles complets avant réévaluation, décidée par l'IA.
+  blockCycles: z.number().int().min(2).max(10).nullish(),
   days: z.array(daySchema).min(1),
 });
 

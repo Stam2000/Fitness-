@@ -43,6 +43,8 @@ export type EditableDay = {
 export type EditableProgram = {
   name: string;
   description?: string | null;
+  // Durée du bloc en cycles, décidée par l'IA. Non éditable ici : passthrough.
+  blockCycles?: number | null;
   days: EditableDay[];
 };
 

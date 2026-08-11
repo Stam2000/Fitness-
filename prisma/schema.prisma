@@ -45,6 +45,17 @@ model Program {
   location    Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
   days        ProgramDay[]
   createdAt   DateTime     @default(now())
+  // Durée du bloc en cycles complets (passages sur tous les jours), décidée
+  // par l'IA à la génération. null = pas de suivi de bloc.
+  blockCycles Int?
+  // N° du bloc dans la chaîne de progression (1 = bloc initial).
+  blockNumber Int          @default(1)
+  // Bloc précédent dans la chaîne (un seul successeur par bloc).
+  previousProgramId String?  @unique
+  previousProgram   Program? @relation("ProgramBlocks", fields: [previousProgramId], references: [id], onDelete: SetNull)
+  nextProgram       Program? @relation("ProgramBlocks")
+  // Archivé automatiquement quand son successeur est enregistré.
+  archivedAt  DateTime?
 }
 
 model ProgramDay {

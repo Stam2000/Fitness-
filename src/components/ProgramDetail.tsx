@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import ProgramEditor, { type EditableProgram } from "@/components/ProgramEditor";
 import {
   deleteProgram,
@@ -69,6 +70,12 @@ type ProgramView = {
   goal: string | null;
   level: string | null;
   locationLabel: string | null;
+  // Suivi de bloc (mésocycle) : null = programme sans durée de bloc définie.
+  blockCycles: number | null;
+  blockNumber: number;
+  archived: boolean;
+  nextProgram: { id: string; name: string } | null;
+  completedCycles: number;
   days: {
     id: string;
     name: string;
@@ -338,10 +345,62 @@ export default function ProgramDetail({
             .filter(Boolean)
             .join(" · ")}
         </p>
+        {program.blockCycles != null && !program.archived && (
+          <p className="mt-1 text-[13px] font-semibold text-muted">
+            📦 Bloc {program.blockNumber} · cycle{" "}
+            {Math.min(program.completedCycles + 1, program.blockCycles)}/
+            {program.blockCycles}
+          </p>
+        )}
         {program.description && (
           <p className="mt-2 text-sm text-muted-2">{program.description}</p>
         )}
       </header>
+
+      {program.archived && (
+        <div className="rounded-2xl border-[1.5px] border-border bg-surface-2 p-3.5 text-sm">
+          <p className="font-bold text-muted">
+            🗄️ Bloc {program.blockNumber} archivé — remplacé par la suite du
+            programme.
+          </p>
+          {program.nextProgram && (
+            <Link
+              href={`/programs/${program.nextProgram.id}`}
+              className="mt-1 inline-block font-semibold text-accent"
+            >
+              → Bloc suivant : {program.nextProgram.name}
+            </Link>
+          )}
+        </div>
+      )}
+
+      {!program.archived &&
+        program.blockCycles != null &&
+        program.completedCycles >= program.blockCycles && (
+          <div className="rounded-2xl border-[1.5px] border-accent/50 bg-accent/10 p-3.5">
+            <p className="text-sm font-extrabold text-accent">
+              🏁 Bloc terminé — {program.completedCycles} cycle
+              {program.completedCycles > 1 ? "s" : ""} complet
+              {program.completedCycles > 1 ? "s" : ""} !
+            </p>
+            <p className="mt-0.5 text-[13px] text-muted-2">
+              L&apos;IA peut analyser tes performances et concevoir le bloc
+              suivant : nouvelles charges, fourchettes et variantes.
+            </p>
+            {hasOpenrouterKey ? (
+              <Link
+                href={`/programs/${program.id}/next-block`}
+                className={btn("primary", "md", "mt-2.5 w-full")}
+              >
+                ✨ Générer le bloc suivant
+              </Link>
+            ) : (
+              <p className="mt-2 text-xs text-danger">
+                Ajoute ta clé OpenRouter dans Réglages pour générer la suite.
+              </p>
+            )}
+          </div>
+        )}
 
       {(missingImages > 0 || missingVideos > 0 || (hasOpenrouterKey && missingAnnotations > 0)) && (
         <div className="flex flex-wrap gap-2">

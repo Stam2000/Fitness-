@@ -103,6 +103,7 @@ export default function NewProgramWizard({
         {
           name: program.name,
           description: program.description ?? null,
+          blockCycles: program.blockCycles ?? null,
           days: program.days.map((d) => ({
             name: d.name,
             focus: d.focus ?? null,
