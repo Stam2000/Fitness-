@@ -52,6 +52,10 @@ services:
       DATABASE_URL: postgresql://fitness:${POSTGRES_PASSWORD:-fitness}@db:5432/fitness
       KIE_API_KEY: ${KIE_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Cookies YouTube pour yt-dlp (vérification anti-robot) : chemin d'un
+      # export Netscape. À défaut, /app/data/media/cookies/cookies.txt est
+      # utilisé s'il existe (déposable via `docker compose cp`).
+      YTDLP_COOKIES: ${YTDLP_COOKIES:-}
       # Le calendrier de suivi utilise la date locale du serveur.
       TZ: ${TZ:-Europe/Paris}
     volumes:
@@ -84,6 +88,8 @@ services:
       DATABASE_URL: postgresql://fitness:${POSTGRES_PASSWORD:-fitness}@db:5432/fitness
       KIE_API_KEY: ${KIE_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Cookies YouTube pour yt-dlp — voir le commentaire du service « app ».
+      YTDLP_COOKIES: ${YTDLP_COOKIES:-}
       # Le calendrier de suivi utilise la date locale du serveur.
       TZ: ${TZ:-Europe/Paris}
     volumes:

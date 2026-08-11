@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Dumbbell } from "lucide-react";
 import { NAV_TABS, isTabActive } from "@/components/nav-tabs";
 
 /**
@@ -20,9 +19,12 @@ export default function AppNav() {
       {/* Barre latérale — tablette et ordinateur */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[4.5rem] flex-col border-r border-card-border bg-surface/95 backdrop-blur md:flex lg:w-60">
         <div className="flex items-center justify-center gap-2 px-3 py-5 lg:justify-start lg:px-5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-black">
-            <Dumbbell size={20} strokeWidth={2.25} />
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo-192.png"
+            alt="Mon Coach Fitness"
+            className="h-9 w-9 rounded-xl"
+          />
           <span className="hidden text-base font-extrabold italic leading-tight tracking-tight lg:block">
             Mon Coach
             <span className="block text-xs font-normal not-italic tracking-normal text-muted">

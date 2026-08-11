@@ -12,10 +12,24 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#0b0f14",
     icons: [
       {
-        src: "/icon.svg",
-        sizes: "any",
-        type: "image/svg+xml",
+        src: "/logo-192.png",
+        sizes: "192x192",
+        type: "image/png",
         purpose: "any",
+      },
+      {
+        src: "/logo-512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        // Plein cadre (coins non détourés) : les lanceurs appliquent leur
+        // propre masque sans laisser apparaître de coins transparents.
+        src: "/logo-maskable-512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
       },
     ],
   };

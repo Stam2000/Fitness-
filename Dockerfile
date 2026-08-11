@@ -11,7 +11,13 @@ RUN npm ci
 FROM node:22-alpine AS dev
 WORKDIR /app
 # yt-dlp + ffmpeg : téléchargement des vidéos YouTube de démonstration.
-RUN apk add --no-cache ffmpeg yt-dlp
+# yt-dlp vient de GitHub (dernière release) et non d'apk : le paquet Alpine
+# a des mois de retard, et un yt-dlp périmé déclenche les blocages YouTube
+# (« Sign in to confirm you're not a bot »). Rebuilder l'image le met à jour.
+RUN apk add --no-cache ffmpeg python3 \
+  && wget -qO /usr/local/bin/yt-dlp \
+       https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+  && chmod a+rx /usr/local/bin/yt-dlp
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -52,7 +58,11 @@ ENV PORT=3000
 ENV CHECKPOINT_DISABLE=1
 
 # yt-dlp + ffmpeg : téléchargement des vidéos YouTube de démonstration.
-RUN apk add --no-cache ffmpeg yt-dlp
+# Dernière release GitHub plutôt qu'apk — voir le commentaire de l'étape dev.
+RUN apk add --no-cache ffmpeg python3 \
+  && wget -qO /usr/local/bin/yt-dlp \
+       https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+  && chmod a+rx /usr/local/bin/yt-dlp
 
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
