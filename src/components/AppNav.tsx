@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Bot } from "lucide-react";
 import { NAV_TABS, isTabActive } from "@/components/nav-tabs";
+import { useChatPanel } from "@/components/chat/ChatProvider";
 
 /**
  * Navigation adaptative, icônes seules (libellés en infobulle/aria) :
@@ -13,6 +15,7 @@ import { NAV_TABS, isTabActive } from "@/components/nav-tabs";
 export default function AppNav() {
   const pathname = usePathname();
   const inWorkout = pathname.startsWith("/workout/");
+  const { open: chatOpen, toggle: toggleChat } = useChatPanel();
 
   return (
     <>
@@ -60,6 +63,28 @@ export default function AppNav() {
               </Link>
             );
           })}
+          {/* Assistant IA — même pilule que les onglets, en bas de la barre */}
+          <button
+            type="button"
+            onClick={toggleChat}
+            title="Assistant"
+            aria-label="Assistant"
+            aria-pressed={chatOpen}
+            className={`mb-3 mt-auto flex items-center justify-center rounded-[14px] py-3 lg:justify-start lg:gap-3 lg:rounded-full lg:px-4 ${
+              chatOpen
+                ? "bg-accent/[0.12] text-accent"
+                : "text-muted hover:bg-surface-2 hover:text-ink"
+            }`}
+          >
+            <Bot size={21} strokeWidth={chatOpen ? 2.5 : 2} />
+            <span
+              className={`hidden text-[15px] lg:block ${
+                chatOpen ? "font-extrabold" : "font-medium"
+              }`}
+            >
+              Assistant
+            </span>
+          </button>
         </nav>
       </aside>
 
@@ -87,6 +112,18 @@ export default function AppNav() {
                 </Link>
               );
             })}
+            <button
+              type="button"
+              onClick={toggleChat}
+              title="Assistant"
+              aria-label="Assistant"
+              aria-pressed={chatOpen}
+              className={`flex h-11 items-center justify-center rounded-full transition-colors ${
+                chatOpen ? "w-14 bg-accent/[0.12] text-accent" : "w-11 text-muted"
+              }`}
+            >
+              <Bot size={22} strokeWidth={chatOpen ? 2.5 : 2} />
+            </button>
           </div>
         </nav>
       )}

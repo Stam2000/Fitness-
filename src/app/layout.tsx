@@ -4,6 +4,9 @@ import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import AppNav from "@/components/AppNav";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+import ChatProvider from "@/components/chat/ChatProvider";
+import ChatShell from "@/components/chat/ChatShell";
+import ChatPanel from "@/components/chat/ChatPanel";
 
 export const metadata: Metadata = {
   title: "Mon Coach Fitness",
@@ -32,13 +35,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <ServiceWorkerRegistration />
-        <AppNav />
-        {/* Décalage réservé à la barre latérale à partir de md */}
-        <div className="flex-1 md:pl-[4.5rem] lg:pl-60">
-          <div className="mx-auto w-full max-w-lg px-4 pt-4 safe-bottom md:max-w-3xl md:px-6 md:pt-8 xl:max-w-5xl lg:px-8">
-            {children}
-          </div>
-        </div>
+        {/* Le provider porte l'état ouvert/fermé du panneau d'assistant ;
+            les pages restent des Server Components (slot children). */}
+        <ChatProvider>
+          <AppNav />
+          <ChatShell>{children}</ChatShell>
+          <ChatPanel />
+        </ChatProvider>
       </body>
     </html>
   );

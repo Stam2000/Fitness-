@@ -79,6 +79,37 @@ model Program {
   nextProgram       Program? @relation("ProgramBlocks")
   // Archivé automatiquement quand son successeur est enregistré.
   archivedAt  DateTime?
+  chats       ChatConversation[]
+}
+
+// Conversation du panneau d'assistant IA. programId = programme sur lequel la
+// conversation est ancrée (sélectionné dans l'en-tête du panneau).
+model ChatConversation {
+  id        String        @id @default(cuid())
+  // Premier message de l'utilisateur, tronqué — sert de libellé d'historique.
+  title     String?
+  programId String?
+  program   Program?      @relation(fields: [programId], references: [id], onDelete: SetNull)
+  messages  ChatMessage[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model ChatMessage {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String // "user" | "assistant"
+  content        String
+  // Trace des outils exécutés pendant ce tour : [{ name, args, summary }].
+  toolCalls      Json?
+  // Proposition de modification produite par un outil propose_* (voir
+  // src/lib/chat-tools.ts), en attente de confirmation dans le panneau.
+  proposal       Json?
+  proposalStatus String? // "pending" | "applied" | "rejected" | "stale"
+  createdAt      DateTime         @default(now())
+
+  @@index([conversationId, createdAt])
 }
 
 model ProgramDay {
