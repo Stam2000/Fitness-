@@ -7,6 +7,8 @@ const exerciseBaseShape = {
   restSeconds: z.number().int().min(0).max(600),
   weightHint: z.string().nullish(),
   equipment: z.array(z.string()).default([]),
+  // Muscles principaux travaillés (1 à 4, en français).
+  muscles: z.array(z.string().min(1)).max(6).default([]),
   notes: z.string().nullish(),
 };
 

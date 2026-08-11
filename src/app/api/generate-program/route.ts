@@ -72,6 +72,7 @@ Tu réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ou après, re
           "restSeconds": 90,
           "weightHint": "conseil de charge (ex. 60-70% 1RM, ou 'modéré')",
           "equipment": ["équipement utilisé parmi la liste fournie"],
+          "muscles": ["Dos", "Biceps"],
           "notes": "conseil de technique court ou null",
           "variations": [
             {
@@ -81,6 +82,7 @@ Tu réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ou après, re
               "restSeconds": 120,
               "weightHint": "conseil de charge",
               "equipment": ["équipement utilisé parmi la liste fournie"],
+              "muscles": ["muscles principaux travaillés"],
               "notes": "conseil de technique court ou null"
             }
           ]
@@ -94,6 +96,7 @@ Règles :
 - Le nombre de jours doit correspondre exactement à la demande.
 - Adapte le volume à la durée de séance demandée (échauffement compris).
 - "reps" est une chaîne : "8-12", "10", "30 s", "jusqu'à l'échec"…
+- "muscles" : 1 à 4 muscles principaux réellement sollicités, en français, noms courts et cohérents d'un exercice à l'autre (ex. "Dos", "Biceps", "Pectoraux", "Épaules", "Quadriceps", "Ischio-jambiers", "Fessiers", "Abdominaux", "Mollets", "Triceps", "Cardio").
 - "restSeconds" entre 30 et 240 selon l'intensité.
 - "variations" : 0 à 2 exercices ALTERNATIFS ciblant EXACTEMENT les mêmes muscles que l'exercice de base, joués certaines semaines à sa place pour varier les stimuli.
 - Ne propose une variation QUE si l'équipement listé permet une alternative réellement différente et pertinente ; sinon "variations": [].

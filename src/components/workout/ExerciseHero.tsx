@@ -15,12 +15,17 @@ type HeroOption = {
  * nom + objectifs en overlay. La vidéo garde ses contrôles : overlays
  * hauts seulement, texte en dessous.
  */
+function formatElapsed(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
 export default function ExerciseHero({
   option,
   currentIndex,
   totalExercises,
   doneCount,
   totalSets,
+  elapsedSeconds = 0,
   onAbandon,
 }: {
   option: HeroOption;
@@ -28,11 +33,18 @@ export default function ExerciseHero({
   totalExercises: number;
   doneCount: number;
   totalSets: number;
+  /** Temps déjà passé sur cet exercice (chrono automatique). */
+  elapsedSeconds?: number;
   onAbandon: () => void;
 }) {
   const counter = (
-    <div className="absolute right-3.5 top-3.5 rounded-full bg-bg/70 px-3 py-2 font-mono text-[12.5px] font-bold">
-      {currentIndex}/{totalExercises} · {doneCount}/{totalSets} ✓
+    <div className="absolute right-3.5 top-3.5 flex flex-col items-end gap-1.5">
+      <div className="rounded-full bg-bg/70 px-3 py-2 font-mono text-[12.5px] font-bold">
+        {currentIndex}/{totalExercises} · {doneCount}/{totalSets} ✓
+      </div>
+      <div className="rounded-full bg-bg/70 px-3 py-1.5 font-mono text-[12.5px] font-bold text-accent">
+        ⏱ {formatElapsed(elapsedSeconds)}
+      </div>
     </div>
   );
   const closeBtn = (

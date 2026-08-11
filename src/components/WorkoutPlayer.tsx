@@ -21,6 +21,7 @@ type VariantView = {
   restSeconds: number;
   weightHint: string | null;
   equipment: string[];
+  muscles: string[];
   notes: string | null;
   imageUrl: string | null;
   videoUrl: string | null;
@@ -122,6 +123,7 @@ export default function WorkoutPlayer({
   hasOpenrouterKey,
   startedAtMs = null,
   completedAtMs = null,
+  initialExerciseSeconds = {},
 }: {
   sessionId: string;
   programName: string;
@@ -134,6 +136,7 @@ export default function WorkoutPlayer({
   hasOpenrouterKey: boolean;
   startedAtMs?: number | null;
   completedAtMs?: number | null;
+  initialExerciseSeconds?: Record<string, number>;
 }) {
   // Option affichée pour chaque exercice (bascule manuelle possible).
   const [variantIdx, setVariantIdx] = useState<Record<string, number>>(() =>
@@ -184,6 +187,10 @@ export default function WorkoutPlayer({
   const [finished, setFinished] = useState(completed);
   // Instant de fin (séance terminée dans cette session de navigation).
   const [finishedAtMs, setFinishedAtMs] = useState<number | null>(null);
+  // Temps passé par exercice (secondes), repos entre séries inclus.
+  const [exerciseSeconds, setExerciseSeconds] = useState<Record<string, number>>(
+    initialExerciseSeconds
+  );
   const [showSubstitute, setShowSubstitute] = useState(false);
   const [substituteReason, setSubstituteReason] = useState("");
   const [substituting, setSubstituting] = useState(false);
@@ -313,6 +320,41 @@ export default function WorkoutPlayer({
       recognitionRef.current?.abort?.();
     };
   }, []);
+
+  // Chrono automatique par exercice : s'accumule sur l'exercice courant tant
+  // que la séance est active (échauffement exclu, repos entre séries inclus).
+  const currentExerciseId = exercise.id;
+  useEffect(() => {
+    if (finished || !warmupDone) return;
+    const tick = setInterval(() => {
+      setExerciseSeconds((prev) => ({
+        ...prev,
+        [currentExerciseId]: (prev[currentExerciseId] ?? 0) + 1,
+      }));
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [finished, warmupDone, currentExerciseId]);
+
+  // Persistance : carte complète envoyée en arrière-plan (changement
+  // d'exercice, fin de séance, et toutes les 30 s par sécurité).
+  const exerciseSecondsRef = useRef(exerciseSeconds);
+  useEffect(() => {
+    exerciseSecondsRef.current = exerciseSeconds;
+  }, [exerciseSeconds]);
+  const saveExerciseSeconds = useCallback(() => {
+    fetch(`/api/sessions/${sessionId}/exercise-time`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seconds: exerciseSecondsRef.current }),
+    }).catch(() => {
+      // hors-ligne : les valeurs restent dans l'état local
+    });
+  }, [sessionId]);
+  useEffect(() => {
+    if (finished) return;
+    const save = setInterval(saveExerciseSeconds, 30_000);
+    return () => clearInterval(save);
+  }, [finished, saveExerciseSeconds]);
 
   function startWarmup(seconds: number) {
     if (warmupInterval.current) clearInterval(warmupInterval.current);
@@ -483,6 +525,7 @@ export default function WorkoutPlayer({
 
   function goTo(index: number) {
     if (index < 0 || index >= exercises.length) return;
+    saveExerciseSeconds();
     setCurrent(index);
     const o = activeOf(exercises[index]);
     speak(
@@ -493,6 +536,7 @@ export default function WorkoutPlayer({
   async function finishSession() {
     if (restInterval.current) clearInterval(restInterval.current);
     setRestLeft(null);
+    saveExerciseSeconds();
     try {
       await fetch(`/api/sessions/${sessionId}/complete`, { method: "POST" });
     } catch {
@@ -615,6 +659,12 @@ export default function WorkoutPlayer({
       startedAtMs != null && endMs != null
         ? Math.max(1, Math.round((endMs - startedAtMs) / 60000))
         : null;
+    const exerciseTimes = exercises
+      .map((ex) => ({
+        name: activeOf(ex).name,
+        seconds: exerciseSeconds[ex.id] ?? 0,
+      }))
+      .filter((t) => t.seconds > 0);
     return (
       <CompletionScreen
         programName={programName}
@@ -622,6 +672,7 @@ export default function WorkoutPlayer({
         durationMin={durationMin}
         doneSetsCount={doneSets.length}
         volume={volume}
+        exerciseTimes={exerciseTimes}
         prs={prs}
         hasOpenrouterKey={hasOpenrouterKey}
         feedback={feedback}
@@ -750,8 +801,23 @@ export default function WorkoutPlayer({
         totalExercises={exercises.length}
         doneCount={doneCount}
         totalSets={totalSets}
+        elapsedSeconds={exerciseSeconds[exercise.id] ?? 0}
         onAbandon={abandon}
       />
+
+      {active.muscles.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-sm">💪</span>
+          {active.muscles.map((m) => (
+            <span
+              key={m}
+              className="rounded-full bg-surface-2 px-3 py-1.5 text-[12.5px] font-semibold text-muted-2"
+            >
+              {m}
+            </span>
+          ))}
+        </div>
+      )}
 
       {(exercise.options.length > 1 || hasOpenrouterKey) && (
         <div>

@@ -69,6 +69,8 @@ model Exercise {
   restSeconds Int
   weightHint  String?
   equipment   String[]
+  // Muscles principaux travaillés (en français), renseignés par l'IA.
+  muscles     String[]            @default([])
   notes       String?
   imageUrl    String?
   imageTaskId String?
@@ -93,6 +95,8 @@ model ExerciseVariation {
   restSeconds Int
   weightHint  String?
   equipment   String[]
+  // Muscles principaux travaillés (en français), renseignés par l'IA.
+  muscles     String[] @default([])
   notes       String?
   imageUrl    String?
   imageTaskId String?
@@ -114,6 +118,8 @@ model WorkoutSession {
   cycleIndex       Int        @default(0)
   // Overrides manuels de variante : { [exerciseId]: index choisi }.
   variationChoices Json       @default("{}")
+  // Temps passé par exercice (secondes) : { [exerciseId]: secondes }.
+  exerciseSeconds  Json       @default("{}")
 }
 
 model SetLog {

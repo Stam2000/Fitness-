@@ -113,8 +113,12 @@ export default function NewProgramWizard({
               restSeconds: ex.restSeconds,
               weightHint: ex.weightHint ?? null,
               equipment: ex.equipment ?? [],
+              muscles: ex.muscles ?? [],
               notes: ex.notes ?? null,
-              variations: ex.variations ?? [],
+              variations: (ex.variations ?? []).map((v) => ({
+                ...v,
+                muscles: v.muscles ?? [],
+              })),
             })),
           })),
         },

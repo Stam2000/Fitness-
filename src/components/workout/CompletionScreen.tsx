@@ -5,6 +5,11 @@ import { btn } from "@/components/ui/button";
 import StatTile from "@/components/ui/StatTile";
 
 type Pr = { name: string; weight: number; previous: number | null };
+type ExerciseTime = { name: string; seconds: number };
+
+function formatElapsed(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
 
 /** Écran de fin de séance : stats, records, analyse du coach. */
 export default function CompletionScreen({
@@ -13,6 +18,7 @@ export default function CompletionScreen({
   durationMin,
   doneSetsCount,
   volume,
+  exerciseTimes = [],
   prs,
   hasOpenrouterKey,
   feedback,
@@ -25,6 +31,8 @@ export default function CompletionScreen({
   durationMin: number | null;
   doneSetsCount: number;
   volume: number;
+  /** Temps passé par exercice (chrono automatique), entrées > 0 uniquement. */
+  exerciseTimes?: ExerciseTime[];
   prs: Pr[];
   hasOpenrouterKey: boolean;
   feedback: string | null;
@@ -58,6 +66,25 @@ export default function CompletionScreen({
           label="kg soulevés (volume)"
         />
       </div>
+      {exerciseTimes.length > 0 && (
+        <div className="card w-full p-4 text-left">
+          <p className="overline-label">⏱ Temps par exercice</p>
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {exerciseTimes.map((t) => (
+              <li
+                key={t.name}
+                className="flex items-baseline justify-between gap-3 text-sm"
+              >
+                <span className="min-w-0 truncate">{t.name}</span>
+                <span className="shrink-0 font-mono font-bold text-accent">
+                  {formatElapsed(t.seconds)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {prs.length > 0 && (
         <div className="w-full rounded-2xl border-[1.5px] border-accent/50 bg-accent/[0.08] p-4 text-left">
           <p className="overline-label text-accent">

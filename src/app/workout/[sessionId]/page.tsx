@@ -57,6 +57,7 @@ export default async function WorkoutPage({
         restSeconds: ex.restSeconds,
         weightHint: ex.weightHint,
         equipment: ex.equipment,
+        muscles: ex.muscles,
         notes: ex.notes,
         imageUrl: ex.imageUrl,
         videoUrl: ex.videoUrl,
@@ -68,6 +69,7 @@ export default async function WorkoutPage({
         restSeconds: v.restSeconds,
         weightHint: v.weightHint,
         equipment: v.equipment,
+        muscles: v.muscles,
         notes: v.notes,
         imageUrl: v.imageUrl,
         videoUrl: v.videoUrl,
@@ -127,6 +129,13 @@ export default async function WorkoutPage({
       hasOpenrouterKey={Boolean(settings.openrouterApiKey)}
       startedAtMs={session.startedAt.getTime()}
       completedAtMs={session.completedAt?.getTime() ?? null}
+      initialExerciseSeconds={
+        session.exerciseSeconds &&
+        typeof session.exerciseSeconds === "object" &&
+        !Array.isArray(session.exerciseSeconds)
+          ? (session.exerciseSeconds as Record<string, number>)
+          : {}
+      }
     />
   );
 }

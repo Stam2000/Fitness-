@@ -20,6 +20,7 @@ type VariationView = {
   restSeconds: number;
   weightHint: string | null;
   equipment: string[];
+  muscles: string[];
   notes: string | null;
   imageUrl: string | null;
   imageTaskId: string | null;
@@ -35,6 +36,7 @@ type ExerciseView = {
   restSeconds: number;
   weightHint: string | null;
   equipment: string[];
+  muscles: string[];
   notes: string | null;
   imageUrl: string | null;
   imageTaskId: string | null;
@@ -88,6 +90,8 @@ export default function ProgramDetail({
   const [saving, setSaving] = useState(false);
   const [openDay, setOpenDay] = useState(0);
   const [duplicating, setDuplicating] = useState(false);
+  const [annotating, setAnnotating] = useState(false);
+  const [annotateError, setAnnotateError] = useState<string | null>(null);
   const [showConvert, setShowConvert] = useState(false);
   const [convertTarget, setConvertTarget] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
@@ -254,6 +258,30 @@ export default function ProgramDetail({
   const missingVideos = allIds.filter(
     (id) => media[mediaKey("video", id)]?.status !== "done"
   ).length;
+  const missingMuscles = program.days
+    .flatMap((d) => d.exercises)
+    .flatMap((ex) => [ex.muscles, ...ex.variations.map((v) => v.muscles)])
+    .filter((m) => m.length === 0).length;
+
+  async function annotateMuscles() {
+    setAnnotating(true);
+    setAnnotateError(null);
+    try {
+      const res = await fetch(`/api/programs/${program.id}/muscles`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setAnnotateError(json.error ?? "Erreur");
+        return;
+      }
+      router.refresh();
+    } catch {
+      setAnnotateError("Erreur réseau. Réessaie.");
+    } finally {
+      setAnnotating(false);
+    }
+  }
 
   if (editing) {
     return (
@@ -304,7 +332,7 @@ export default function ProgramDetail({
         )}
       </header>
 
-      {(missingImages > 0 || missingVideos > 0) && (
+      {(missingImages > 0 || missingVideos > 0 || (hasOpenrouterKey && missingMuscles > 0)) && (
         <div className="flex flex-wrap gap-2">
           {missingImages > 0 && (
             <button
@@ -322,7 +350,23 @@ export default function ProgramDetail({
               🎬 Vidéos ({missingVideos})
             </button>
           )}
+          {hasOpenrouterKey && missingMuscles > 0 && (
+            <button
+              onClick={annotateMuscles}
+              disabled={annotating}
+              className={btn("tint", "md")}
+            >
+              {annotating
+                ? "🤖 Annotation… (10-30 s)"
+                : `💪 Compléter les muscles (${missingMuscles})`}
+            </button>
+          )}
         </div>
+      )}
+      {annotateError && (
+        <p className="rounded-2xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
+          {annotateError}
+        </p>
       )}
 
       {program.days.map((day, di) => (
@@ -438,6 +482,19 @@ export default function ProgramDetail({
                           </span>
                         )}
                       </div>
+                      {ex.muscles.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          <span className="text-xs">💪</span>
+                          {ex.muscles.map((m) => (
+                            <span
+                              key={m}
+                              className="rounded-full bg-surface-2 px-2.5 py-1 text-[11.5px] font-semibold text-muted-2"
+                            >
+                              {m}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {ex.weightHint && (
                         <p className="mt-1.5 text-xs text-muted-2">
                           ⚖️ {ex.weightHint}

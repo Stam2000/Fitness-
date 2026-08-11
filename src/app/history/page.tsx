@@ -96,6 +96,14 @@ export default async function HistoryPage() {
                   (l) => l.exerciseId === ex.id
                 );
                 if (exLogs.length === 0) return [];
+                // Temps passé sur cet exercice (chrono automatique en séance).
+                const exSecondsMap =
+                  session.exerciseSeconds &&
+                  typeof session.exerciseSeconds === "object" &&
+                  !Array.isArray(session.exerciseSeconds)
+                    ? (session.exerciseSeconds as Record<string, number>)
+                    : {};
+                const exSeconds = exSecondsMap[ex.id];
                 // Les séries sont affichées sous le mouvement réellement
                 // exécuté (variante ou exercice de base).
                 const byMove = new Map<string, typeof exLogs>();
@@ -104,13 +112,19 @@ export default async function HistoryPage() {
                   if (!byMove.has(move)) byMove.set(move, []);
                   byMove.get(move)!.push(l);
                 }
-                return Array.from(byMove, ([move, moveLogs]) => (
+                return Array.from(byMove, ([move, moveLogs], mi) => (
                   <div key={`${ex.id}:${move}`}>
                     <p className="text-sm font-medium">
                       {move}
                       {move !== ex.name && (
                         <span className="ml-1.5 text-xs text-muted">
                           🔁 variante
+                        </span>
+                      )}
+                      {mi === 0 && exSeconds != null && exSeconds > 0 && (
+                        <span className="ml-1.5 font-mono text-xs text-muted">
+                          ⏱ {Math.floor(exSeconds / 60)}:
+                          {String(exSeconds % 60).padStart(2, "0")}
                         </span>
                       )}
                     </p>
