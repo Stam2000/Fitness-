@@ -463,17 +463,6 @@ export default function WorkoutPlayer({
     };
   }, [finished, warmupDone, resting, exercisePaused, currentSetKey]);
 
-  // Triple bip (une seule fois par série) quand le temps cible de la série
-  // est dépassé : le décompte vient de passer en négatif.
-  const setOverdue = setRemaining <= 0;
-  useEffect(() => {
-    if (finished || !warmupDone || resting) return;
-    if (!setOverdue) return;
-    if (overtimeBeepedRef.current === currentSetKey) return;
-    overtimeBeepedRef.current = currentSetKey;
-    beep(3);
-  }, [finished, warmupDone, resting, setOverdue, currentSetKey, beep]);
-
   // Persistance : carte complète envoyée en arrière-plan (changement
   // d'exercice, fin de séance, et toutes les 30 s par sécurité).
   const exerciseSecondsRef = useRef(exerciseSeconds);
@@ -607,6 +596,35 @@ export default function WorkoutPlayer({
     }
     return active.sets - 1;
   }
+
+  // Temps cible de la série écoulé : les séries intermédiaires sont validées
+  // automatiquement (série → repos → série suivante). La dernière série de
+  // l'exercice reste manuelle — triple bip, décompte négatif — pour laisser
+  // le temps de remplir poids et répétitions avant de passer à la suite.
+  // Les exercices « en secondes » gardent leur propre chrono dédié.
+  const setOverdue = setRemaining <= 0;
+  const autoAdvance =
+    setOverdue &&
+    currentSetIdx < active.sets - 1 &&
+    exerciseDuration === null &&
+    setTimer === null;
+  useEffect(() => {
+    if (finished || !warmupDone || resting || exercisePaused) return;
+    if (!setOverdue) return;
+    if (overtimeBeepedRef.current === currentSetKey) return;
+    const fire = setTimeout(() => {
+      overtimeBeepedRef.current = currentSetKey;
+      if (!autoAdvance) {
+        beep(3);
+        return;
+      }
+      beep(2);
+      speak("Temps écoulé, série validée. Repos.");
+      patchSet(exercise.id, currentSetIdx, { done: true }, true);
+      startRestAfterSet(currentSetIdx);
+    }, 0);
+    return () => clearTimeout(fire);
+  });
 
   // Bascule manuelle de variante : état local immédiat + persistance sur la
   // séance pour survivre aux rechargements.

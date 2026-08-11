@@ -74,7 +74,7 @@ ${body.data.reason ? `Raison : ${body.data.reason}` : ""}
 Équipement disponible : ${equipmentNames.length > 0 ? equipmentNames.join(", ") : "poids du corps uniquement"}
 Exercices déjà présents dans la séance (à ne PAS proposer) : ${otherNames.join(", ") || "aucun"}
 
-Propose UN exercice de remplacement ciblant les mêmes muscles, adapté à la raison donnée. Réponds UNIQUEMENT avec un objet JSON :
+Propose UN exercice de remplacement ciblant les mêmes muscles, adapté à la raison donnée. Utilise EXCLUSIVEMENT l'équipement listé ; combine librement plusieurs équipements dans l'exercice quand c'est pertinent (ex. haltères + banc), et liste dans "equipment" TOUTES les pièces utilisées. Réponds UNIQUEMENT avec un objet JSON :
 {"name": "...", "sets": 4, "reps": "8-12", "restSeconds": 90, "weightHint": "..." , "equipment": ["..."], "muscles": ["1 à 4 muscles principaux, ex. Dos, Biceps"], "targetSeconds": 360, "setSeconds": 45, "notes": "conseil de technique court"}
 ("targetSeconds" = temps cible pour boucler l'exercice, toutes séries et repos compris ; "setSeconds" = temps cible d'exécution d'UNE série.)`;
 

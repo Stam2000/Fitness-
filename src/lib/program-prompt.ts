@@ -44,6 +44,7 @@ Tu réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ou après, re
 }
 Règles :
 - Utilise EXCLUSIVEMENT l'équipement listé (ou le poids du corps si la liste est vide ou insuffisante).
+- Combine librement plusieurs équipements dans un même exercice quand c'est pertinent (ex. haltères + banc pour un développé couché), et liste dans "equipment" TOUTES les pièces utilisées par l'exercice.
 - Le nombre de jours doit correspondre exactement à la demande.
 - Adapte le volume à la durée de séance demandée (échauffement compris).
 - "reps" est une chaîne : "8-12", "10", "30 s", "jusqu'à l'échec"…
