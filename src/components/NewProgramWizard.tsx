@@ -72,6 +72,8 @@ export default function NewProgramWizard({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<EditableProgram | null>(null);
+  // true = brouillon vierge créé à la main (sans IA).
+  const [manual, setManual] = useState(false);
 
   const goal = goals.join(" + ");
 
@@ -86,9 +88,38 @@ export default function NewProgramWizard({
     });
   }
 
+  // Création sans IA : squelette minimal ouvert directement dans l'éditeur.
+  function startManual() {
+    setError(null);
+    setManual(true);
+    setDraft({
+      name: "Mon programme",
+      description: null,
+      blockCycles: null,
+      days: [
+        {
+          name: "Jour 1 — Séance",
+          focus: null,
+          exercises: [
+            {
+              name: "Nouvel exercice",
+              sets: 3,
+              reps: "10",
+              restSeconds: 90,
+              weightHint: null,
+              equipment: [],
+              notes: null,
+            },
+          ],
+        },
+      ],
+    });
+  }
+
   async function generate() {
     setGenerating(true);
     setError(null);
+    setManual(false);
     try {
       const res = await fetch("/api/generate-program", {
         method: "POST",
@@ -179,7 +210,9 @@ export default function NewProgramWizard({
     return (
       <div className="flex flex-col gap-4">
         <div className="rounded-2xl border-[1.5px] border-accent/50 bg-accent/10 p-3.5 text-sm font-semibold text-accent">
-          ✨ Programme généré ! Modifie-le si besoin puis enregistre-le.
+          {manual
+            ? "✍️ Programme vierge : nomme-le, ajoute tes jours et exercices, puis enregistre."
+            : "✨ Programme généré ! Modifie-le si besoin puis enregistre-le."}
         </div>
         {error && (
           <div className="rounded-2xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
@@ -393,6 +426,17 @@ export default function NewProgramWizard({
       </Button>
       <p className="-mt-2 text-center text-xs text-muted">
         🤖 10 à 30 secondes selon le modèle choisi
+      </p>
+
+      <button
+        onClick={startManual}
+        disabled={!locationId}
+        className={btn("outline", "md")}
+      >
+        ✍️ Ou créer mon programme manuellement
+      </button>
+      <p className="-mt-3 text-center text-xs text-muted">
+        Sans IA : tu pars d&apos;une page blanche, dans le contexte sélectionné.
       </p>
     </div>
   );

@@ -75,7 +75,7 @@ Règles :
 - Le nombre de jours doit correspondre exactement à la demande.
 - Adapte le volume à la durée de séance demandée (échauffement compris).
 - "reps" est une chaîne : "8-12", "10", "30 s", "jusqu'à l'échec"…
-- "muscles" : 1 à 4 groupes musculaires principaux réellement sollicités, en français, choisis dans la liste de muscles connus fournie dans la demande (recopiés à l'identique) ; noms courts et cohérents d'un exercice à l'autre.
+- "muscles" : 1 à 5 muscles réellement sollicités, en français, choisis dans la liste de muscles connus fournie dans la demande (recopiés à l'identique), au niveau de détail le PLUS PRÉCIS (ex. "Pectoraux (haut)" plutôt que "Pectoraux" pour un développé incliné) ; noms cohérents d'un exercice à l'autre.
 - "targetSeconds" : temps cible réaliste pour boucler l'exercice, TOUTES séries et repos compris (secondes). Ordre de grandeur : sets × (temps d'exécution d'une série + restSeconds).
 - "setSeconds" : temps cible d'exécution d'UNE série (secondes). Pour un exercice « en secondes » (reps = "30 s"), setSeconds = cette durée. Cohérence attendue : targetSeconds ≈ sets × (setSeconds + restSeconds).
 - "transitionSeconds" : temps pour passer à l'exercice suivant, installation du matériel comprise (30 à 120 s en général).

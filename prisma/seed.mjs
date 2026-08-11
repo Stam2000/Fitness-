@@ -79,25 +79,49 @@ const EQUIPMENT = [
   },
 ];
 
-// Groupes musculaires prédéfinis. L'IA peut en créer d'autres à la volée ;
-// les images ne sont jamais générées au seed (npm run images:generate -- --muscles).
+// Muscles prédéfinis, au niveau anatomique (faisceaux/zones) : l'IA est
+// instruite de viser le niveau le plus précis ; les groupes généraux restent
+// pour les exercices globaux et la compatibilité des anciens programmes.
+// L'IA peut créer d'autres muscles à la volée ; les images ne sont jamais
+// générées au seed (npm run images:generate -- --muscles).
 const MUSCLES = [
+  // Dos
   "Dos",
-  "Biceps",
+  "Grand dorsal",
+  "Trapèzes",
+  "Rhomboïdes",
+  "Grand rond",
+  "Lombaires",
+  // Pectoraux
   "Pectoraux",
+  "Pectoraux (haut)",
+  "Pectoraux (milieu)",
+  "Pectoraux (bas)",
+  // Épaules
   "Épaules",
+  "Deltoïde antérieur",
+  "Deltoïde latéral",
+  "Deltoïde postérieur",
+  // Bras
+  "Biceps",
+  "Triceps",
+  "Avant-bras",
+  // Tronc
+  "Abdominaux",
+  "Abdominaux (haut)",
+  "Abdominaux (bas)",
+  "Obliques",
+  "Transverse",
+  // Jambes
   "Quadriceps",
   "Ischio-jambiers",
   "Fessiers",
-  "Abdominaux",
-  "Mollets",
-  "Triceps",
-  "Cardio",
-  "Trapèzes",
-  "Lombaires",
-  "Obliques",
-  "Avant-bras",
+  "Grand fessier",
+  "Moyen fessier",
   "Adducteurs",
+  "Mollets",
+  // Divers
+  "Cardio",
 ];
 
 async function main() {

@@ -19,6 +19,7 @@ import {
   createImageTask,
   getImageTaskResult,
 } from "../src/lib/kie";
+import { persistMediaUrl } from "../src/lib/media-store";
 
 const prisma = new PrismaClient();
 
@@ -68,6 +69,7 @@ async function runJob(job: Job, apiKey: string): Promise<boolean> {
       await sleep(POLL_INTERVAL_MS);
       const result = await getImageTaskResult(taskId, apiKey);
       if (result.state === "success" && result.url) {
+        result.url = await persistMediaUrl(result.url);
         if (job.kind === "equipment") {
           await prisma.equipment.update({
             where: { id: job.id },

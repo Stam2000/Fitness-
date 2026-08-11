@@ -182,6 +182,27 @@ model SetLog {
   @@unique([sessionId, exerciseId, setIndex])
 }
 
+// Mesure corporelle saisie manuellement (valeurs lues p. ex. sur une montre
+// à impédancemétrie — Galaxy Watch / balance connectée).
+model BodyMeasurement {
+  id           String   @id @default(cuid())
+  date         DateTime @default(now())
+  weightKg     Float?
+  muscleMassKg Float?
+  bodyFatPct   Float?
+  notes        String?
+  createdAt    DateTime @default(now())
+}
+
+// Photo de suivi physique, stockée dans le volume média local (/api/media).
+model ProgressPhoto {
+  id        String   @id @default(cuid())
+  date      DateTime @default(now())
+  imageUrl  String
+  note      String?
+  createdAt DateTime @default(now())
+}
+
 model Settings {
   id               Int     @id @default(1)
   openrouterApiKey String?

@@ -12,6 +12,7 @@ import {
 } from "@/app/actions";
 import { btn } from "@/components/ui/button";
 import Chip from "@/components/ui/Chip";
+import BottomSheet from "@/components/ui/BottomSheet";
 import MusclePreviewSheet, {
   type MuscleChipInfo,
   type MuscleComboInfo,
@@ -118,6 +119,13 @@ export default function ProgramDetail({
   const [showConvert, setShowConvert] = useState(false);
   // Popup de prévisualisation : muscles de l'exercice cliqué (null = fermé).
   const [muscleSheet, setMuscleSheet] = useState<string[] | null>(null);
+  // Modification du programme par l'IA : instructions → brouillon à relire
+  // dans l'éditeur (les ids conservés préservent l'historique de séances).
+  const [aiEditOpen, setAiEditOpen] = useState(false);
+  const [aiInstructions, setAiInstructions] = useState("");
+  const [aiEditBusy, setAiEditBusy] = useState(false);
+  const [aiEditError, setAiEditError] = useState<string | null>(null);
+  const [aiDraft, setAiDraft] = useState<EditableProgram | null>(null);
   const [convertTarget, setConvertTarget] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
   const [convertError, setConvertError] = useState<string | null>(null);
@@ -245,6 +253,45 @@ export default function ProgramDetail({
     }
   }
 
+  // Envoie les instructions à l'IA et ouvre le brouillon renvoyé dans
+  // l'éditeur (relecture avant enregistrement).
+  async function aiEdit() {
+    setAiEditBusy(true);
+    setAiEditError(null);
+    try {
+      const res = await fetch(`/api/programs/${program.id}/ai-edit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instructions: aiInstructions.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setAiEditError(json.error ?? "Erreur lors de la modification");
+        return;
+      }
+      const draft = json.draft as EditableProgram & {
+        days: { id?: string | null; exercises: { id?: string | null }[] }[];
+      };
+      setAiDraft({
+        ...draft,
+        days: draft.days.map((d) => ({
+          ...d,
+          id: d.id ?? undefined,
+          exercises: d.exercises.map((ex) => ({
+            ...ex,
+            id: ex.id ?? undefined,
+          })),
+        })),
+      } as EditableProgram);
+      setAiEditOpen(false);
+      setAiInstructions("");
+    } catch {
+      setAiEditError("Erreur réseau. Vérifie ta connexion et réessaie.");
+    } finally {
+      setAiEditBusy(false);
+    }
+  }
+
   async function save(edited: EditableProgram) {
     setSaving(true);
     try {
@@ -263,11 +310,18 @@ export default function ProgramDetail({
             restSeconds: ex.restSeconds,
             weightHint: ex.weightHint ?? null,
             equipment: ex.equipment ?? [],
+            // Fournis par la modification IA (nouveaux exercices annotés) ;
+            // undefined pour l'édition manuelle → champs non touchés en base.
+            muscles: ex.muscles,
+            targetSeconds: ex.targetSeconds,
+            setSeconds: ex.setSeconds,
+            transitionSeconds: ex.transitionSeconds,
             notes: ex.notes ?? null,
           })),
         })),
       });
       setEditing(false);
+      setAiDraft(null);
       router.refresh();
     } finally {
       setSaving(false);
@@ -320,23 +374,37 @@ export default function ProgramDetail({
     }
   }
 
-  if (editing) {
+  if (editing || aiDraft) {
     return (
       <main className="flex flex-col gap-4">
         <header className="flex items-center justify-between pt-2">
           <h1 className="text-xl font-extrabold italic tracking-tight">
-            Modifier le programme
+            {aiDraft ? "Relire les modifications IA" : "Modifier le programme"}
           </h1>
-          <button onClick={() => setEditing(false)} className="text-sm text-muted">
+          <button
+            onClick={() => {
+              setEditing(false);
+              setAiDraft(null);
+            }}
+            className="text-sm text-muted"
+          >
             Annuler
           </button>
         </header>
+        {aiDraft && (
+          <div className="rounded-2xl border-[1.5px] border-accent/50 bg-accent/10 p-3.5 text-sm font-semibold text-accent">
+            🤖 Modifications IA appliquées au brouillon. Relis, ajuste si
+            besoin, puis enregistre — rien n&apos;est encore sauvegardé.
+          </div>
+        )}
         <ProgramEditor
-          initial={{
-            name: program.name,
-            description: program.description,
-            days: program.days,
-          }}
+          initial={
+            aiDraft ?? {
+              name: program.name,
+              description: program.description,
+              days: program.days,
+            }
+          }
           onSave={save}
           saveLabel="💾 Enregistrer les modifications"
           saving={saving}
@@ -740,7 +808,7 @@ export default function ProgramDetail({
         </section>
       ))}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
           onClick={async () => {
             setDuplicating(true);
@@ -756,6 +824,17 @@ export default function ProgramDetail({
         >
           {duplicating ? "Duplication…" : "📋 Dupliquer"}
         </button>
+        {hasOpenrouterKey && (
+          <button
+            onClick={() => {
+              setAiEditError(null);
+              setAiEditOpen(true);
+            }}
+            className={btn("outline", "md", "flex-1")}
+          >
+            🤖 Modifier par IA
+          </button>
+        )}
         {hasOpenrouterKey && locations.length > 1 && (
           <button
             onClick={() => setShowConvert((v) => !v)}
@@ -829,6 +908,36 @@ export default function ProgramDetail({
       >
         Supprimer ce programme
       </button>
+
+      <BottomSheet open={aiEditOpen} onClose={() => setAiEditOpen(false)}>
+        <h2 className="text-lg font-extrabold italic">
+          🤖 Modifier le programme par IA
+        </h2>
+        <p className="mt-1 text-sm text-muted-2">
+          Décris les changements souhaités : l&apos;IA modifie uniquement ce
+          qui est demandé et tu relis le résultat avant d&apos;enregistrer.
+          L&apos;historique des exercices conservés est préservé.
+        </p>
+        <textarea
+          value={aiInstructions}
+          onChange={(e) => setAiInstructions(e.target.value)}
+          placeholder="Ex. remplace le soulevé de terre par un exercice sans charge lourde, ajoute 10 min de cardio en fin de séance 2, passe les squats à 5 × 5…"
+          rows={4}
+          className="mt-3 w-full rounded-[18px] border-[1.5px] border-border bg-surface-2 px-4 py-3 text-sm outline-none focus:border-accent"
+        />
+        {aiEditError && (
+          <p className="mt-2 text-sm text-danger">{aiEditError}</p>
+        )}
+        <button
+          onClick={aiEdit}
+          disabled={aiEditBusy || aiInstructions.trim().length < 3}
+          className={btn("primary", "lg", "mt-3 w-full")}
+        >
+          {aiEditBusy
+            ? "🤖 Modification en cours… (10-30 s)"
+            : "Proposer les modifications"}
+        </button>
+      </BottomSheet>
 
       <MusclePreviewSheet
         open={muscleSheet !== null}

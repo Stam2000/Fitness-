@@ -24,14 +24,15 @@ export async function getKnownMuscles(): Promise<KnownMuscle[]> {
   });
 }
 
-// Bloc à injecter dans les prompts IA : liste fermée en priorité, création
-// d'un nouveau groupe autorisée en dernier recours.
+// Bloc à injecter dans les prompts IA : liste fermée en priorité, niveau de
+// détail anatomique exigé, création d'un nouveau muscle en dernier recours.
 export function knownMusclesBlock(muscles: KnownMuscle[]): string {
   if (muscles.length === 0) return "";
-  return `Pour "muscles", choisis EN PRIORITÉ dans cette liste, en recopiant le nom EXACTEMENT (accents et majuscules compris) : ${muscles
+  return `Pour "muscles", choisis EN PRIORITÉ dans cette liste, en recopiant le nom EXACTEMENT (accents, majuscules et parenthèses compris) : ${muscles
     .map((m) => m.name)
     .join(", ")}.
-Si aucun ne convient vraiment, tu peux introduire un nouveau groupe musculaire (nom court en français, ex. "Cou"). N'invente jamais de quasi-doublon d'un nom listé ("Epaules" alors que "Épaules" existe).`;
+Vise le niveau de détail le PLUS PRÉCIS correspondant à l'exercice : "Pectoraux (haut)" pour un développé incliné, "Deltoïde postérieur" pour un oiseau, "Abdominaux (bas)" pour des relevés de jambes, "Grand dorsal" pour des tractions… Réserve les groupes généraux ("Pectoraux", "Dos", "Épaules", "Abdominaux", "Fessiers") aux exercices qui sollicitent tout le groupe de façon homogène.
+Si aucun nom listé ne convient vraiment, tu peux introduire un nouveau muscle précis (nom court en français, ex. "Cou"). N'invente jamais de quasi-doublon d'un nom listé ("Epaules" alors que "Épaules" existe).`;
 }
 
 // Recolle chaque nom de muscle renvoyé par l'IA sur le nom canonique du

@@ -4,6 +4,7 @@ import { getSettings } from "@/lib/settings";
 import { findExistingVideoByName } from "@/lib/exercise-images";
 import { generateExerciseVideoPrompt } from "@/lib/video-prompt";
 import { createVideoTask, getVideoTaskResult } from "@/lib/kie";
+import { persistMediaUrl } from "@/lib/media-store";
 
 // Lance la génération de la vidéo de démonstration d'un exercice : un prompt
 // détaillé du mouvement est d'abord généré (OpenRouter), puis envoyé à
@@ -88,11 +89,12 @@ export async function GET(
       settings.kieApiKey
     );
     if (result.state === "success" && result.url) {
+      const videoUrl = await persistMediaUrl(result.url);
       await prisma.exercise.update({
         where: { id },
-        data: { videoUrl: result.url, videoTaskId: null },
+        data: { videoUrl, videoTaskId: null },
       });
-      return NextResponse.json({ state: "success", videoUrl: result.url });
+      return NextResponse.json({ state: "success", videoUrl });
     }
     if (result.state === "fail") {
       await prisma.exercise.update({

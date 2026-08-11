@@ -5,6 +5,7 @@ export const NAV_TABS: NavTab[] = [
   { href: "/programs/new", label: "Créer", icon: "✨" },
   { href: "/equipment", label: "Matériel", icon: "🏋️" },
   { href: "/history", label: "Suivi", icon: "🗓️" },
+  { href: "/body", label: "Corps", icon: "🧍" },
   { href: "/settings", label: "Réglages", icon: "⚙️" },
 ];
 

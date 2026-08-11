@@ -6,6 +6,7 @@ import {
   createImageTask,
   getImageTaskResult,
 } from "@/lib/kie";
+import { persistMediaUrl } from "@/lib/media-store";
 
 // Lance la génération d'image pour un groupe musculaire.
 export async function POST(
@@ -71,11 +72,12 @@ export async function GET(
       settings.kieApiKey
     );
     if (result.state === "success" && result.url) {
+      const imageUrl = await persistMediaUrl(result.url);
       await prisma.muscle.update({
         where: { id },
-        data: { imageUrl: result.url, imageTaskId: null },
+        data: { imageUrl, imageTaskId: null },
       });
-      return NextResponse.json({ state: "success", imageUrl: result.url });
+      return NextResponse.json({ state: "success", imageUrl });
     }
     if (result.state === "fail") {
       await prisma.muscle.update({

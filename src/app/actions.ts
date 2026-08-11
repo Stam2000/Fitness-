@@ -7,7 +7,9 @@ import {
   ensureMusclesExist,
   getKnownMuscles,
   resolveDraftMuscles,
+  resolveMuscleNames,
 } from "@/lib/known-muscles";
+import { deleteLocalMedia } from "@/lib/media-store";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -275,17 +277,23 @@ export type ProgramUpdatePayload = {
   name: string;
   description?: string | null;
   days: {
-    id?: string;
+    id?: string | null;
     name: string;
     focus?: string | null;
     exercises: {
-      id?: string;
+      id?: string | null;
       name: string;
       sets: number;
       reps: string;
       restSeconds: number;
       weightHint?: string | null;
       equipment: string[];
+      // Optionnels : écrits seulement s'ils sont fournis (modification IA) ;
+      // l'éditeur manuel ne les touche pas.
+      muscles?: string[];
+      targetSeconds?: number | null;
+      setSeconds?: number | null;
+      transitionSeconds?: number | null;
       notes?: string | null;
     }[];
   }[];
@@ -294,6 +302,7 @@ export type ProgramUpdatePayload = {
 // Met à jour un programme en conservant les ids existants (et donc
 // l'historique de séances) quand c'est possible.
 export async function updateProgram(programId: string, payload: ProgramUpdatePayload) {
+  const knownMuscles = await getKnownMuscles();
   await prisma.$transaction(async (tx) => {
     await tx.program.update({
       where: { id: programId },
@@ -341,6 +350,17 @@ export async function updateProgram(programId: string, payload: ProgramUpdatePay
           weightHint: ex.weightHint ?? null,
           equipment: ex.equipment ?? [],
           notes: ex.notes ?? null,
+          // Champs optionnels : seulement quand fournis (modification IA).
+          ...(ex.muscles !== undefined
+            ? { muscles: resolveMuscleNames(ex.muscles, knownMuscles) }
+            : {}),
+          ...(ex.targetSeconds !== undefined
+            ? { targetSeconds: ex.targetSeconds }
+            : {}),
+          ...(ex.setSeconds !== undefined ? { setSeconds: ex.setSeconds } : {}),
+          ...(ex.transitionSeconds !== undefined
+            ? { transitionSeconds: ex.transitionSeconds }
+            : {}),
         };
         if (ex.id) {
           await tx.exercise.update({ where: { id: ex.id }, data });
@@ -350,6 +370,11 @@ export async function updateProgram(programId: string, payload: ProgramUpdatePay
       }
     }
   });
+  const muscleSets = payload.days.flatMap((d) =>
+    d.exercises.map((e) => e.muscles ?? [])
+  );
+  await ensureMusclesExist(muscleSets.flat());
+  await ensureMuscleCombosExist(muscleSets);
   revalidatePath(`/programs/${programId}`);
   revalidatePath("/");
 }
@@ -481,4 +506,52 @@ export async function abandonSession(sessionId: string) {
   await prisma.workoutSession.delete({ where: { id: sessionId } });
   revalidatePath("/");
   redirect("/");
+}
+
+// ————— Suivi corporel —————
+
+// Ajoute une mesure (poids, masse musculaire, % graisse — valeurs lues p. ex.
+// sur la montre). Au moins une valeur numérique est requise.
+export async function addBodyMeasurement(input: {
+  date: string;
+  weightKg?: number | null;
+  muscleMassKg?: number | null;
+  bodyFatPct?: number | null;
+  notes?: string | null;
+}) {
+  const clean = (v: number | null | undefined, max: number) =>
+    typeof v === "number" && isFinite(v) && v > 0 && v <= max ? v : null;
+  const weightKg = clean(input.weightKg, 400);
+  const muscleMassKg = clean(input.muscleMassKg, 200);
+  const bodyFatPct = clean(input.bodyFatPct, 80);
+  if (weightKg === null && muscleMassKg === null && bodyFatPct === null) {
+    throw new Error("Renseigne au moins une valeur.");
+  }
+  const date = !isNaN(Date.parse(input.date)) ? new Date(input.date) : new Date();
+  await prisma.bodyMeasurement.create({
+    data: {
+      date,
+      weightKg,
+      muscleMassKg,
+      bodyFatPct,
+      notes: input.notes?.trim() ? input.notes.trim().slice(0, 300) : null,
+    },
+  });
+  revalidatePath("/body");
+}
+
+export async function deleteBodyMeasurement(id: string) {
+  await prisma.bodyMeasurement.delete({ where: { id } });
+  revalidatePath("/body");
+}
+
+// Supprime une photo de suivi ; le fichier local est effacé s'il n'est plus
+// référencé par aucune autre photo.
+export async function deleteProgressPhoto(id: string) {
+  const photo = await prisma.progressPhoto.delete({ where: { id } });
+  const stillUsed = await prisma.progressPhoto.count({
+    where: { imageUrl: photo.imageUrl },
+  });
+  if (stillUsed === 0) await deleteLocalMedia(photo.imageUrl);
+  revalidatePath("/body");
 }
