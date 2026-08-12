@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Beef,
+  ChevronRight,
   Loader2,
   Pencil,
   Target,
@@ -467,6 +469,20 @@ export default function NutritionGoals({
             )}
           </div>
         </>
+      )}
+
+      {/* Le tableau des sources de protéines se règle sur la cible ci-dessus :
+          il n'a de sens qu'à côté d'elle, d'où l'entrée depuis cette carte
+          plutôt qu'un onglet de plus dans une barre déjà chargée. */}
+      {!editing && (
+        <Link
+          href="/body/foods"
+          className="-mb-1 flex items-center gap-1.5 border-t border-border pt-3 text-[13px] font-semibold text-muted-2 hover:text-ink"
+        >
+          <UtensilsCrossed size={14} className="shrink-0" />
+          <span className="min-w-0 flex-1">Sources de protéines et prix</span>
+          <ChevronRight size={15} className="shrink-0" />
+        </Link>
       )}
     </section>
   );
