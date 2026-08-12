@@ -11,17 +11,23 @@ RUN npm ci
 FROM node:22-alpine AS dev
 WORKDIR /app
 # yt-dlp + ffmpeg : téléchargement des vidéos YouTube de démonstration.
-# yt-dlp vient de GitHub (dernière release) et non d'apk : le paquet Alpine
-# a des mois de retard, et un yt-dlp périmé déclenche les blocages YouTube
-# (« Sign in to confirm you're not a bot »). Rebuilder l'image le met à jour.
-# Le plugin bgutil-ytdlp-pot-provider fournit à yt-dlp les « PO tokens »
-# que YouTube exige des IP de datacenter — il dialogue avec le service
-# pot-provider du docker-compose (variable POT_PROVIDER_URL).
+# yt-dlp vient de PyPI et non d'apk : le paquet Alpine a des mois de retard,
+# et un yt-dlp périmé déclenche les blocages YouTube (« Sign in to confirm
+# you're not a bot »). Rebuilder l'image le met à jour.
+# Pas non plus le binaire des releases GitHub : son URL passe par une
+# redirection vers objects.githubusercontent.com que le wget de BusyBox ne
+# sait pas suivre derrière le réseau sortant filtré de l'hôte de déploiement
+# (« wget: error getting response: Invalid argument », alors que les miroirs
+# apk répondent). PyPI publie les mêmes versions le jour même et est de toute
+# façon déjà indispensable au plugin ci-dessous — une source réseau au lieu
+# de deux.
+# Le plugin bgutil-ytdlp-pot-provider fournit à yt-dlp les « PO tokens » que
+# YouTube exige des IP de datacenter — il dialogue avec le service
+# pot-provider du docker-compose (variable POT_PROVIDER_URL). Il doit être
+# installé dans le même environnement Python que yt-dlp pour être découvert.
 RUN apk add --no-cache ffmpeg python3 py3-pip \
-  && wget -qO /usr/local/bin/yt-dlp \
-       https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
-  && chmod a+rx /usr/local/bin/yt-dlp \
-  && pip install --no-cache-dir --break-system-packages bgutil-ytdlp-pot-provider
+  && pip install --no-cache-dir --break-system-packages \
+       yt-dlp bgutil-ytdlp-pot-provider
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -62,12 +68,10 @@ ENV PORT=3000
 ENV CHECKPOINT_DISABLE=1
 
 # yt-dlp + ffmpeg : téléchargement des vidéos YouTube de démonstration.
-# Dernière release GitHub plutôt qu'apk, + plugin PO token — voir l'étape dev.
+# Depuis PyPI plutôt qu'apk ou GitHub, + plugin PO token — voir l'étape dev.
 RUN apk add --no-cache ffmpeg python3 py3-pip \
-  && wget -qO /usr/local/bin/yt-dlp \
-       https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
-  && chmod a+rx /usr/local/bin/yt-dlp \
-  && pip install --no-cache-dir --break-system-packages bgutil-ytdlp-pot-provider
+  && pip install --no-cache-dir --break-system-packages \
+       yt-dlp bgutil-ytdlp-pot-provider
 
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
