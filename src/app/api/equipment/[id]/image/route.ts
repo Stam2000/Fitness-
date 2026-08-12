@@ -7,12 +7,15 @@ import {
   getImageTaskResult,
 } from "@/lib/kie";
 import { persistMediaUrl } from "@/lib/media-store";
+import { requireApiUser } from "@/lib/session";
 
 // Lance la génération d'image pour un équipement.
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
   const settings = await getSettings();
   if (!settings.kieApiKey) {
@@ -55,6 +58,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
   const equipment = await prisma.equipment.findUnique({ where: { id } });
   if (!equipment) {

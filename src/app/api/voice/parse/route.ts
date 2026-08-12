@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSettings } from "@/lib/settings";
+import { requireApiUser } from "@/lib/session";
 
 const requestSchema = z
   .object({
@@ -51,6 +52,8 @@ function extractJson(text: string): unknown {
 // répétitions », « toutes les séries à 60 kilos : 12, 10, 9, 8 ») en une liste
 // de séries. Le client garde un repli local (regex) si cette route échoue.
 export async function POST(req: NextRequest) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const body = requestSchema.safeParse(await req.json().catch(() => null));
   if (!body.success) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });

@@ -29,9 +29,9 @@ const variationsResponseSchema = z.object({
 
 // Exercice chargé avec sa séance, son programme et l'équipement du lieu :
 // le contexte commun aux prompts de substitution et de variantes.
-async function loadExerciseContext(id: string) {
-  const exercise = await prisma.exercise.findUnique({
-    where: { id },
+async function loadExerciseContext(id: string, userId: string) {
+  const exercise = await prisma.exercise.findFirst({
+    where: { id, day: { program: { userId } } },
     include: {
       day: {
         include: {
@@ -71,13 +71,14 @@ async function requireApiSettings() {
 // écrire en base.
 export async function generateSubstitute(
   exerciseId: string,
+  userId: string,
   reason?: string
 ): Promise<{ oldName: string; dayName: string; replacement: ExerciseDraft }> {
   const settings = await requireApiSettings();
   const { exercise, program, equipmentNames, otherNames } =
-    await loadExerciseContext(exerciseId);
+    await loadExerciseContext(exerciseId, userId);
   const [known, knownMuscles] = await Promise.all([
-    getKnownExercises(),
+    getKnownExercises(userId),
     getKnownMuscles(),
   ]);
   const knownLines = knownExerciseLines(known);
@@ -154,13 +155,14 @@ export async function applySubstitute(
 // Génère 2 exercices alternatifs (mêmes muscles) pour un exercice, sans rien
 // écrire en base.
 export async function generateVariations(
-  exerciseId: string
+  exerciseId: string,
+  userId: string
 ): Promise<{ exerciseName: string; variations: VariationDraft[] }> {
   const settings = await requireApiSettings();
   const { exercise, program, equipmentNames, otherNames } =
-    await loadExerciseContext(exerciseId);
+    await loadExerciseContext(exerciseId, userId);
   const [known, knownMuscles] = await Promise.all([
-    getKnownExercises(),
+    getKnownExercises(userId),
     getKnownMuscles(),
   ]);
   const knownLines = knownExerciseLines(known);

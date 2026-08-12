@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { requireApiUser } from "@/lib/session";
 import { activeVariationIndex } from "@/lib/variants";
 
 const warmupSchema = z.object({
@@ -32,6 +33,8 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
   const settings = await getSettings();
   if (!settings.openrouterApiKey) {
@@ -41,8 +44,8 @@ export async function POST(
     );
   }
 
-  const session = await prisma.workoutSession.findUnique({
-    where: { id },
+  const session = await prisma.workoutSession.findFirst({
+    where: { id, userId: user.id },
     include: {
       day: {
         include: {

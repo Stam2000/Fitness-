@@ -7,6 +7,149 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------------------------------------------------------------------------
+// Authentification (Better Auth)
+//
+// Ces quatre modèles sont générés par `npx @better-auth/cli generate` : ne pas
+// les modifier à la main, hormis les relations vers les modèles de l'app
+// ajoutées ci-dessous. Les `@@map` en minuscules sont ceux qu'attend Better
+// Auth — les changer casse l'adaptateur.
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id
+  name          String
+  email         String
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  // « admin » (premier compte, créé par /setup) ou null/« user ».
+  role          String?
+  banned        Boolean?  @default(false)
+  banReason     String?
+  banExpires    DateTime?
+  sessions      Session[]
+  accounts      Account[]
+
+  // Données personnelles. Le catalogue partagé (Equipment, Muscle,
+  // MuscleCombo, MovementVideo) et les réglages globaux n'y figurent pas.
+  locations         Location[]
+  programs          Program[]
+  workoutSessions   WorkoutSession[]
+  bodyMeasurements  BodyMeasurement[]
+  progressPhotos    ProgressPhoto[]
+  chatConversations ChatConversation[]
+  settings          UserSettings?
+  nutritionGoal     NutritionGoal?
+  invitesCreated    InviteCode[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id             String   @id
+  expiresAt      DateTime
+  token          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonatedBy String?
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// Code d'invitation : l'inscription publique est fermée, il faut présenter un
+// code valide. Consommé de façon atomique (usedCount < maxUses) au moment de
+// l'inscription — voir registerWithInvite dans src/app/auth-actions.ts.
+model InviteCode {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  label       String?
+  maxUses     Int       @default(1)
+  usedCount   Int       @default(0)
+  expiresAt   DateTime?
+  // Révoqué manuellement par l'admin : inutilisable même s'il reste des places.
+  revokedAt   DateTime?
+  createdById String?
+  createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+
+  @@index([createdById])
+}
+
+// Préférences personnelles. Les clés API et le choix des modèles restent dans
+// Settings (global, réservé à l'admin) : c'est son budget qui est consommé.
+model UserSettings {
+  userId        String  @id
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  voiceInput    Boolean @default(true)
+  voiceAnnounce Boolean @default(true)
+}
+
+// Objectifs nutritionnels : poids visé et apports quotidiens. Une seule ligne
+// par compte, réécrite à chaque modification — ce sont des cibles courantes,
+// pas un historique (la progression réelle se lit dans BodyMeasurement).
+//
+// Les trois cibles sont stockées telles que l'utilisateur les a validées, même
+// lorsqu'elles proviennent du calcul automatique : changer plus tard la formule
+// de suggestion ne doit pas déplacer un objectif déjà fixé.
+model NutritionGoal {
+  userId         String   @id
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // « gain » (prise de masse) | « recomp » | « cut » (sèche) — voir
+  // OBJECTIVES dans src/lib/nutrition.ts.
+  objective      String   @default("gain")
+  // « low » | « moderate » | « high » : niveau d'activité, sert uniquement à
+  // estimer la maintenance calorique.
+  activity       String   @default("moderate")
+  targetWeightKg Float?
+  dailyCalories  Int?
+  dailyProteinG  Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+
 // Contexte d'entraînement : « Maison », « Salle », etc.
 model Location {
   id        String              @id @default(cuid())
@@ -15,6 +158,12 @@ model Location {
   equipment LocationEquipment[]
   programs  Program[]
   createdAt DateTime            @default(now())
+  // Nullable le temps de la reprise des données existantes : la migration
+  // `lock_owner_not_null` la passe en obligatoire une fois /setup effectué.
+  userId    String?
+  user      User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Equipment {
@@ -59,27 +208,32 @@ model LocationEquipment {
 }
 
 model Program {
-  id          String       @id @default(cuid())
-  name        String
-  description String?
-  goal        String?
-  level       String?
-  locationId  String?
-  location    Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  days        ProgramDay[]
-  createdAt   DateTime     @default(now())
+  id                String             @id @default(cuid())
+  name              String
+  description       String?
+  goal              String?
+  level             String?
+  locationId        String?
+  location          Location?          @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  days              ProgramDay[]
+  createdAt         DateTime           @default(now())
   // Durée du bloc en cycles complets (passages sur tous les jours), décidée
   // par l'IA à la génération. null = pas de suivi de bloc.
-  blockCycles Int?
+  blockCycles       Int?
   // N° du bloc dans la chaîne de progression (1 = bloc initial).
-  blockNumber Int          @default(1)
+  blockNumber       Int                @default(1)
   // Bloc précédent dans la chaîne (un seul successeur par bloc).
-  previousProgramId String?  @unique
-  previousProgram   Program? @relation("ProgramBlocks", fields: [previousProgramId], references: [id], onDelete: SetNull)
-  nextProgram       Program? @relation("ProgramBlocks")
+  previousProgramId String?            @unique
+  previousProgram   Program?           @relation("ProgramBlocks", fields: [previousProgramId], references: [id], onDelete: SetNull)
+  nextProgram       Program?           @relation("ProgramBlocks")
   // Archivé automatiquement quand son successeur est enregistré.
-  archivedAt  DateTime?
-  chats       ChatConversation[]
+  archivedAt        DateTime?
+  chats             ChatConversation[]
+  // Propriétaire — voir la note sur Location.userId.
+  userId            String?
+  user              User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // Conversation du panneau d'assistant IA. programId = programme sur lequel la
@@ -93,6 +247,11 @@ model ChatConversation {
   messages  ChatMessage[]
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+  // Propriétaire — voir la note sur Location.userId.
+  userId    String?
+  user      User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model ChatMessage {
@@ -124,65 +283,65 @@ model ProgramDay {
 }
 
 model Exercise {
-  id          String              @id @default(cuid())
-  dayId       String
-  day         ProgramDay          @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  order       Int
-  name        String
-  sets        Int
-  reps        String
-  restSeconds Int
-  weightHint  String?
-  equipment   String[]
+  id                String              @id @default(cuid())
+  dayId             String
+  day               ProgramDay          @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  order             Int
+  name              String
+  sets              Int
+  reps              String
+  restSeconds       Int
+  weightHint        String?
+  equipment         String[]
   // Muscles principaux travaillés (en français), renseignés par l'IA.
-  muscles     String[]            @default([])
+  muscles           String[]            @default([])
   // Temps cible pour boucler l'exercice (séries + repos), défini par l'IA.
   targetSeconds     Int?
   // Temps cible d'exécution d'UNE série, défini par l'IA.
   setSeconds        Int?
   // Temps de transition vers l'exercice suivant (installation), défini par l'IA.
   transitionSeconds Int?
-  notes       String?
+  notes             String?
   // Description détaillée d'exécution (position, étapes, respiration,
   // erreurs), générée par l'IA à la demande puis mémorisée.
-  howTo       String?
-  imageUrl    String?
-  imageTaskId String?
+  howTo             String?
+  imageUrl          String?
+  imageTaskId       String?
   // Vidéo de démonstration du mouvement (Seedance via Kie.ai) et le prompt
   // détaillé qui a servi à la générer.
-  videoUrl    String?
-  videoTaskId String?
-  videoPrompt String?
-  setLogs     SetLog[]
-  variations  ExerciseVariation[]
+  videoUrl          String?
+  videoTaskId       String?
+  videoPrompt       String?
+  setLogs           SetLog[]
+  variations        ExerciseVariation[]
 }
 
 // Variante d'un exercice (mêmes muscles), jouée en alternance selon les passages.
 model ExerciseVariation {
-  id          String   @id @default(cuid())
-  exerciseId  String
-  exercise    Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-  order       Int
-  name        String
-  sets        Int
-  reps        String
-  restSeconds Int
-  weightHint  String?
-  equipment   String[]
+  id            String   @id @default(cuid())
+  exerciseId    String
+  exercise      Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  order         Int
+  name          String
+  sets          Int
+  reps          String
+  restSeconds   Int
+  weightHint    String?
+  equipment     String[]
   // Muscles principaux travaillés (en français), renseignés par l'IA.
-  muscles     String[] @default([])
+  muscles       String[] @default([])
   // Temps cible pour boucler la variante (séries + repos), défini par l'IA.
   targetSeconds Int?
   // Temps cible d'exécution d'UNE série, défini par l'IA.
   setSeconds    Int?
-  notes       String?
+  notes         String?
   // Description détaillée d'exécution, générée par l'IA à la demande.
-  howTo       String?
-  imageUrl    String?
-  imageTaskId String?
-  videoUrl    String?
-  videoTaskId String?
-  videoPrompt String?
+  howTo         String?
+  imageUrl      String?
+  imageTaskId   String?
+  videoUrl      String?
+  videoTaskId   String?
+  videoPrompt   String?
 }
 
 model WorkoutSession {
@@ -200,6 +359,12 @@ model WorkoutSession {
   variationChoices Json       @default("{}")
   // Temps passé par exercice (secondes) : { [exerciseId]: secondes }.
   exerciseSeconds  Json       @default("{}")
+  // Propriétaire — voir la note sur Location.userId. Dénormalisé depuis
+  // day.program.userId pour filtrer l'historique sans jointure.
+  userId           String?
+  user             User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model SetLog {
@@ -246,6 +411,11 @@ model BodyMeasurement {
   bodyFatPct   Float?
   notes        String?
   createdAt    DateTime @default(now())
+  // Propriétaire — voir la note sur Location.userId.
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // Photo de suivi physique, stockée dans le volume média local (/api/media).
@@ -255,17 +425,22 @@ model ProgressPhoto {
   imageUrl  String
   note      String?
   createdAt DateTime @default(now())
+  // Propriétaire — voir la note sur Location.userId.
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Settings {
-  id               Int     @id @default(1)
+  id               Int      @id @default(1)
   openrouterApiKey String?
-  openrouterModel  String  @default("openai/gpt-4o-mini")
+  openrouterModel  String   @default("openai/gpt-4o-mini")
   // Modèles épinglés, remontés en tête de liste dans le sélecteur.
   pinnedModels     String[]
   kieApiKey        String?
-  voiceInput       Boolean @default(true)
-  voiceAnnounce    Boolean @default(true)
+  voiceInput       Boolean  @default(true)
+  voiceAnnounce    Boolean  @default(true)
   // Modèle acceptant l'audio (dictée directe au micro via OpenRouter).
-  voiceModel       String  @default("google/gemini-2.5-flash")
+  voiceModel       String   @default("google/gemini-2.5-flash")
 }

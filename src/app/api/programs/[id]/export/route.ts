@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { renderProgramText } from "@/lib/program-text";
+import { requireApiUser } from "@/lib/session";
 
 // Exporte un programme complet en fichier texte lisible : jours, exercices,
 // variantes, muscles, conseils et descriptions d'exécution déjà générées.
@@ -8,9 +9,11 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
-  const program = await prisma.program.findUnique({
-    where: { id },
+  const program = await prisma.program.findFirst({
+    where: { id, userId: user.id },
     include: {
       location: true,
       days: {

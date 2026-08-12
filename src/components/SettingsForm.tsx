@@ -18,7 +18,10 @@ import Toggle from "@/components/ui/Toggle";
 
 export default function SettingsForm({
   initial,
+  isAdmin,
 }: {
+  /** Clés API et modèles : sections masquées hors administration. */
+  isAdmin: boolean;
   initial: {
     hasOpenrouterKey: boolean;
     hasKieKey: boolean;
@@ -41,12 +44,19 @@ export default function SettingsForm({
   function submit() {
     startTransition(async () => {
       await saveSettings({
-        openrouterApiKey: openrouterKey,
-        kieApiKey: kieKey,
-        openrouterModel: model.trim(),
         voiceInput,
         voiceAnnounce,
-        voiceModel: voiceModel.trim(),
+        // Champs globaux : n'envoyer que depuis un compte admin — l'action
+        // les refuse de toute façon, mais l'envoi ferait échouer la sauvegarde
+        // des préférences personnelles au passage.
+        ...(isAdmin
+          ? {
+              openrouterApiKey: openrouterKey,
+              kieApiKey: kieKey,
+              openrouterModel: model.trim(),
+              voiceModel: voiceModel.trim(),
+            }
+          : {}),
       });
       setOpenrouterKey("");
       setKieKey("");
@@ -57,6 +67,8 @@ export default function SettingsForm({
 
   return (
     <div className="flex max-w-2xl flex-col gap-5">
+      {isAdmin ? (
+        <>
       <section className="card p-4">
         <h2 className="flex items-center gap-1.5 text-[15px] font-extrabold">
           <Key size={15} className="text-muted-2" /> Clé OpenRouter
@@ -129,6 +141,8 @@ export default function SettingsForm({
           className="mt-2.5 w-full rounded-full border-[1.5px] border-border bg-surface-2 px-4 py-3 font-mono text-sm outline-none focus:border-accent"
         />
       </section>
+        </>
+      ) : null}
 
       <section className="card p-4">
         <h2 className="text-[15px] font-extrabold">Voix</h2>
@@ -154,6 +168,7 @@ export default function SettingsForm({
             aria-label="Annonces vocales"
           />
         </div>
+        {isAdmin ? (
         <div className="mt-3 border-t border-card-border pt-3">
           <p className="text-sm font-bold">Modèle vocal (dictée au micro)</p>
           <p className="mb-2 mt-1 text-xs text-muted-2">
@@ -166,6 +181,7 @@ export default function SettingsForm({
             initialPinned={initial.pinnedModels}
           />
         </div>
+        ) : null}
       </section>
 
       <Button onClick={submit} disabled={pending} variant="primary" size="lg">

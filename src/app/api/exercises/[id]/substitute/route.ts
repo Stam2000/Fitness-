@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { AiError } from "@/lib/openrouter";
 import { applySubstitute, generateSubstitute } from "@/lib/ai-exercise";
+import { requireApiUser } from "@/lib/session";
 
 const requestSchema = z.object({
   reason: z.string().max(300).optional(),
@@ -13,6 +14,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
   const body = requestSchema.safeParse(await req.json().catch(() => ({})));
   if (!body.success) {
@@ -20,7 +23,13 @@ export async function POST(
   }
 
   try {
-    const { replacement } = await generateSubstitute(id, body.data.reason);
+    // generateSubstitute charge l'exercice filtré par propriétaire : un id
+    // étranger ressort en AiError 404.
+    const { replacement } = await generateSubstitute(
+      id,
+      user.id,
+      body.data.reason
+    );
     const updated = await applySubstitute(id, replacement);
     return NextResponse.json({ exercise: updated });
   } catch (e) {

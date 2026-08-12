@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { AiError } from "@/lib/openrouter";
 import { generateProgramEditDraft } from "@/lib/ai-program-edit";
+import { requireApiUser } from "@/lib/session";
 
 const requestSchema = z.object({
   instructions: z.string().min(3).max(2000),
@@ -15,6 +16,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
   const body = requestSchema.safeParse(await req.json().catch(() => ({})));
   if (!body.success) {
@@ -22,7 +25,13 @@ export async function POST(
   }
 
   try {
-    const draft = await generateProgramEditDraft(id, body.data.instructions);
+    // generateProgramEditDraft filtre le programme par propriétaire et lève
+    // une AiError 404 s'il n'appartient pas à l'appelant.
+    const draft = await generateProgramEditDraft(
+      id,
+      user.id,
+      body.data.instructions
+    );
     return NextResponse.json({ draft });
   } catch (e) {
     if (e instanceof AiError) {

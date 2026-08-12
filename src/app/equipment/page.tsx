@@ -1,13 +1,17 @@
 import { Dumbbell } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { requireUser } from "@/lib/session";
 import EquipmentManager from "@/components/EquipmentManager";
 
 export const dynamic = "force-dynamic";
 
 export default async function EquipmentPage() {
+  const user = await requireUser();
+  // Les contextes sont personnels ; le catalogue de matériel reste commun.
   const [locations, equipment, settings] = await Promise.all([
     prisma.location.findMany({
+      where: { userId: user.id },
       orderBy: { createdAt: "asc" },
       include: { equipment: true },
     }),

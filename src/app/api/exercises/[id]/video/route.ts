@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireApiUser } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 import { findExistingVideoByName } from "@/lib/exercise-images";
 import { generateExerciseVideoPrompt } from "@/lib/video-prompt";
@@ -13,9 +14,13 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
 
-  const exercise = await prisma.exercise.findUnique({ where: { id } });
+  const exercise = await prisma.exercise.findFirst({
+    where: { id, day: { program: { userId: user.id } } },
+  });
   if (!exercise) {
     return NextResponse.json({ error: "Exercice introuvable" }, { status: 404 });
   }
@@ -69,8 +74,12 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
-  const exercise = await prisma.exercise.findUnique({ where: { id } });
+  const exercise = await prisma.exercise.findFirst({
+    where: { id, day: { program: { userId: user.id } } },
+  });
   if (!exercise) {
     return NextResponse.json({ error: "Exercice introuvable" }, { status: 404 });
   }

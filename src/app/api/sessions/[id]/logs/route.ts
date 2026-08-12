@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { requireApiUser } from "@/lib/session";
+import { ownsExercise } from "@/lib/ownership";
 
 const logSchema = z.object({
   exerciseId: z.string(),
@@ -16,6 +18,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
   const body = logSchema.safeParse(await req.json());
   if (!body.success) {
@@ -24,8 +28,16 @@ export async function POST(
   const { exerciseId, setIndex, reps, weightKg, done, variationName } =
     body.data;
 
-  const session = await prisma.workoutSession.findUnique({ where: { id } });
-  if (!session) {
+  // L'exercice arrive du corps de la requête : il doit appartenir au compte,
+  // sinon on écrirait une série sur l'exercice de quelqu'un d'autre.
+  const [session, exerciseOwned] = await Promise.all([
+    prisma.workoutSession.findFirst({
+      where: { id, userId: user.id },
+      select: { id: true },
+    }),
+    ownsExercise(exerciseId, user.id),
+  ]);
+  if (!session || !exerciseOwned) {
     return NextResponse.json({ error: "Séance introuvable" }, { status: 404 });
   }
 
@@ -59,6 +71,8 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
   const body = deleteSchema.safeParse(await req.json().catch(() => null));
   if (!body.success) {
@@ -66,15 +80,16 @@ export async function DELETE(
   }
   const { exerciseId, setIndex } = body.data;
 
-  await prisma.setLog
-    .delete({
-      where: {
-        sessionId_exerciseId_setIndex: { sessionId: id, exerciseId, setIndex },
-      },
-    })
-    .catch(() => {
-      // déjà absente : rien à faire
-    });
+  // deleteMany filtré par propriétaire : sans effet si la série appartient à
+  // quelqu'un d'autre ou n'existe pas.
+  await prisma.setLog.deleteMany({
+    where: {
+      sessionId: id,
+      exerciseId,
+      setIndex,
+      session: { userId: user.id },
+    },
+  });
 
   return NextResponse.json({ ok: true });
 }

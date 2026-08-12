@@ -54,10 +54,11 @@ export type EditedProgramDraft = z.infer<typeof editedProgramSchema>;
 // > 0 à l'application d'une proposition = programme modifié entre-temps.
 export async function sanitizeDraftIds(
   programId: string,
+  userId: string,
   draft: EditedProgramDraft
 ): Promise<number> {
-  const program = await prisma.program.findUnique({
-    where: { id: programId },
+  const program = await prisma.program.findFirst({
+    where: { id: programId, userId },
     include: { days: { include: { exercises: { select: { id: true } } } } },
   });
   if (!program) {
@@ -94,6 +95,7 @@ export async function sanitizeDraftIds(
 // changements en gardant l'historique.
 export async function generateProgramEditDraft(
   programId: string,
+  userId: string,
   instructions: string
 ): Promise<EditedProgramDraft> {
   const settings = await getSettings();
@@ -101,8 +103,8 @@ export async function generateProgramEditDraft(
     throw new AiError("Aucune clé OpenRouter configurée (Réglages).", 400);
   }
 
-  const program = await prisma.program.findUnique({
-    where: { id: programId },
+  const program = await prisma.program.findFirst({
+    where: { id: programId, userId },
     include: {
       location: { include: { equipment: { include: { equipment: true } } } },
       days: {
@@ -116,7 +118,7 @@ export async function generateProgramEditDraft(
   }
 
   const [known, knownMuscles] = await Promise.all([
-    getKnownExercises(),
+    getKnownExercises(userId),
     getKnownMuscles(),
   ]);
   const knownLines = knownExerciseLines(known);
@@ -178,7 +180,7 @@ Réponds UNIQUEMENT avec l'objet JSON du programme modifié.`;
   });
   const draft = editedProgramSchema.parse(extractJson(content));
 
-  await sanitizeDraftIds(programId, draft);
+  await sanitizeDraftIds(programId, userId, draft);
   for (const day of draft.days) {
     for (const ex of day.exercises) {
       // Résolutions : référence #n éventuelle + noms de muscles canoniques.

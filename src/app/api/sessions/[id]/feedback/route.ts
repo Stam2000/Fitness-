@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { requireApiUser } from "@/lib/session";
 
 function describeSession(
   exercises: {
@@ -42,9 +43,11 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
-  const session = await prisma.workoutSession.findUnique({
-    where: { id },
+  const session = await prisma.workoutSession.findFirst({
+    where: { id, userId: user.id },
     include: {
       setLogs: true,
       day: {
@@ -76,6 +79,7 @@ export async function POST(
   const previous = await prisma.workoutSession.findFirst({
     where: {
       dayId: session.dayId,
+      userId: user.id,
       completedAt: { not: null },
       id: { not: id },
     },

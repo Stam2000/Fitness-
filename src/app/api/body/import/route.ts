@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireApiUser } from "@/lib/session";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
@@ -56,6 +57,8 @@ function parseNumber(cell: string | undefined): number | null {
 // musculaire squelettique et % de graisse, une mesure par jour. Le parseur
 // est piloté par les en-têtes, donc tolérant aux variantes de format.
 export async function POST(req: NextRequest) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
   if (!form || !(file instanceof File)) {
@@ -168,6 +171,7 @@ export async function POST(req: NextRequest) {
 
   // Ne pas dupliquer les jours déjà mesurés (saisie manuelle ou import passé).
   const existing = await prisma.bodyMeasurement.findMany({
+    where: { userId: user.id },
     select: { date: true },
   });
   const existingDays = new Set(
@@ -178,7 +182,9 @@ export async function POST(req: NextRequest) {
     .map(([, m]) => m);
 
   if (toInsert.length > 0) {
-    await prisma.bodyMeasurement.createMany({ data: toInsert });
+    await prisma.bodyMeasurement.createMany({
+      data: toInsert.map((m) => ({ ...m, userId: user.id })),
+    });
   }
   revalidatePath("/body");
   return NextResponse.json({

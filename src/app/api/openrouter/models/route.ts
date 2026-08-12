@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
+import { requireApiUser } from "@/lib/session";
 
-export const revalidate = 3600;
+// La route lit la session (cookie) : elle ne peut plus être mise en cache au
+// niveau de la page. Le catalogue OpenRouter reste, lui, mis en cache une
+// heure par le `fetch` ci-dessous.
+export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   try {
     const res = await fetch("https://openrouter.ai/api/v1/models", {
       next: { revalidate: 3600 },

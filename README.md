@@ -44,7 +44,60 @@ mises en page multi-colonnes sur grand écran.
 - [Prisma](https://prisma.io) + PostgreSQL
 - [OpenRouter](https://openrouter.ai) (génération des programmes)
 - [Kie.ai](https://kie.ai) GPT Image 2 (images d'exercices)
+- [Better Auth](https://better-auth.com) (comptes, sessions, rôles)
 - Web Speech API (dictée et annonces vocales, fr-FR)
+
+## Comptes et invitations 🔐
+
+L'application est multi-utilisateur : chacun a ses contextes, ses programmes,
+son historique, ses mesures et ses photos. Restent **communs** à l'instance :
+le catalogue de matériel, les muscles, les vidéos de mouvement téléchargées,
+et les clés API — c'est le budget de l'administrateur qui est consommé, d'où
+l'inscription fermée.
+
+Variables d'environnement à définir (voir `.env.example`) :
+
+| Variable | Rôle |
+| --- | --- |
+| `BETTER_AUTH_SECRET` | Signe les sessions. Obligatoire. Le changer déconnecte tout le monde. |
+| `BETTER_AUTH_URL` | URL publique de l'app (sans barre oblique finale). |
+| `SETUP_TOKEN` | Protège `/setup`. Retirable une fois le premier compte créé. |
+
+Générer un secret :
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+**Premier démarrage** — ouvre `/setup?token=<SETUP_TOKEN>` et crée le compte
+administrateur. Toutes les données déjà en base (celles d'avant l'arrivée des
+comptes) lui sont rattachées dans la foulée, en une transaction. La page se
+verrouille définitivement dès qu'un compte existe.
+
+**Inviter quelqu'un** — Réglages → Invitations → *Générer*, puis partage le
+lien copié. Sans code valide, `/register` refuse la création de compte, et le
+point d'entrée HTTP `POST /api/auth/sign-up/email` est fermé.
+
+### Mise à jour d'une instance existante (données en production)
+
+La reprise se fait en **deux déploiements**, pour ne rien perdre :
+
+1. Déploie ce code. La migration `add_auth` n'ajoute que des tables, des
+   colonnes et des index — aucun `DROP`, aucun `DELETE`. La colonne `userId`
+   arrive vide.
+2. Passe par `/setup` : le compte admin est créé et adopte les lignes sans
+   propriétaire.
+3. Une fois vérifié (voir le mode d'emploi en tête de
+   `prisma/pending-migrations/20260812120000_lock_owner_not_null/migration.sql`),
+   déplace cette migration dans `prisma/migrations/`, retire les `?` des six
+   colonnes `userId` du schéma et redéploie : les colonnes passent en
+   `NOT NULL`.
+
+Un instantané avant l'opération ne coûte rien :
+
+```bash
+docker compose exec db pg_dump -U fitness fitness > sauvegarde-avant-auth.sql
+```
 
 ## Démarrage rapide avec Docker 🐳
 
@@ -62,6 +115,8 @@ le lit automatiquement :
 ```env
 KIE_API_KEY=ta-clé-kie
 OPENROUTER_API_KEY=sk-or-…
+BETTER_AUTH_SECRET=…   # obligatoire, voir « Comptes et invitations »
+SETUP_TOKEN=…          # protège la création du premier compte
 ```
 
 Puis ouvre <http://localhost:4000>. C'est tout : le conteneur applicatif

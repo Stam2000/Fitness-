@@ -23,6 +23,7 @@ import {
 } from "@/app/actions";
 import { btn, Button } from "@/components/ui/button";
 import IconButton from "@/components/ui/IconButton";
+import NutritionGoals, { type GoalView } from "@/components/NutritionGoals";
 
 type MeasurementView = {
   id: string;
@@ -157,9 +158,11 @@ function MetricChart({
 export default function BodyTracker({
   measurements,
   photos,
+  goal,
 }: {
   measurements: MeasurementView[]; // triées par date croissante
   photos: PhotoView[]; // triées par date décroissante
+  goal: GoalView | null;
 }) {
   const router = useRouter();
 
@@ -305,6 +308,10 @@ export default function BodyTracker({
     .filter((m) => m.bodyFatPct != null)
     .map((m) => ({ dateIso: m.dateIso, value: m.bodyFatPct! }));
   const recent = [...measurements].reverse().slice(0, 8);
+  // Dernier poids pesé (mesures triées par date croissante) : c'est la base de
+  // calcul des objectifs nutritionnels.
+  const currentWeightKg =
+    weightPoints.length > 0 ? weightPoints[weightPoints.length - 1].value : null;
 
   return (
     <main className="flex flex-col gap-5 pb-6">
@@ -317,6 +324,8 @@ export default function BodyTracker({
           valeurs de ta montre ou de ta balance.
         </p>
       </header>
+
+      <NutritionGoals goal={goal} currentWeightKg={currentWeightKg} />
 
       {/* — Nouvelle mesure — */}
       <section className="card flex flex-col gap-3 p-4">

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getSettings } from "@/lib/settings";
+import { getSettings, getUserPreferences } from "@/lib/settings";
+import { requireUser } from "@/lib/session";
 import {
   getHistoricalMaxByName,
   getLastLogsByName,
@@ -22,8 +23,9 @@ export default async function WorkoutPage({
   params: Promise<{ sessionId: string }>;
 }) {
   const { sessionId } = await params;
-  const session = await prisma.workoutSession.findUnique({
-    where: { id: sessionId },
+  const user = await requireUser();
+  const session = await prisma.workoutSession.findFirst({
+    where: { id: sessionId, userId: user.id },
     include: {
       setLogs: true,
       day: {
@@ -44,6 +46,7 @@ export default async function WorkoutPage({
   const recentCompleted = await prisma.workoutSession.findMany({
     where: {
       dayId: session.dayId,
+      userId: user.id,
       completedAt: { not: null },
       id: { not: session.id },
     },
@@ -59,11 +62,12 @@ export default async function WorkoutPage({
     ...ex.variations.map((v) => v.name),
   ]);
 
-  const [settings, historicalMax, lastLogsByName, allMuscles, allCombos] =
+  const [settings, prefs, historicalMax, lastLogsByName, allMuscles, allCombos] =
     await Promise.all([
       getSettings(),
-      getHistoricalMaxByName(session.id),
-      getLastLogsByName(optionNames, session.id),
+      getUserPreferences(user.id),
+      getHistoricalMaxByName(user.id, session.id),
+      getLastLogsByName(user.id, optionNames, session.id),
       prisma.muscle.findMany({
         select: { id: true, name: true, imageUrl: true, imageTaskId: true },
       }),
@@ -177,8 +181,8 @@ export default async function WorkoutPage({
         weightKg: l.weightKg,
         done: l.done,
       }))}
-      voiceInput={settings.voiceInput}
-      voiceAnnounce={settings.voiceAnnounce}
+      voiceInput={prefs.voiceInput}
+      voiceAnnounce={prefs.voiceAnnounce}
       hasOpenrouterKey={Boolean(settings.openrouterApiKey)}
       startedAtMs={session.startedAt.getTime()}
       completedAtMs={session.completedAt?.getTime() ?? null}

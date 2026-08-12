@@ -11,6 +11,8 @@ import {
 } from "@/lib/ai-program-edit";
 import { applySubstitute, applyVariations } from "@/lib/ai-exercise";
 import { exerciseSchema, variationSchema } from "@/lib/program-schema";
+import { requireActionUser } from "@/lib/session";
+import { ownsExercise, ownsProgram, ownsSession } from "@/lib/ownership";
 import type { ChatProposal } from "@/lib/chat-tools";
 
 export type ApplyResult = { ok: true } | { ok: false; error: string };
@@ -23,8 +25,10 @@ const STALE_MESSAGE =
 // statut « stale » plutôt que de corrompre le programme (updateProgram
 // supprime tout ce qui est absent du payload).
 export async function applyChatProposal(messageId: string): Promise<ApplyResult> {
-  const message = await prisma.chatMessage.findUnique({
-    where: { id: messageId },
+  const user = await requireActionUser();
+  // Le message n'est atteignable qu'à travers une conversation possédée.
+  const message = await prisma.chatMessage.findFirst({
+    where: { id: messageId, conversation: { userId: user.id } },
   });
   if (!message || !message.proposal) {
     return { ok: false, error: "Proposition introuvable." };
@@ -34,13 +38,25 @@ export async function applyChatProposal(messageId: string): Promise<ApplyResult>
   }
   const proposal = message.proposal as ChatProposal;
 
+  // Deuxième barrière : la proposition est du JSON relu depuis la base, ses
+  // identifiants sont revérifiés contre le compte avant toute écriture.
+  const target =
+    proposal.kind === "set_logs"
+      ? await ownsSession(proposal.sessionId, user.id)
+      : await ownsProgram(proposal.programId, user.id);
+  if (!target) return { ok: false, error: "Proposition introuvable." };
+
   try {
     switch (proposal.kind) {
       case "program_edit": {
         // Les données sortent de la base (JSON) : re-validation structurelle
         // puis re-contrôle des ids contre le programme courant.
         const draft = editedProgramSchema.parse(proposal.draft);
-        const stripped = await sanitizeDraftIds(proposal.programId, draft);
+        const stripped = await sanitizeDraftIds(
+          proposal.programId,
+          user.id,
+          draft
+        );
         if (stripped > 0) {
           await setStatus(messageId, "stale");
           return { ok: false, error: STALE_MESSAGE };
@@ -72,8 +88,8 @@ export async function applyChatProposal(messageId: string): Promise<ApplyResult>
       }
       case "substitution": {
         const replacement = exerciseSchema.parse(proposal.replacement);
-        const exercise = await prisma.exercise.findUnique({
-          where: { id: proposal.exerciseId },
+        const exercise = await prisma.exercise.findFirst({
+          where: { id: proposal.exerciseId, day: { program: { userId: user.id } } },
           select: { id: true },
         });
         if (!exercise) {
@@ -91,8 +107,8 @@ export async function applyChatProposal(messageId: string): Promise<ApplyResult>
           .min(1)
           .max(2)
           .parse(proposal.variations);
-        const exercise = await prisma.exercise.findUnique({
-          where: { id: proposal.exerciseId },
+        const exercise = await prisma.exercise.findFirst({
+          where: { id: proposal.exerciseId, day: { program: { userId: user.id } } },
           select: { id: true },
         });
         if (!exercise) {
@@ -117,14 +133,16 @@ export async function applyChatProposal(messageId: string): Promise<ApplyResult>
           )
           .min(1)
           .parse(proposal.sets);
-        const session = await prisma.workoutSession.findUnique({
-          where: { id: proposal.sessionId },
+        const session = await prisma.workoutSession.findFirst({
+          where: { id: proposal.sessionId, userId: user.id },
           select: { dayId: true },
         });
-        const exercise = await prisma.exercise.findUnique({
-          where: { id: proposal.exerciseId },
-          select: { dayId: true },
-        });
+        const exercise = (await ownsExercise(proposal.exerciseId, user.id))
+          ? await prisma.exercise.findUnique({
+              where: { id: proposal.exerciseId },
+              select: { dayId: true },
+            })
+          : null;
         if (!session || !exercise || exercise.dayId !== session.dayId) {
           await setStatus(messageId, "stale");
           return { ok: false, error: STALE_MESSAGE };
@@ -182,8 +200,9 @@ export async function applyChatProposal(messageId: string): Promise<ApplyResult>
 }
 
 export async function rejectChatProposal(messageId: string): Promise<void> {
-  const message = await prisma.chatMessage.findUnique({
-    where: { id: messageId },
+  const user = await requireActionUser();
+  const message = await prisma.chatMessage.findFirst({
+    where: { id: messageId, conversation: { userId: user.id } },
     select: { proposalStatus: true },
   });
   if (message?.proposalStatus === "pending") {
@@ -206,7 +225,9 @@ export type ChatConversationSummary = {
 };
 
 export async function listConversations(): Promise<ChatConversationSummary[]> {
+  const user = await requireActionUser();
   const conversations = await prisma.chatConversation.findMany({
+    where: { userId: user.id },
     orderBy: { updatedAt: "desc" },
     take: 20,
   });
@@ -237,8 +258,9 @@ export type ChatConversationDto = {
 export async function getConversation(
   id: string
 ): Promise<ChatConversationDto | null> {
-  const conversation = await prisma.chatConversation.findUnique({
-    where: { id },
+  const user = await requireActionUser();
+  const conversation = await prisma.chatConversation.findFirst({
+    where: { id, userId: user.id },
     include: {
       messages: { orderBy: { createdAt: "asc" }, take: 200 },
     },
@@ -262,7 +284,8 @@ export async function getConversation(
 }
 
 export async function deleteConversation(id: string): Promise<void> {
-  await prisma.chatConversation.delete({ where: { id } }).catch(() => {});
+  const user = await requireActionUser();
+  await prisma.chatConversation.deleteMany({ where: { id, userId: user.id } });
 }
 
 export type ChatProgramOption = { id: string; name: string };
@@ -270,8 +293,9 @@ export type ChatProgramOption = { id: string; name: string };
 // Programmes proposés dans le sélecteur du panneau (actifs, plus récents
 // d'abord). Le premier est le choix par défaut d'une nouvelle conversation.
 export async function listChatPrograms(): Promise<ChatProgramOption[]> {
+  const user = await requireActionUser();
   const programs = await prisma.program.findMany({
-    where: { archivedAt: null },
+    where: { archivedAt: null, userId: user.id },
     orderBy: { createdAt: "desc" },
     select: { id: true, name: true },
   });

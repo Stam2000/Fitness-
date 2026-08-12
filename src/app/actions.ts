@@ -10,8 +10,21 @@ import {
   resolveMuscleNames,
 } from "@/lib/known-muscles";
 import { deleteLocalMedia } from "@/lib/media-store";
+import { findActivity, findObjective } from "@/lib/nutrition";
+import { requireActionAdmin, requireActionUser } from "@/lib/session";
+import {
+  NOT_FOUND,
+  assertOwnsProgram,
+  assertOwnsVariation,
+  ownsDay,
+} from "@/lib/ownership";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+
+// Toutes les actions de ce fichier commencent par `requireActionUser()` et
+// filtrent leurs requêtes par `userId` : viser l'identifiant d'un autre compte
+// doit échouer comme si la ressource n'existait pas. Le catalogue partagé
+// (matériel, muscles) et les réglages globaux font exception — voir plus bas.
 
 // ---------- Contextes & équipement ----------
 
@@ -21,9 +34,10 @@ export async function createLocation(
   name: string,
   icon: string
 ): Promise<string | null> {
+  const user = await requireActionUser();
   if (!name.trim()) return null;
   const location = await prisma.location.create({
-    data: { name: name.trim(), icon },
+    data: { name: name.trim(), icon, userId: user.id },
   });
   revalidatePath("/equipment");
   revalidatePath("/programs/new");
@@ -32,9 +46,11 @@ export async function createLocation(
 }
 
 export async function updateLocation(id: string, name: string, icon: string) {
+  const user = await requireActionUser();
   if (!name.trim()) return;
-  await prisma.location.update({
-    where: { id },
+  // updateMany + filtre propriétaire : un id étranger ne modifie rien.
+  await prisma.location.updateMany({
+    where: { id, userId: user.id },
     data: { name: name.trim(), icon },
   });
   revalidatePath("/equipment");
@@ -42,7 +58,8 @@ export async function updateLocation(id: string, name: string, icon: string) {
 }
 
 export async function deleteLocation(id: string) {
-  await prisma.location.delete({ where: { id } });
+  const user = await requireActionUser();
+  await prisma.location.deleteMany({ where: { id, userId: user.id } });
   revalidatePath("/equipment");
   revalidatePath("/");
 }
@@ -52,6 +69,11 @@ export async function toggleLocationEquipment(
   equipmentId: string,
   enabled: boolean
 ) {
+  const user = await requireActionUser();
+  const owned = await prisma.location.count({
+    where: { id: locationId, userId: user.id },
+  });
+  if (!owned) throw new Error(NOT_FOUND);
   if (enabled) {
     await prisma.locationEquipment.upsert({
       where: { locationId_equipmentId: { locationId, equipmentId } },
@@ -66,7 +88,11 @@ export async function toggleLocationEquipment(
   revalidatePath("/equipment");
 }
 
+// Le catalogue de matériel est commun à tous les comptes (comme les muscles
+// et les vidéos de mouvement) : y ajouter une entrée ne révèle rien de
+// personnel et évite de regénérer les images pour chaque nouvel inscrit.
 export async function createEquipment(name: string, category: string) {
+  await requireActionUser();
   if (!name.trim()) return;
   await prisma.equipment.upsert({
     where: { name: name.trim() },
@@ -78,6 +104,9 @@ export async function createEquipment(name: string, category: string) {
 
 // ---------- Réglages ----------
 
+// Deux portées dans un même formulaire : les préférences de dictée sont
+// personnelles, tandis que les clés API et le choix des modèles engagent le
+// budget de l'administrateur — lui seul peut les toucher.
 export async function saveSettings(data: {
   openrouterApiKey?: string;
   openrouterModel?: string;
@@ -86,7 +115,23 @@ export async function saveSettings(data: {
   voiceAnnounce?: boolean;
   voiceModel?: string;
 }) {
-  const update: Record<string, string | boolean | null> = {};
+  const user = await requireActionUser();
+
+  if (data.voiceInput !== undefined || data.voiceAnnounce !== undefined) {
+    const prefs = {
+      ...(data.voiceInput !== undefined ? { voiceInput: data.voiceInput } : {}),
+      ...(data.voiceAnnounce !== undefined
+        ? { voiceAnnounce: data.voiceAnnounce }
+        : {}),
+    };
+    await prisma.userSettings.upsert({
+      where: { userId: user.id },
+      update: prefs,
+      create: { userId: user.id, ...prefs },
+    });
+  }
+
+  const update: Record<string, string | null> = {};
   // Champ vide = ne pas changer ; "-" seul = effacer la clé.
   if (data.openrouterApiKey !== undefined && data.openrouterApiKey !== "") {
     update.openrouterApiKey =
@@ -96,22 +141,25 @@ export async function saveSettings(data: {
     update.kieApiKey = data.kieApiKey === "-" ? null : data.kieApiKey.trim();
   }
   if (data.openrouterModel) update.openrouterModel = data.openrouterModel;
-  if (data.voiceInput !== undefined) update.voiceInput = data.voiceInput;
-  if (data.voiceAnnounce !== undefined)
-    update.voiceAnnounce = data.voiceAnnounce;
   if (data.voiceModel) update.voiceModel = data.voiceModel.trim();
 
-  await prisma.settings.upsert({
-    where: { id: 1 },
-    update,
-    create: { id: 1, ...update },
-  });
+  if (Object.keys(update).length > 0) {
+    if (!user.isAdmin) {
+      throw new Error("Clés API et modèles : réservés à l'administrateur.");
+    }
+    await prisma.settings.upsert({
+      where: { id: 1 },
+      update,
+      create: { id: 1, ...update },
+    });
+  }
   revalidatePath("/settings");
 }
 
 // Épingle / désépingle un modèle ; renvoie la liste à jour pour que le
 // sélecteur reste synchronisé sans recharger la page.
 export async function togglePinnedModel(model: string): Promise<string[]> {
+  await requireActionAdmin();
   const id = model.trim();
   if (!id) return [];
   const current = await prisma.settings.upsert({
@@ -131,6 +179,7 @@ export async function togglePinnedModel(model: string): Promise<string[]> {
 
 // Promeut un modèle en modèle par défaut, depuis n'importe quel écran.
 export async function setDefaultModel(model: string) {
+  await requireActionAdmin();
   const id = model.trim();
   if (!id) return;
   await prisma.settings.upsert({
@@ -218,17 +267,29 @@ export async function saveProgram(
   draft: ProgramDraft,
   meta: { locationId?: string | null; goal?: string | null; level?: string | null }
 ): Promise<string> {
+  const user = await requireActionUser();
   const parsed = programDraftSchema.parse(draft);
   // Le draft a pu être édité côté client : on recolle les muscles sur les
   // noms canoniques (le popup de prévisualisation matche Muscle.name par nom)
   // et on crée en base ceux qui sont réellement nouveaux.
   resolveDraftMuscles(parsed, await getKnownMuscles());
+  // Le contexte doit appartenir à l'appelant : sinon on n'en attache aucun
+  // plutôt que de lier son programme au lieu de quelqu'un d'autre.
+  const locationId = meta.locationId
+    ? ((
+        await prisma.location.findFirst({
+          where: { id: meta.locationId, userId: user.id },
+          select: { id: true },
+        })
+      )?.id ?? null)
+    : null;
   const program = await prisma.program.create({
     data: {
       ...draftCreateData(parsed),
       goal: meta.goal ?? null,
       level: meta.level ?? null,
-      locationId: meta.locationId ?? null,
+      locationId,
+      userId: user.id,
     },
   });
   await ensureMusclesExist(draftMuscleNames(parsed));
@@ -243,12 +304,14 @@ export async function saveNextBlock(
   previousProgramId: string,
   draft: ProgramDraft
 ): Promise<string> {
+  const user = await requireActionUser();
   const parsed = programDraftSchema.parse(draft);
   resolveDraftMuscles(parsed, await getKnownMuscles());
-  const prev = await prisma.program.findUniqueOrThrow({
-    where: { id: previousProgramId },
+  const prev = await prisma.program.findFirst({
+    where: { id: previousProgramId, userId: user.id },
     select: { goal: true, level: true, locationId: true, blockNumber: true },
   });
+  if (!prev) throw new Error(NOT_FOUND);
   const program = await prisma.$transaction(async (tx) => {
     const created = await tx.program.create({
       data: {
@@ -258,6 +321,7 @@ export async function saveNextBlock(
         locationId: prev.locationId,
         blockNumber: prev.blockNumber + 1,
         previousProgramId,
+        userId: user.id,
       },
     });
     await tx.program.update({
@@ -302,6 +366,8 @@ export type ProgramUpdatePayload = {
 // Met à jour un programme en conservant les ids existants (et donc
 // l'historique de séances) quand c'est possible.
 export async function updateProgram(programId: string, payload: ProgramUpdatePayload) {
+  const user = await requireActionUser();
+  await assertOwnsProgram(programId, user.id);
   const knownMuscles = await getKnownMuscles();
   await prisma.$transaction(async (tx) => {
     await tx.program.update({
@@ -380,8 +446,9 @@ export async function updateProgram(programId: string, payload: ProgramUpdatePay
 }
 
 export async function duplicateProgram(id: string): Promise<string> {
-  const program = await prisma.program.findUniqueOrThrow({
-    where: { id },
+  const user = await requireActionUser();
+  const program = await prisma.program.findFirst({
+    where: { id, userId: user.id },
     include: {
       days: {
         orderBy: { dayIndex: "asc" },
@@ -394,8 +461,10 @@ export async function duplicateProgram(id: string): Promise<string> {
       },
     },
   });
+  if (!program) throw new Error(NOT_FOUND);
   const copy = await prisma.program.create({
     data: {
+      userId: user.id,
       name: `${program.name} (copie)`,
       description: program.description,
       goal: program.goal,
@@ -452,7 +521,8 @@ export async function duplicateProgram(id: string): Promise<string> {
 }
 
 export async function deleteProgram(id: string) {
-  await prisma.program.delete({ where: { id } });
+  const user = await requireActionUser();
+  await prisma.program.deleteMany({ where: { id, userId: user.id } });
   revalidatePath("/");
   redirect("/");
 }
@@ -460,19 +530,23 @@ export async function deleteProgram(id: string) {
 // ---------- Séances ----------
 
 export async function startSession(dayId: string) {
+  const user = await requireActionUser();
+  if (!(await ownsDay(dayId, user.id))) throw new Error(NOT_FOUND);
   // Reprend la séance en cours pour ce jour si elle existe.
   const existing = await prisma.workoutSession.findFirst({
-    where: { dayId, completedAt: null },
+    where: { dayId, userId: user.id, completedAt: null },
     orderBy: { startedAt: "desc" },
   });
   let session = existing;
   if (!session) {
     // N° de passage sur ce jour : pilote la rotation des variantes d'exercices.
+    // Compté par utilisateur — un programme partagé par duplication ne doit
+    // pas faire avancer le cycle de son auteur.
     const cycleIndex = await prisma.workoutSession.count({
-      where: { dayId, completedAt: { not: null } },
+      where: { dayId, userId: user.id, completedAt: { not: null } },
     });
     session = await prisma.workoutSession.create({
-      data: { dayId, cycleIndex },
+      data: { dayId, cycleIndex, userId: user.id },
     });
   }
   redirect(`/workout/${session.id}`);
@@ -485,8 +559,9 @@ export async function setSessionVariation(
   exerciseId: string,
   index: number
 ) {
-  const session = await prisma.workoutSession.findUnique({
-    where: { id: sessionId },
+  const user = await requireActionUser();
+  const session = await prisma.workoutSession.findFirst({
+    where: { id: sessionId, userId: user.id },
     select: { variationChoices: true },
   });
   if (!session) return;
@@ -503,7 +578,10 @@ export async function setSessionVariation(
 }
 
 export async function abandonSession(sessionId: string) {
-  await prisma.workoutSession.delete({ where: { id: sessionId } });
+  const user = await requireActionUser();
+  await prisma.workoutSession.deleteMany({
+    where: { id: sessionId, userId: user.id },
+  });
   revalidatePath("/");
   redirect("/");
 }
@@ -515,6 +593,8 @@ export async function abandonSession(sessionId: string) {
 // ceux de l'ancien base prennent son ancien nom. L'attribution exacte de
 // l'historique — et donc les suggestions de charge — est ainsi préservée.
 export async function promoteVariation(variationId: string) {
+  const user = await requireActionUser();
+  await assertOwnsVariation(variationId, user.id);
   const variation = await prisma.exerciseVariation.findUniqueOrThrow({
     where: { id: variationId },
     include: { exercise: { include: { day: { select: { programId: true } } } } },
@@ -591,6 +671,7 @@ export async function addBodyMeasurement(input: {
   bodyFatPct?: number | null;
   notes?: string | null;
 }) {
+  const user = await requireActionUser();
   const clean = (v: number | null | undefined, max: number) =>
     typeof v === "number" && isFinite(v) && v > 0 && v <= max ? v : null;
   const weightKg = clean(input.weightKg, 400);
@@ -607,20 +688,94 @@ export async function addBodyMeasurement(input: {
       muscleMassKg,
       bodyFatPct,
       notes: input.notes?.trim() ? input.notes.trim().slice(0, 300) : null,
+      userId: user.id,
     },
   });
   revalidatePath("/body");
 }
 
 export async function deleteBodyMeasurement(id: string) {
-  await prisma.bodyMeasurement.delete({ where: { id } });
+  const user = await requireActionUser();
+  await prisma.bodyMeasurement.deleteMany({ where: { id, userId: user.id } });
+  revalidatePath("/body");
+}
+
+// ————— Objectifs nutritionnels —————
+
+// Enregistre (ou remplace) les objectifs du compte : poids visé, calories et
+// protéines quotidiennes. Les trois cibles sont indépendantes — on peut ne
+// fixer qu'un poids visé, ou que les apports — mais une ligne sans aucune
+// valeur n'aurait rien à afficher, d'où le refus.
+//
+// Les valeurs reçues sont celles que l'utilisateur a validées à l'écran, que
+// le formulaire les ait suggérées ou qu'il les ait saisies : hors bornes, on
+// lève plutôt que de remplacer silencieusement par null, sans quoi une faute
+// de frappe effacerait l'objectif sans le dire.
+export async function saveNutritionGoal(input: {
+  objective: string;
+  activity: string;
+  targetWeightKg?: number | null;
+  dailyCalories?: number | null;
+  dailyProteinG?: number | null;
+}) {
+  const user = await requireActionUser();
+
+  const bounded = (
+    value: number | null | undefined,
+    label: string,
+    min: number,
+    max: number,
+    unit: string
+  ): number | null => {
+    if (value === null || value === undefined) return null;
+    if (!isFinite(value) || value < min || value > max) {
+      throw new Error(`${label} : indique une valeur entre ${min} et ${max} ${unit}.`);
+    }
+    return value;
+  };
+
+  const targetWeightKg = bounded(input.targetWeightKg, "Poids visé", 30, 400, "kg");
+  const dailyCalories = bounded(input.dailyCalories, "Calories", 800, 8000, "kcal");
+  const dailyProteinG = bounded(input.dailyProteinG, "Protéines", 20, 500, "g");
+
+  if (targetWeightKg === null && dailyCalories === null && dailyProteinG === null) {
+    throw new Error("Fixe au moins un objectif.");
+  }
+
+  const data = {
+    objective: findObjective(input.objective).key,
+    activity: findActivity(input.activity).key,
+    targetWeightKg: targetWeightKg === null ? null : Math.round(targetWeightKg * 10) / 10,
+    dailyCalories: dailyCalories === null ? null : Math.round(dailyCalories),
+    dailyProteinG: dailyProteinG === null ? null : Math.round(dailyProteinG),
+  };
+
+  await prisma.nutritionGoal.upsert({
+    where: { userId: user.id },
+    update: data,
+    create: { userId: user.id, ...data },
+  });
+  revalidatePath("/body");
+}
+
+export async function deleteNutritionGoal() {
+  const user = await requireActionUser();
+  await prisma.nutritionGoal.deleteMany({ where: { userId: user.id } });
   revalidatePath("/body");
 }
 
 // Supprime une photo de suivi ; le fichier local est effacé s'il n'est plus
 // référencé par aucune autre photo.
 export async function deleteProgressPhoto(id: string) {
-  const photo = await prisma.progressPhoto.delete({ where: { id } });
+  const user = await requireActionUser();
+  const photo = await prisma.progressPhoto.findFirst({
+    where: { id, userId: user.id },
+  });
+  if (!photo) return;
+  await prisma.progressPhoto.delete({ where: { id: photo.id } });
+  // Comptage volontairement NON filtré par utilisateur : le nom de fichier
+  // dérive du contenu, deux comptes qui téléversent la même photo partagent
+  // le même fichier. On ne l'efface que s'il n'est plus référencé nulle part.
   const stillUsed = await prisma.progressPhoto.count({
     where: { imageUrl: photo.imageUrl },
   });

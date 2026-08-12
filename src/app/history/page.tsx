@@ -6,6 +6,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/session";
 import { getExerciseProgress } from "@/lib/progress";
 import { getActivityStats } from "@/lib/activity";
 import HistoryTabs from "@/components/HistoryTabs";
@@ -26,9 +27,10 @@ function formatDate(d: Date) {
 }
 
 export default async function HistoryPage() {
+  const user = await requireUser();
   const [sessions, progress, activity] = await Promise.all([
     prisma.workoutSession.findMany({
-      where: { completedAt: { not: null } },
+      where: { userId: user.id, completedAt: { not: null } },
       orderBy: { completedAt: "desc" },
       take: 50,
       include: {
@@ -41,8 +43,8 @@ export default async function HistoryPage() {
         },
       },
     }),
-    getExerciseProgress(),
-    getActivityStats(),
+    getExerciseProgress(user.id),
+    getActivityStats(user.id),
   ]);
 
   const sessionList = (

@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { getCompletedCycles } from "@/lib/progress";
+import { requireUser } from "@/lib/session";
 import NextBlockFlow from "@/components/NextBlockFlow";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +13,10 @@ export default async function NextBlockPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const user = await requireUser();
   const [program, settings, completedCycles] = await Promise.all([
-    prisma.program.findUnique({
-      where: { id },
+    prisma.program.findFirst({
+      where: { id, userId: user.id },
       select: {
         id: true,
         name: true,
@@ -24,7 +26,7 @@ export default async function NextBlockPage({
       },
     }),
     getSettings(),
-    getCompletedCycles(id),
+    getCompletedCycles(id, user.id),
   ]);
   if (!program) notFound();
   // Bloc déjà remplacé : on file directement à son successeur.

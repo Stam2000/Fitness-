@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { programDraftSchema } from "@/lib/program-schema";
+import { requireApiUser } from "@/lib/session";
 
 const requestSchema = z.object({
   locationId: z.string(),
@@ -25,6 +26,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
   const body = requestSchema.safeParse(await req.json());
   if (!body.success) {
@@ -39,9 +42,10 @@ export async function POST(
     );
   }
 
+  // Programme source ET contexte cible doivent appartenir à l'appelant.
   const [program, target] = await Promise.all([
-    prisma.program.findUnique({
-      where: { id },
+    prisma.program.findFirst({
+      where: { id, userId: user.id },
       include: {
         days: {
           orderBy: { dayIndex: "asc" },
@@ -54,8 +58,8 @@ export async function POST(
         },
       },
     }),
-    prisma.location.findUnique({
-      where: { id: body.data.locationId },
+    prisma.location.findFirst({
+      where: { id: body.data.locationId, userId: user.id },
       include: { equipment: { include: { equipment: true } } },
     }),
   ]);
@@ -159,6 +163,7 @@ Réponds UNIQUEMENT avec l'objet JSON du programme adapté, au même format que 
         goal: program.goal,
         level: program.level,
         locationId: target.id,
+        userId: user.id,
         days: {
           create: draft.days.map((day, di) => ({
             dayIndex: di,

@@ -7,12 +7,15 @@ import {
   getImageTaskResult,
 } from "@/lib/kie";
 import { persistMediaUrl } from "@/lib/media-store";
+import { requireApiUser } from "@/lib/session";
 
 // Lance la génération d'image pour une combinaison de muscles.
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
   const settings = await getSettings();
   if (!settings.kieApiKey) {
@@ -55,6 +58,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
   const combo = await prisma.muscleCombo.findUnique({ where: { id } });
   if (!combo) {

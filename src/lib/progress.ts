@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
 
+// Toutes les lectures d'historique de ce module prennent un `userId` explicite
+// plutôt que de relire la session : ces fonctions sont appelées aussi bien
+// depuis des pages que depuis les outils de l'assistant IA, et un paramètre
+// obligatoire garantit qu'aucun appelant ne peut oublier le cloisonnement.
+
 export type SessionPoint = {
   date: string; // ISO
   topWeight: number | null;
@@ -53,6 +58,7 @@ export type LastLogByName = {
 };
 
 export async function getLastLogsByName(
+  userId: string,
   names: string[],
   excludeSessionId?: string
 ): Promise<Record<string, LastLogByName[]>> {
@@ -62,6 +68,7 @@ export async function getLastLogsByName(
     where: {
       done: true,
       session: {
+        userId,
         completedAt: { not: null },
         ...(excludeSessionId ? { id: { not: excludeSessionId } } : {}),
       },
@@ -92,9 +99,11 @@ export async function getLastLogsByName(
 }
 
 // Progression par exercice (regroupé par nom, tous programmes confondus).
-export async function getExerciseProgress(): Promise<ExerciseProgress[]> {
+export async function getExerciseProgress(
+  userId: string
+): Promise<ExerciseProgress[]> {
   const sessions = await prisma.workoutSession.findMany({
-    where: { completedAt: { not: null } },
+    where: { userId, completedAt: { not: null } },
     orderBy: { completedAt: "asc" },
     include: {
       setLogs: { where: { done: true }, include: { exercise: true } },
@@ -164,12 +173,17 @@ export async function getExerciseProgress(): Promise<ExerciseProgress[]> {
 // Nombre de cycles complets d'un programme : un cycle est bouclé quand chaque
 // jour a une séance terminée de plus. Un jour sauté retient donc le compteur
 // (cohérent avec cycleIndex, calculé par jour au démarrage d'une séance).
-export async function getCompletedCycles(programId: string): Promise<number> {
+export async function getCompletedCycles(
+  programId: string,
+  userId: string
+): Promise<number> {
   const days = await prisma.programDay.findMany({
-    where: { programId },
+    where: { programId, program: { userId } },
     select: {
       _count: {
-        select: { sessions: { where: { completedAt: { not: null } } } },
+        select: {
+          sessions: { where: { userId, completedAt: { not: null } } },
+        },
       },
     },
   });
@@ -179,6 +193,7 @@ export async function getCompletedCycles(programId: string): Promise<number> {
 
 // Poids max historique par nom d'exercice (pour détecter les PR d'une séance).
 export async function getHistoricalMaxByName(
+  userId: string,
   excludeSessionId?: string
 ): Promise<Record<string, number>> {
   const logs = await prisma.setLog.findMany({
@@ -186,6 +201,7 @@ export async function getHistoricalMaxByName(
       done: true,
       weightKg: { not: null },
       session: {
+        userId,
         completedAt: { not: null },
         ...(excludeSessionId ? { id: { not: excludeSessionId } } : {}),
       },

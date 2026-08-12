@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { open, stat } from "fs/promises";
 import path from "path";
 import { mediaFilePath, TYPE_BY_EXT } from "@/lib/media-store";
+import { requireApiUser } from "@/lib/session";
 
 // Sert les médias rapatriés localement (images et vidéos de démonstration).
 // Supporte les requêtes Range, indispensables à la lecture vidéo (Safari/iOS
@@ -10,6 +11,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ file: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { file } = await params;
   const filePath = mediaFilePath(file);
   if (!filePath) {

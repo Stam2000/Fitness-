@@ -9,6 +9,7 @@ import {
   knownMusclesBlock,
   resolveMuscleNames,
 } from "@/lib/known-muscles";
+import { requireApiUser } from "@/lib/session";
 
 // Réponse attendue du modèle : muscles + temps cible (et transition pour les
 // exercices de base) de chaque mouvement.
@@ -43,6 +44,8 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
 
   const settings = await getSettings();
@@ -53,8 +56,8 @@ export async function POST(
     );
   }
 
-  const program = await prisma.program.findUnique({
-    where: { id },
+  const program = await prisma.program.findFirst({
+    where: { id, userId: user.id },
     include: {
       days: {
         orderBy: { dayIndex: "asc" },

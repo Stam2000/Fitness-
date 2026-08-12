@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { requireApiUser } from "@/lib/session";
 
 const requestSchema = z.object({
   // true = régénérer même si une description existe déjà.
@@ -14,14 +15,16 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
   const body = requestSchema.safeParse(await req.json().catch(() => ({})));
   if (!body.success) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
 
-  const exercise = await prisma.exercise.findUnique({
-    where: { id },
+  const exercise = await prisma.exercise.findFirst({
+    where: { id, day: { program: { userId: user.id } } },
     include: { day: { include: { program: true } } },
   });
   if (!exercise) {

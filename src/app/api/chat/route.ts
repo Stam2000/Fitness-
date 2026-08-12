@@ -13,6 +13,8 @@ import {
   type ChatToolTrace,
 } from "@/lib/chat-tools";
 import type { Prisma } from "@prisma/client";
+import { requireApiUser } from "@/lib/session";
+import { ownsProgram } from "@/lib/ownership";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +46,10 @@ const STATUS_NOTES: Record<string, string> = {
   pending: "[Proposition en attente de confirmation]",
 };
 
-async function buildSystemPrompt(programId: string | null): Promise<string> {
+async function buildSystemPrompt(
+  programId: string | null,
+  userId: string
+): Promise<string> {
   const parts: string[] = [
     `Tu es le coach de l'application « Mon Coach Fitness ». Tu réponds en français, de façon directe et concrète.
 
@@ -57,8 +62,8 @@ Saisie des séries : l'utilisateur peut te dicter ses performances pendant ou ap
 Format : texte brut uniquement. Autorisés : listes commençant par « - », **gras**, \`code\`. Pas de titres #, pas de tableaux.`,
   ];
   if (programId) {
-    const program = await prisma.program.findUnique({
-      where: { id: programId },
+    const program = await prisma.program.findFirst({
+      where: { id: programId, userId },
       include: {
         location: true,
         days: {
@@ -113,6 +118,8 @@ function historyToModelMessages(
 }
 
 export async function POST(req: NextRequest) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
@@ -128,21 +135,29 @@ export async function POST(req: NextRequest) {
 
   const { conversationId, message, programId } = parsed.data;
 
+  // Conversation existante : filtrée par propriétaire — un id étranger repart
+  // sur une nouvelle conversation plutôt que d'ouvrir l'historique d'autrui.
   let conversation = conversationId
-    ? await prisma.chatConversation.findUnique({ where: { id: conversationId } })
+    ? await prisma.chatConversation.findFirst({
+        where: { id: conversationId, userId: user.id },
+      })
     : null;
+  // Le programme d'ancrage doit aussi appartenir à l'appelant.
+  const ownedProgramId =
+    programId && (await ownsProgram(programId, user.id)) ? programId : null;
   if (conversation) {
-    if (programId !== undefined && programId !== conversation.programId) {
+    if (programId !== undefined && ownedProgramId !== conversation.programId) {
       conversation = await prisma.chatConversation.update({
         where: { id: conversation.id },
-        data: { programId },
+        data: { programId: ownedProgramId },
       });
     }
   } else {
     conversation = await prisma.chatConversation.create({
       data: {
         title: message.length > 60 ? `${message.slice(0, 57)}…` : message,
-        programId: programId ?? null,
+        programId: ownedProgramId,
+        userId: user.id,
       },
     });
   }
@@ -160,7 +175,7 @@ export async function POST(req: NextRequest) {
   });
   const history = historyDesc.reverse();
 
-  const systemPrompt = await buildSystemPrompt(conv.programId);
+  const systemPrompt = await buildSystemPrompt(conv.programId, user.id);
   const modelMessages: ModelMessage[] = [
     { role: "system", content: systemPrompt },
     ...historyToModelMessages(history),
@@ -321,7 +336,12 @@ export async function POST(req: NextRequest) {
                     result: "Erreur : arguments JSON invalides.",
                     summary: "Arguments invalides",
                   }
-                : await executeChatTool(call.name, args, proposal !== null);
+                : await executeChatTool(
+                    user.id,
+                    call.name,
+                    args,
+                    proposal !== null
+                  );
             traces.push({
               name: call.name,
               args: (args ?? {}) as Record<string, unknown>,

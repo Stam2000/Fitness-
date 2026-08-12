@@ -5,6 +5,7 @@ import { getSettings } from "@/lib/settings";
 import { muscleComboKey } from "@/lib/normalize";
 import { getKnownMuscles, resolveMuscleNames } from "@/lib/known-muscles";
 import { buildMuscleComboImagePrompt, createImageTask } from "@/lib/kie";
+import { requireApiUser } from "@/lib/session";
 
 const requestSchema = z.object({
   muscles: z.array(z.string().min(1)).min(2).max(6),
@@ -16,6 +17,8 @@ const requestSchema = z.object({
 // programmes). Renvoie { id, state, imageUrl? } ; le suivi se fait ensuite
 // via GET /api/muscle-combos/[id]/image.
 export async function POST(req: NextRequest) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const body = requestSchema.safeParse(await req.json().catch(() => ({})));
   if (!body.success) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });

@@ -1,13 +1,16 @@
 import { Sparkles } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { requireUser } from "@/lib/session";
 import NewProgramWizard from "@/components/NewProgramWizard";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewProgramPage() {
+  const user = await requireUser();
   const [locations, settings] = await Promise.all([
     prisma.location.findMany({
+      where: { userId: user.id },
       orderBy: { createdAt: "asc" },
       include: { _count: { select: { equipment: true } } },
     }),

@@ -18,16 +18,23 @@ export type KnownExercise = {
 // prompts IA pour qu'un même mouvement garde EXACTEMENT le même nom d'un
 // programme à l'autre (l'historique de charge et les records sont retrouvés
 // par nom). « déjà pratiqué » = au moins une série cochée en séance.
-export async function getKnownExercises(limit = 120): Promise<KnownExercise[]> {
+// Restreint aux programmes du compte : l'inventaire nourrit les prompts IA,
+// il ne doit pas y faire entrer les mouvements inventés par d'autres.
+export async function getKnownExercises(
+  userId: string,
+  limit = 120
+): Promise<KnownExercise[]> {
   const [exercises, variations, logs] = await Promise.all([
     prisma.exercise.findMany({
+      where: { day: { program: { userId } } },
       select: { name: true, muscles: true, equipment: true },
     }),
     prisma.exerciseVariation.findMany({
+      where: { exercise: { day: { program: { userId } } } },
       select: { name: true, muscles: true, equipment: true },
     }),
     prisma.setLog.findMany({
-      where: { done: true },
+      where: { done: true, session: { userId } },
       select: { variationName: true, exercise: { select: { name: true } } },
     }),
   ]);

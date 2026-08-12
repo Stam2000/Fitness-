@@ -41,9 +41,9 @@ function addWeeks(d: Date, n: number): Date {
   return copy;
 }
 
-export async function getActivityStats(): Promise<ActivityStats> {
+export async function getActivityStats(userId: string): Promise<ActivityStats> {
   const sessions = await prisma.workoutSession.findMany({
-    where: { completedAt: { not: null } },
+    where: { userId, completedAt: { not: null } },
     orderBy: { completedAt: "asc" },
     include: {
       setLogs: { where: { done: true } },

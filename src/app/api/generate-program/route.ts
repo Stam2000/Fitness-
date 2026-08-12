@@ -19,6 +19,7 @@ import {
   knownMusclesBlock,
   resolveDraftMuscles,
 } from "@/lib/known-muscles";
+import { requireApiUser } from "@/lib/session";
 
 const requestSchema = z.object({
   locationId: z.string(),
@@ -45,6 +46,8 @@ function extractJson(text: string): unknown {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const body = requestSchema.safeParse(await req.json());
   if (!body.success) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
@@ -73,11 +76,11 @@ export async function POST(req: NextRequest) {
   }
 
   const [location, known, knownMuscles] = await Promise.all([
-    prisma.location.findUnique({
-      where: { id: locationId },
+    prisma.location.findFirst({
+      where: { id: locationId, userId: user.id },
       include: { equipment: { include: { equipment: true } } },
     }),
-    getKnownExercises(),
+    getKnownExercises(user.id),
     getKnownMuscles(),
   ]);
   const knownLines = knownExerciseLines(known);

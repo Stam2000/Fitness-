@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { getCompletedCycles } from "@/lib/progress";
 import { normalizeName } from "@/lib/normalize";
+import { requireUser } from "@/lib/session";
 import ProgramDetail from "@/components/ProgramDetail";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +14,12 @@ export default async function ProgramPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const user = await requireUser();
   const [program, locations, settings, completedCycles, allMuscles, allCombos] =
     await Promise.all([
-    prisma.program.findUnique({
-      where: { id },
+    // findFirst + userId : le programme d'un autre compte est un 404.
+    prisma.program.findFirst({
+      where: { id, userId: user.id },
       include: {
         location: true,
         nextProgram: { select: { id: true, name: true } },
@@ -31,9 +34,12 @@ export default async function ProgramPage({
         },
       },
     }),
-    prisma.location.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.location.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "asc" },
+    }),
     getSettings(),
-    getCompletedCycles(id),
+    getCompletedCycles(id, user.id),
     prisma.muscle.findMany({
       select: { id: true, name: true, imageUrl: true, imageTaskId: true },
     }),

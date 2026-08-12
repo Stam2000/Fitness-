@@ -9,14 +9,17 @@ import {
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { startSession } from "@/app/actions";
+import { requireUser } from "@/lib/session";
 import { btn } from "@/components/ui/button";
 import MediaThumb from "@/components/ui/MediaThumb";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
+  const user = await requireUser();
   const [locations, orphanPrograms, activeSession] = await Promise.all([
     prisma.location.findMany({
+      where: { userId: user.id },
       orderBy: { createdAt: "asc" },
       include: {
         programs: {
@@ -31,7 +34,9 @@ export default async function HomePage() {
                 _count: {
                   select: {
                     exercises: true,
-                    sessions: { where: { completedAt: { not: null } } },
+                    sessions: {
+                      where: { userId: user.id, completedAt: { not: null } },
+                    },
                   },
                 },
                 exercises: {
@@ -47,7 +52,7 @@ export default async function HomePage() {
       },
     }),
     prisma.program.findMany({
-      where: { locationId: null, archivedAt: null },
+      where: { locationId: null, archivedAt: null, userId: user.id },
       orderBy: { createdAt: "desc" },
       include: {
         days: {
@@ -56,7 +61,9 @@ export default async function HomePage() {
             _count: {
               select: {
                 exercises: true,
-                sessions: { where: { completedAt: { not: null } } },
+                sessions: {
+                  where: { userId: user.id, completedAt: { not: null } },
+                },
               },
             },
             exercises: {
@@ -70,7 +77,7 @@ export default async function HomePage() {
       },
     }),
     prisma.workoutSession.findFirst({
-      where: { completedAt: null },
+      where: { userId: user.id, completedAt: null },
       orderBy: { startedAt: "desc" },
       include: {
         day: {

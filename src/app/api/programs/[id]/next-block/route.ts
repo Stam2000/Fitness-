@@ -14,6 +14,7 @@ import {
   resolveDraftMuscles,
 } from "@/lib/known-muscles";
 import { parseTopReps } from "@/lib/progress";
+import { requireApiUser } from "@/lib/session";
 
 function extractJson(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -126,6 +127,8 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const { id } = await params;
 
   const settings = await getSettings();
@@ -136,8 +139,8 @@ export async function POST(
     );
   }
 
-  const program = await prisma.program.findUnique({
-    where: { id },
+  const program = await prisma.program.findFirst({
+    where: { id, userId: user.id },
     include: {
       location: { include: { equipment: { include: { equipment: true } } } },
       nextProgram: { select: { id: true } },
@@ -167,11 +170,15 @@ export async function POST(
 
   const [sessions, known, knownMuscles] = await Promise.all([
     prisma.workoutSession.findMany({
-      where: { day: { programId: id }, completedAt: { not: null } },
+      where: {
+        day: { programId: id },
+        userId: user.id,
+        completedAt: { not: null },
+      },
       orderBy: { completedAt: "asc" },
       include: { setLogs: true },
     }),
-    getKnownExercises(),
+    getKnownExercises(user.id),
     getKnownMuscles(),
   ]);
   const knownLines = knownExerciseLines(known);

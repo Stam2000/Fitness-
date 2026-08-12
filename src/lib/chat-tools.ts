@@ -245,8 +245,15 @@ const proposeSubstitutionArgs = z.object({
 });
 const proposeVariationsArgs = z.object({ exerciseId: z.string().min(1) });
 
-async function listPrograms(): Promise<{ result: string; summary: string }> {
+// Tous les outils reçoivent `userId` en premier paramètre et filtrent leurs
+// requêtes avec : l'assistant ne doit jamais pouvoir lire ni proposer une
+// modification sur les données d'un autre compte, même si le modèle invente un
+// identifiant plausible.
+async function listPrograms(
+  userId: string
+): Promise<{ result: string; summary: string }> {
   const programs = await prisma.program.findMany({
+    where: { userId },
     orderBy: { createdAt: "desc" },
     include: { location: true, _count: { select: { days: true } } },
   });
@@ -268,11 +275,12 @@ async function listPrograms(): Promise<{ result: string; summary: string }> {
   };
 }
 
-async function getProgram(args: {
-  programId: string;
-}): Promise<{ result: string; summary: string }> {
-  const program = await prisma.program.findUnique({
-    where: { id: args.programId },
+async function getProgram(
+  userId: string,
+  args: { programId: string }
+): Promise<{ result: string; summary: string }> {
+  const program = await prisma.program.findFirst({
+    where: { id: args.programId, userId },
     include: {
       location: { include: { equipment: { include: { equipment: true } } } },
       days: {
@@ -331,14 +339,18 @@ async function getProgram(args: {
   };
 }
 
-async function getProgress(args: {
-  programId?: string;
-  exerciseName?: string;
-  limit?: number;
-}): Promise<{ result: string; summary: string }> {
+async function getProgress(
+  userId: string,
+  args: {
+    programId?: string;
+    exerciseName?: string;
+    limit?: number;
+  }
+): Promise<{ result: string; summary: string }> {
   const limit = args.limit ?? 8;
   const sessions = await prisma.workoutSession.findMany({
     where: {
+      userId,
       completedAt: { not: null },
       ...(args.programId ? { day: { programId: args.programId } } : {}),
     },
@@ -385,7 +397,7 @@ async function getProgress(args: {
   if (args.exerciseName) {
     const needle = args.exerciseName.trim().toLowerCase();
     const logs = await prisma.setLog.findMany({
-      where: { done: true, session: { completedAt: { not: null } } },
+      where: { done: true, session: { userId, completedAt: { not: null } } },
       include: {
         exercise: { select: { name: true } },
         session: { select: { completedAt: true } },
@@ -444,17 +456,17 @@ function formatSet(
   return `${weightKg} kg × ${reps ?? "—"}`;
 }
 
-async function listSessions(args: {
-  limit?: number;
-  onlyToday?: boolean;
-}): Promise<{ result: string; summary: string }> {
+async function listSessions(
+  userId: string,
+  args: { limit?: number; onlyToday?: boolean }
+): Promise<{ result: string; summary: string }> {
   let startedAfter: Date | undefined;
   if (args.onlyToday) {
     startedAfter = new Date();
     startedAfter.setHours(0, 0, 0, 0);
   }
   const sessions = await prisma.workoutSession.findMany({
-    where: startedAfter ? { startedAt: { gte: startedAfter } } : {},
+    where: { userId, ...(startedAfter ? { startedAt: { gte: startedAfter } } : {}) },
     orderBy: { startedAt: "desc" },
     take: args.limit ?? 10,
     include: {
@@ -475,9 +487,10 @@ async function listSessions(args: {
   };
 }
 
-async function getSessionLogs(args: {
-  sessionId?: string;
-}): Promise<{ result: string; summary: string }> {
+async function getSessionLogs(
+  userId: string,
+  args: { sessionId?: string }
+): Promise<{ result: string; summary: string }> {
   const include = {
     day: {
       include: {
@@ -488,11 +501,12 @@ async function getSessionLogs(args: {
     setLogs: { orderBy: { setIndex: "asc" as const } },
   };
   const session = args.sessionId
-    ? await prisma.workoutSession.findUnique({
-        where: { id: args.sessionId },
+    ? await prisma.workoutSession.findFirst({
+        where: { id: args.sessionId, userId },
         include,
       })
     : await prisma.workoutSession.findFirst({
+        where: { userId },
         orderBy: { startedAt: "desc" },
         include,
       });
@@ -536,18 +550,21 @@ async function getSessionLogs(args: {
 
 // Fusionne les séries demandées avec l'existant et produit la proposition
 // (valeurs absolues) + le résumé lisible des changements.
-async function proposeSetLogs(args: {
-  sessionId: string;
-  exerciseId: string;
-  sets: {
-    setNumber: number;
-    weightKg?: number | null;
-    reps?: number | null;
-    done?: boolean;
-  }[];
-}): Promise<ChatToolOutcome> {
-  const session = await prisma.workoutSession.findUnique({
-    where: { id: args.sessionId },
+async function proposeSetLogs(
+  userId: string,
+  args: {
+    sessionId: string;
+    exerciseId: string;
+    sets: {
+      setNumber: number;
+      weightKg?: number | null;
+      reps?: number | null;
+      done?: boolean;
+    }[];
+  }
+): Promise<ChatToolOutcome> {
+  const session = await prisma.workoutSession.findFirst({
+    where: { id: args.sessionId, userId },
     include: {
       day: { include: { program: { select: { name: true } } } },
       setLogs: { where: { exerciseId: args.exerciseId } },
@@ -559,8 +576,8 @@ async function proposeSetLogs(args: {
       summary: "Séance introuvable",
     };
   }
-  const exercise = await prisma.exercise.findUnique({
-    where: { id: args.exerciseId },
+  const exercise = await prisma.exercise.findFirst({
+    where: { id: args.exerciseId, day: { program: { userId } } },
     select: { id: true, name: true, dayId: true },
   });
   if (!exercise || exercise.dayId !== session.dayId) {
@@ -632,10 +649,11 @@ async function proposeSetLogs(args: {
 // Résumé lisible des changements entre le programme actuel et le brouillon.
 async function computeProgramEditChanges(
   programId: string,
+  userId: string,
   draft: EditedProgramDraft
 ): Promise<string[]> {
-  const program = await prisma.program.findUnique({
-    where: { id: programId },
+  const program = await prisma.program.findFirst({
+    where: { id: programId, userId },
     include: {
       days: {
         orderBy: { dayIndex: "asc" },
@@ -723,6 +741,7 @@ const PROPOSAL_PENDING_NOTE =
 // Exécute un outil du chat. `hasPendingProposal` = une proposition a déjà été
 // produite dans ce tour (une seule carte de confirmation par message).
 export async function executeChatTool(
+  userId: string,
   name: string,
   rawArgs: unknown,
   hasPendingProposal: boolean
@@ -730,33 +749,33 @@ export async function executeChatTool(
   try {
     switch (name) {
       case "list_programs":
-        return await listPrograms();
+        return await listPrograms(userId);
       case "get_program": {
         const args = getProgramArgs.parse(rawArgs);
-        return await getProgram(args);
+        return await getProgram(userId, args);
       }
       case "get_progress": {
         const args = getProgressArgs.parse(rawArgs);
-        return await getProgress(args);
+        return await getProgress(userId, args);
       }
       case "list_sessions": {
         const args = listSessionsArgs.parse(rawArgs);
-        return await listSessions(args);
+        return await listSessions(userId, args);
       }
       case "get_session_logs": {
         const args = getSessionLogsArgs.parse(rawArgs);
-        return await getSessionLogs(args);
+        return await getSessionLogs(userId, args);
       }
       case "propose_set_logs": {
         if (hasPendingProposal) return pendingProposalError();
         const args = proposeSetLogsArgs.parse(rawArgs);
-        return await proposeSetLogs(args);
+        return await proposeSetLogs(userId, args);
       }
       case "propose_program_edit": {
         if (hasPendingProposal) return pendingProposalError();
         const args = proposeEditArgs.parse(rawArgs);
-        const program = await prisma.program.findUnique({
-          where: { id: args.programId },
+        const program = await prisma.program.findFirst({
+          where: { id: args.programId, userId },
           select: { name: true },
         });
         if (!program) {
@@ -767,9 +786,14 @@ export async function executeChatTool(
         }
         const draft = await generateProgramEditDraft(
           args.programId,
+          userId,
           args.instructions
         );
-        const changes = await computeProgramEditChanges(args.programId, draft);
+        const changes = await computeProgramEditChanges(
+          args.programId,
+          userId,
+          draft
+        );
         return {
           result: PROPOSAL_PENDING_NOTE,
           summary: `Modification proposée (${changes.length} changement${changes.length > 1 ? "s" : ""})`,
@@ -785,8 +809,8 @@ export async function executeChatTool(
       case "propose_substitution": {
         if (hasPendingProposal) return pendingProposalError();
         const args = proposeSubstitutionArgs.parse(rawArgs);
-        const exercise = await prisma.exercise.findUnique({
-          where: { id: args.exerciseId },
+        const exercise = await prisma.exercise.findFirst({
+          where: { id: args.exerciseId, day: { program: { userId } } },
           select: { day: { select: { programId: true } } },
         });
         if (!exercise) {
@@ -797,6 +821,7 @@ export async function executeChatTool(
         }
         const { oldName, dayName, replacement } = await generateSubstitute(
           args.exerciseId,
+          userId,
           args.reason
         );
         return {
@@ -815,8 +840,8 @@ export async function executeChatTool(
       case "propose_variations": {
         if (hasPendingProposal) return pendingProposalError();
         const args = proposeVariationsArgs.parse(rawArgs);
-        const exercise = await prisma.exercise.findUnique({
-          where: { id: args.exerciseId },
+        const exercise = await prisma.exercise.findFirst({
+          where: { id: args.exerciseId, day: { program: { userId } } },
           select: { day: { select: { programId: true } } },
         });
         if (!exercise) {
@@ -826,7 +851,8 @@ export async function executeChatTool(
           };
         }
         const { exerciseName, variations } = await generateVariations(
-          args.exerciseId
+          args.exerciseId,
+          userId
         );
         return {
           result: `${PROPOSAL_PENDING_NOTE}\nVariantes proposées : ${variations.map((v) => v.name).join(", ")}.`,

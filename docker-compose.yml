@@ -68,6 +68,13 @@ services:
       POT_PROVIDER_URL: ${POT_PROVIDER_URL:-http://pot-provider:4416}
       # Le calendrier de suivi utilise la date locale du serveur.
       TZ: ${TZ:-Europe/Paris}
+      # Authentification. BETTER_AUTH_SECRET signe les sessions : le changer
+      # déconnecte tout le monde. SETUP_TOKEN protège la page /setup, qui crée
+      # le premier compte admin et lui rattache les données déjà en base ; il
+      # peut être retiré une fois cette étape faite.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET est obligatoire}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-}
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
     volumes:
       # Médias rapatriés depuis Kie.ai (leurs URLs expirent) : persistant.
       # Sous Coolify : déclarer un « Persistent Storage » sur /app/data/media.
@@ -104,6 +111,10 @@ services:
       POT_PROVIDER_URL: ${POT_PROVIDER_URL:-http://pot-provider:4416}
       # Le calendrier de suivi utilise la date locale du serveur.
       TZ: ${TZ:-Europe/Paris}
+      # Authentification — voir le commentaire du service « app ».
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET est obligatoire}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${DEV_PORT:-4001}}
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
     volumes:
       - media-data:/app/data/media
     depends_on:

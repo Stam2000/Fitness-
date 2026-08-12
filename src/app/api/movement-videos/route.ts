@@ -7,6 +7,7 @@ import {
   fetchYouTubeTitle,
   parseYouTubeUrl,
 } from "@/lib/youtube";
+import { requireApiUser } from "@/lib/session";
 
 const createSchema = z.object({
   name: z.string().min(1).max(200),
@@ -15,6 +16,8 @@ const createSchema = z.object({
 
 // Liste les vidéos d'un mouvement (par nom, insensible casse/accents).
 export async function GET(req: NextRequest) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const name = req.nextUrl.searchParams.get("name");
   if (!name?.trim()) {
     return NextResponse.json({ error: "Nom manquant" }, { status: 400 });
@@ -29,6 +32,8 @@ export async function GET(req: NextRequest) {
 // Ajoute une vidéo YouTube à un mouvement : la ligne est créée tout de suite
 // (statut « downloading ») et le téléchargement se poursuit en arrière-plan.
 export async function POST(req: NextRequest) {
+  const user = await requireApiUser();
+  if (user instanceof NextResponse) return user;
   const body = createSchema.safeParse(await req.json().catch(() => ({})));
   if (!body.success) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
