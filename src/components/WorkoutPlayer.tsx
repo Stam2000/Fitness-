@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Flag,
   Lightbulb,
+  MonitorPlay,
   Repeat,
   Replace,
   Target,
@@ -24,6 +25,7 @@ import SubstituteSheet from "@/components/workout/SubstituteSheet";
 import SetLogPanel from "@/components/workout/SetLogPanel";
 import TimeBar from "@/components/workout/TimeBar";
 import type { NextUpInfo } from "@/components/workout/NextUpCard";
+import MovementVideosSheet from "@/components/MovementVideosSheet";
 import MusclePreviewSheet, {
   type MuscleChipInfo,
   type MuscleComboInfo,
@@ -126,6 +128,7 @@ export default function WorkoutPlayer({
   initialExerciseSeconds = {},
   muscleInfoByName = {},
   muscleComboByKey = {},
+  videoCountByMovement = {},
 }: {
   sessionId: string;
   programName: string;
@@ -143,6 +146,10 @@ export default function WorkoutPlayer({
   muscleInfoByName?: Record<string, MuscleChipInfo>;
   // Combinaisons de muscles indexées par clé canonique (muscleComboKey).
   muscleComboByKey?: Record<string, MuscleComboInfo>;
+  // Nombre de vidéos de démonstration par mouvement (clé = nom normalisé) :
+  // sert à indiquer d'un coup d'œil qu'il y a quelque chose à regarder, sans
+  // attendre l'ouverture de la feuille.
+  videoCountByMovement?: Record<string, number>;
 }) {
   // Option affichée pour chaque exercice (bascule manuelle possible).
   const [variantIdx, setVariantIdx] = useState<Record<string, number>>(() =>
@@ -198,6 +205,10 @@ export default function WorkoutPlayer({
   // Nature du décompte en cours : repos entre séries ou transition
   // vers l'exercice suivant (après la dernière série d'un exercice).
   const [restKind, setRestKind] = useState<"rest" | "transition">("rest");
+  // Exercice dont la transition a déjà été décomptée. Sans ce garde-fou,
+  // enchaîner « dernière série cochée » puis « exercice suivant » imposerait
+  // deux pauses d'affilée pour un seul changement d'exercice.
+  const transitionServedRef = useRef<string | null>(null);
   // Échauffement proposé tant qu'aucune série n'est faite.
   const [warmupDone, setWarmupDone] = useState(() =>
     initialLogs.some((l) => l.done)
@@ -232,6 +243,10 @@ export default function WorkoutPlayer({
   const [showSubstitute, setShowSubstitute] = useState(false);
   // Popup de prévisualisation des muscles travaillés par l'exercice courant.
   const [showMuscles, setShowMuscles] = useState(false);
+  // Mouvement dont on consulte les vidéos de démonstration (null = feuille
+  // fermée). C'est un nom et non un booléen parce que l'écran de repos ouvre
+  // celles du mouvement À VENIR, pas forcément celui qu'on vient de faire.
+  const [videoMovement, setVideoMovement] = useState<string | null>(null);
   const [substituteReason, setSubstituteReason] = useState("");
   const [substituting, setSubstituting] = useState(false);
   const [substituteError, setSubstituteError] = useState<string | null>(null);
@@ -272,6 +287,18 @@ export default function WorkoutPlayer({
   // Nom sous lequel journaliser les séries (null = exercice de base).
   const activeVariationName =
     activeIndexOf(exercise) === 0 ? null : active.name;
+  // Les vidéos sont rattachées au mouvement par nom : une variante a donc les
+  // siennes, distinctes de celles de l'exercice de base.
+  const activeVideoCount = videoCountByMovement[normalizeName(active.name)] ?? 0;
+  // Monté aussi bien sur la vue exercice que sur l'écran de repos, qui sont
+  // deux rendus distincts.
+  const videosSheet = (
+    <MovementVideosSheet
+      open={videoMovement !== null}
+      onClose={() => setVideoMovement(null)}
+      movementName={videoMovement}
+    />
+  );
   const exerciseDuration = parseDurationSeconds(active.reps);
   // Série « en cours » = première non cochée de l'exercice courant
   // (firstOpenSetIndex est déclarée plus bas ; hissée par le moteur JS).
@@ -487,6 +514,7 @@ export default function WorkoutPlayer({
     if (isLastSet && isLastExercise) return;
     if (isLastSet) {
       setRestKind("transition");
+      transitionServedRef.current = exercise.id;
       startRest(exercise.transitionSeconds ?? 60);
     } else {
       setRestKind("rest");
@@ -863,11 +891,31 @@ export default function WorkoutPlayer({
     saveExerciseSeconds();
     setExercisePaused(false);
     setVoiceMessage(null);
+    // Avancer d'un exercice ouvre le temps d'installation, comme le fait la
+    // validation de la dernière série : sans quoi, passer par le bouton
+    // enchaînait l'exercice suivant sans la moindre pause.
+    //
+    // Trois cas où l'on n'impose rien : reculer (c'est une correction, pas une
+    // progression), une transition déjà décomptée à l'instant, et quitter un
+    // exercice sur lequel aucune série n'a été faite — là on ne s'installe
+    // pas, on passe son chemin.
+    const forward = index > current;
+    const alreadyServed = transitionServedRef.current === exercise.id;
+    const worked = Object.entries(logs).some(
+      ([key, s]) => s.done && key.startsWith(`${exercise.id}:`)
+    );
+    transitionServedRef.current = null;
+
     setCurrent(index);
     const o = activeOf(exercises[index]);
     speak(
       `${o.name}. ${o.sets} séries de ${o.reps}${o.weightHint ? `. ${o.weightHint}` : ""}.`
     );
+
+    if (forward && !alreadyServed && worked) {
+      setRestKind("transition");
+      startRest(exercise.transitionSeconds ?? 60);
+    }
   }
 
   async function finishSession() {
@@ -1149,24 +1197,33 @@ export default function WorkoutPlayer({
               targetLine: `objectif ${active.reps}`,
               lastLine,
             };
+    // Le repos est le bon moment pour revoir la technique : la feuille porte
+    // donc sur le mouvement qui arrive — la série suivante du même exercice,
+    // ou l'exercice d'après.
+    const restVideoName = openIdx !== -1 ? active.name : (next?.name ?? active.name);
     return (
-      <RestScreen
-        restLeft={restLeft}
-        kind={restKind}
-        dayName={dayName}
-        doneCount={doneCount}
-        totalSets={totalSets}
-        nextUp={restNextUp}
-        logPanel={renderLogPanel(true)}
-        logTitle={active.name}
-        onAbandon={abandon}
-        onExtend={() => setRestLeft((r) => (r !== null ? r + 30 : r))}
-        onSkip={() => {
-          if (restInterval.current) clearInterval(restInterval.current);
-          setRestLeft(null);
-        }}
-        onFinishNow={finishSession}
-      />
+      <>
+        <RestScreen
+          restLeft={restLeft}
+          kind={restKind}
+          dayName={dayName}
+          doneCount={doneCount}
+          totalSets={totalSets}
+          nextUp={restNextUp}
+          logPanel={renderLogPanel(true)}
+          logTitle={active.name}
+          onAbandon={abandon}
+          onExtend={() => setRestLeft((r) => (r !== null ? r + 30 : r))}
+          onSkip={() => {
+            if (restInterval.current) clearInterval(restInterval.current);
+            setRestLeft(null);
+          }}
+          onFinishNow={finishSession}
+          onShowVideos={() => setVideoMovement(restVideoName)}
+          videoCount={videoCountByMovement[normalizeName(restVideoName)] ?? 0}
+        />
+        {videosSheet}
+      </>
     );
   }
 
@@ -1215,40 +1272,50 @@ export default function WorkoutPlayer({
         </div>
       )}
 
-      {(exercise.options.length > 1 || hasOpenrouterKey) && (
-        <div>
-          <div className="flex flex-wrap gap-1.5">
-            {exercise.options.length > 1 &&
-              exercise.options.map((o, oi) => (
-                <Chip
-                  key={oi}
-                  active={oi === activeIndexOf(exercise)}
-                  onClick={() => chooseVariant(exercise.id, oi)}
-                  className="max-w-full"
-                >
-                  <span className="truncate">
-                    {String.fromCharCode(65 + oi)} · {o.name}
-                  </span>
-                </Chip>
-              ))}
-            {hasOpenrouterKey && (
+      {/* Toujours rendu : la puce des vidéos de démonstration doit rester
+          atteignable même sans variante ni clé OpenRouter. */}
+      <div>
+        <div className="flex flex-wrap gap-1.5">
+          {exercise.options.length > 1 &&
+            exercise.options.map((o, oi) => (
               <Chip
-                onClick={() => setShowSubstitute(true)}
-                aria-label="Remplacer cet exercice"
-                title="Remplacer cet exercice"
+                key={oi}
+                active={oi === activeIndexOf(exercise)}
+                onClick={() => chooseVariant(exercise.id, oi)}
+                className="max-w-full"
               >
-                <Replace size={16} />
+                <span className="truncate">
+                  {String.fromCharCode(65 + oi)} · {o.name}
+                </span>
               </Chip>
+            ))}
+          <Chip
+            onClick={() => setVideoMovement(active.name)}
+            aria-label={`Vidéos de démonstration de ${active.name}`}
+            title="Vidéos de démonstration"
+          >
+            <MonitorPlay size={16} />
+            {activeVideoCount > 0 && (
+              <span className="font-mono text-xs">{activeVideoCount}</span>
             )}
-          </div>
-          {exercise.options.length > 1 && (
-            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted">
-              <Repeat size={12} /> Rotation auto — ce passage :{" "}
-              {String.fromCharCode(65 + exercise.autoIndex)}
-            </p>
+          </Chip>
+          {hasOpenrouterKey && (
+            <Chip
+              onClick={() => setShowSubstitute(true)}
+              aria-label="Remplacer cet exercice"
+              title="Remplacer cet exercice"
+            >
+              <Replace size={16} />
+            </Chip>
           )}
         </div>
-      )}
+        {exercise.options.length > 1 && (
+          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted">
+            <Repeat size={12} /> Rotation auto — ce passage :{" "}
+            {String.fromCharCode(65 + exercise.autoIndex)}
+          </p>
+        )}
+      </div>
 
       {active.suggestion ? (
         <div className="rounded-xl bg-accent/10 px-3.5 py-2.5">
@@ -1331,6 +1398,8 @@ export default function WorkoutPlayer({
         onReason={setSubstituteReason}
         onSubmit={substituteExercise}
       />
+
+      {videosSheet}
 
       <MusclePreviewSheet
         open={showMuscles}

@@ -1,7 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ArrowRightToLine, Flag, PencilLine, SkipForward } from "lucide-react";
+import {
+  ArrowRightToLine,
+  Flag,
+  MonitorPlay,
+  PencilLine,
+  SkipForward,
+} from "lucide-react";
 import { btn } from "@/components/ui/button";
 import SessionHeader from "@/components/workout/SessionHeader";
 import NextUpCard, { type NextUpInfo } from "@/components/workout/NextUpCard";
@@ -20,6 +26,8 @@ export default function RestScreen({
   onExtend,
   onSkip,
   onFinishNow,
+  onShowVideos,
+  videoCount = 0,
 }: {
   restLeft: number;
   /** rest = entre séries ; transition = passage à l'exercice suivant. */
@@ -36,6 +44,10 @@ export default function RestScreen({
   onExtend: () => void;
   onSkip: () => void;
   onFinishNow: () => void;
+  /** Ouvre les vidéos de démonstration du mouvement qui arrive. */
+  onShowVideos?: () => void;
+  /** Nombre de vidéos disponibles pour ce mouvement (0 = aucune encore). */
+  videoCount?: number;
 }) {
   // Avec la saisie affichée, le timer géant mangerait tout l'écran mobile.
   const dense = logPanel !== null;
@@ -99,6 +111,19 @@ export default function RestScreen({
         )}
 
         {nextUp && <NextUpCard nextUp={nextUp} />}
+
+        {onShowVideos && (
+          <button
+            onClick={onShowVideos}
+            className={btn("outline", "md", "self-center text-muted-2")}
+          >
+            <MonitorPlay size={16} />
+            Revoir la technique
+            {videoCount > 0 && (
+              <span className="font-mono text-xs text-muted">{videoCount}</span>
+            )}
+          </button>
+        )}
       </div>
       <button
         onClick={onFinishNow}

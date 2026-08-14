@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { describeSessionPlan } from "@/lib/program-versions";
 
 export type ActivityDay = {
   date: string; // AAAA-MM-JJ (heure locale du serveur)
@@ -50,6 +51,8 @@ export async function getActivityStats(userId: string): Promise<ActivityStats> {
       day: { include: { program: { select: { name: true } } } },
     },
   });
+  // Le libellé vient du plan figé de la séance : un jour renommé ou supprimé
+  // depuis ne doit pas réécrire le calendrier d'activité.
 
   const byDay = new Map<string, ActivityDay>();
   const weekSet = new Set<string>();
@@ -81,12 +84,13 @@ export async function getActivityStats(userId: string): Promise<ActivityStats> {
     entry.sessions += 1;
     entry.minutes += minutes;
     entry.volume += volume;
-    entry.labels.push(`${session.day.program.name} — ${session.day.name}`);
+    const plan = describeSessionPlan(session);
+    entry.labels.push(`${plan.programName} — ${plan.dayName}`);
     byDay.set(key, entry);
 
     weekSet.add(dateKey(startOfWeek(end)));
 
-    const focus = session.day.focus?.trim() || session.day.name;
+    const focus = plan.dayFocus?.trim() || plan.dayName;
     focusCount.set(focus, (focusCount.get(focus) ?? 0) + 1);
   }
 

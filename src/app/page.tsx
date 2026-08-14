@@ -77,7 +77,9 @@ export default async function HomePage() {
       },
     }),
     prisma.workoutSession.findFirst({
-      where: { userId: user.id, completedAt: null },
+      // Une séance dont le jour a disparu (programme supprimé entre-temps)
+      // reste dans l'historique mais ne se reprend plus.
+      where: { userId: user.id, completedAt: null, dayId: { not: null } },
       orderBy: { startedAt: "desc" },
       include: {
         day: {
@@ -108,13 +110,13 @@ export default async function HomePage() {
   ];
   const hasPrograms = groups.length > 0;
 
-  const sessionTotalSets = activeSession
-    ? activeSession.day.exercises.reduce((sum, e) => sum + e.sets, 0)
+  const activeDay = activeSession?.day ?? null;
+  const sessionTotalSets = activeDay
+    ? activeDay.exercises.reduce((sum, e) => sum + e.sets, 0)
     : 0;
   const sessionDoneSets = activeSession ? activeSession.setLogs.length : 0;
-  const sessionImage = activeSession
-    ? (activeSession.day.exercises.find((e) => e.imageUrl)?.imageUrl ?? null)
-    : null;
+  const sessionImage =
+    activeDay?.exercises.find((e) => e.imageUrl)?.imageUrl ?? null;
 
   return (
     <main className="flex flex-col gap-5">
@@ -127,7 +129,7 @@ export default async function HomePage() {
         </p>
       </header>
 
-      {activeSession && (
+      {activeSession && activeDay && (
         <Link
           href={`/workout/${activeSession.id}`}
           className="relative block overflow-hidden rounded-2xl border-[1.5px] border-accent/50"
@@ -150,7 +152,7 @@ export default async function HomePage() {
                 )}
               </p>
               <p className="mt-1 truncate text-[16.5px] font-extrabold italic">
-                {activeSession.day.program.name} — {activeSession.day.name}
+                {activeDay.program.name} — {activeDay.name}
               </p>
             </div>
             <span className={btn("primary", "md", "shrink-0")}>

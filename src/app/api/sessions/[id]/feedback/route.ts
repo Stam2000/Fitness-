@@ -58,9 +58,12 @@ export async function POST(
       },
     },
   });
-  if (!session) {
+  // Le bilan compare la séance au plan du jour : sans jour vivant (programme
+  // supprimé), il n'y a plus rien à analyser.
+  if (!session?.day) {
     return NextResponse.json({ error: "Séance introuvable" }, { status: 404 });
   }
+  const day = session.day;
   if (session.aiFeedback) {
     return NextResponse.json({ feedback: session.aiFeedback });
   }
@@ -87,12 +90,12 @@ export async function POST(
     include: { setLogs: true },
   });
 
-  const current = describeSession(session.day.exercises, session.setLogs);
+  const current = describeSession(day.exercises, session.setLogs);
   const prev = previous
-    ? describeSession(session.day.exercises, previous.setLogs)
+    ? describeSession(day.exercises, previous.setLogs)
     : null;
 
-  const prompt = `Séance « ${session.day.name} » du programme « ${session.day.program.name} » (objectif : ${session.day.program.goal ?? "non précisé"}, niveau : ${session.day.program.level ?? "non précisé"}).
+  const prompt = `Séance « ${day.name} » du programme « ${day.program.name} » (objectif : ${day.program.goal ?? "non précisé"}, niveau : ${day.program.level ?? "non précisé"}).
 
 Séance d'aujourd'hui :
 ${current}

@@ -74,7 +74,6 @@ export async function getLastLogsByName(
       },
     },
     include: {
-      exercise: { select: { name: true } },
       session: { select: { id: true, completedAt: true } },
     },
     orderBy: { session: { completedAt: "desc" } },
@@ -82,7 +81,7 @@ export async function getLastLogsByName(
   const result: Record<string, LastLogByName[]> = {};
   const pickedSession: Record<string, string> = {};
   for (const log of logs) {
-    const name = log.variationName ?? log.exercise.name;
+    const name = log.variationName ?? log.exerciseName;
     if (!wanted.has(name)) continue;
     // Les logs sont triés par séance décroissante : la première séance vue
     // pour un nom est la plus récente, on ignore les suivantes.
@@ -106,7 +105,7 @@ export async function getExerciseProgress(
     where: { userId, completedAt: { not: null } },
     orderBy: { completedAt: "asc" },
     include: {
-      setLogs: { where: { done: true }, include: { exercise: true } },
+      setLogs: { where: { done: true } },
     },
   });
 
@@ -115,7 +114,7 @@ export async function getExerciseProgress(
     const byName = new Map<string, typeof session.setLogs>();
     for (const log of session.setLogs) {
       // Une variante est suivie sous son propre nom (mouvement différent).
-      const name = log.variationName ?? log.exercise.name;
+      const name = log.variationName ?? log.exerciseName;
       if (!byName.has(name)) byName.set(name, []);
       byName.get(name)!.push(log);
     }
@@ -206,11 +205,10 @@ export async function getHistoricalMaxByName(
         ...(excludeSessionId ? { id: { not: excludeSessionId } } : {}),
       },
     },
-    include: { exercise: { select: { name: true } } },
   });
   const max: Record<string, number> = {};
   for (const log of logs) {
-    const name = log.variationName ?? log.exercise.name;
+    const name = log.variationName ?? log.exerciseName;
     if (log.weightKg! > (max[name] ?? 0)) max[name] = log.weightKg!;
   }
   return max;

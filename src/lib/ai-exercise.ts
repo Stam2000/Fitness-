@@ -9,6 +9,7 @@ import {
   type VariationDraft,
 } from "@/lib/program-schema";
 import { knownExercisesBlock } from "@/lib/program-prompt";
+import { recordProgramVersionForExercise } from "@/lib/program-versions";
 import {
   getKnownExercises,
   knownExerciseLines,
@@ -149,6 +150,11 @@ export async function applySubstitute(
   ]);
   await ensureMusclesExist(replacement.muscles);
   await ensureMuscleCombosExist([replacement.muscles]);
+  await recordProgramVersionForExercise(
+    exerciseId,
+    "ai",
+    `Remplacé par « ${replacement.name} »`
+  );
   return updated;
 }
 
@@ -247,5 +253,10 @@ export async function applyVariations(
   const allMuscles = withImages.flatMap((v) => v.muscles ?? []);
   await ensureMusclesExist(allMuscles);
   await ensureMuscleCombosExist(withImages.map((v) => v.muscles ?? []));
+  await recordProgramVersionForExercise(
+    exerciseId,
+    "ai",
+    `${withImages.length} variante${withImages.length > 1 ? "s" : ""} générée${withImages.length > 1 ? "s" : ""}`
+  );
   return withImages.length;
 }

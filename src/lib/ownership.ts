@@ -2,9 +2,15 @@ import { prisma } from "@/lib/prisma";
 
 /**
  * Vérifications de propriété pour les entités qui ne portent pas elles-mêmes
- * de `userId` : jour, exercice, variante. Leur propriétaire se déduit du
- * programme parent — dénormaliser plus bas ferait autant de colonnes à tenir
- * à jour pour un gain nul (ces tables sont toujours atteintes par leur id).
+ * de `userId` : jour, variante. Leur propriétaire se déduit du programme
+ * parent — dénormaliser plus bas ferait autant de colonnes à tenir à jour pour
+ * un gain nul (ces tables sont toujours atteintes par leur id).
+ *
+ * Cas de l'exercice : depuis que `SetLog.exerciseId` n'est plus une clé
+ * étrangère, une série ne se rattache plus à une ligne Exercise mais au plan
+ * d'une séance. Le contrôle correspondant vit donc dans `loggedExerciseName`
+ * (src/lib/program-versions.ts), qui vérifie l'appartenance au plan tout en
+ * résolvant le nom à figer.
  *
  * Convention : une ressource appartenant à quelqu'un d'autre est traitée comme
  * inexistante (404), jamais comme interdite (403) — un 403 confirmerait son
@@ -19,14 +25,6 @@ export async function ownsDay(dayId: string, userId: string) {
   return (
     (await prisma.programDay.count({
       where: { id: dayId, program: { userId } },
-    })) > 0
-  );
-}
-
-export async function ownsExercise(exerciseId: string, userId: string) {
-  return (
-    (await prisma.exercise.count({
-      where: { id: exerciseId, day: { program: { userId } } },
     })) > 0
   );
 }

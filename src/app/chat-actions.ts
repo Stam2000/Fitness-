@@ -12,7 +12,8 @@ import {
 import { applySubstitute, applyVariations } from "@/lib/ai-exercise";
 import { exerciseSchema, variationSchema } from "@/lib/program-schema";
 import { requireActionUser } from "@/lib/session";
-import { ownsExercise, ownsProgram, ownsSession } from "@/lib/ownership";
+import { ownsProgram, ownsSession } from "@/lib/ownership";
+import { loggedExerciseName } from "@/lib/program-versions";
 import type { ChatProposal } from "@/lib/chat-tools";
 
 export type ApplyResult = { ok: true } | { ok: false; error: string };
@@ -83,7 +84,7 @@ export async function applyChatProposal(messageId: string): Promise<ApplyResult>
               notes: ex.notes ?? null,
             })),
           })),
-        });
+        }, "ai");
         break;
       }
       case "substitution": {
@@ -133,17 +134,15 @@ export async function applyChatProposal(messageId: string): Promise<ApplyResult>
           )
           .min(1)
           .parse(proposal.sets);
-        const session = await prisma.workoutSession.findFirst({
-          where: { id: proposal.sessionId, userId: user.id },
-          select: { dayId: true },
-        });
-        const exercise = (await ownsExercise(proposal.exerciseId, user.id))
-          ? await prisma.exercise.findUnique({
-              where: { id: proposal.exerciseId },
-              select: { dayId: true },
-            })
-          : null;
-        if (!session || !exercise || exercise.dayId !== session.dayId) {
+        // Résout le nom à figer et vérifie du même coup que l'exercice fait
+        // bien partie du plan de cette séance.
+        const exerciseName = await loggedExerciseName(
+          prisma,
+          proposal.sessionId,
+          user.id,
+          proposal.exerciseId
+        );
+        if (!exerciseName) {
           await setStatus(messageId, "stale");
           return { ok: false, error: STALE_MESSAGE };
         }
@@ -165,6 +164,7 @@ export async function applyChatProposal(messageId: string): Promise<ApplyResult>
             create: {
               sessionId: proposal.sessionId,
               exerciseId: proposal.exerciseId,
+              exerciseName,
               setIndex: set.setIndex,
               reps: set.reps,
               weightKg: set.weightKg,

@@ -1,6 +1,8 @@
 import {
   Bot,
   ChevronDown,
+  ClipboardList,
+  History,
   Shuffle,
   Timer,
   TrendingUp,
@@ -9,6 +11,10 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getExerciseProgress } from "@/lib/progress";
 import { getActivityStats } from "@/lib/activity";
+import {
+  describeSessionPlan,
+  sessionPlanExercises,
+} from "@/lib/program-versions";
 import HistoryTabs from "@/components/HistoryTabs";
 import ProgressCharts from "@/components/ProgressCharts";
 import ActivityCalendar from "@/components/ActivityCalendar";
@@ -29,12 +35,16 @@ function formatDate(d: Date) {
 export default async function HistoryPage() {
   const user = await requireUser();
   const [sessions, progress, activity] = await Promise.all([
+    // Le jour n'est chargé qu'en repli : ce qui est affiché vient du plan figé
+    // de la séance (`planSnapshot`). C'est toute la différence — modifier un
+    // programme ne réécrit plus les séances déjà enregistrées.
     prisma.workoutSession.findMany({
       where: { userId: user.id, completedAt: { not: null } },
       orderBy: { completedAt: "desc" },
       take: 50,
       include: {
         setLogs: { orderBy: { setIndex: "asc" } },
+        programVersion: { select: { versionNumber: true } },
         day: {
           include: {
             program: true,
@@ -60,7 +70,27 @@ export default async function HistoryPage() {
       )}
 
       {sessions.map((session) => {
+        const plan = describeSessionPlan(session);
+        const planExercises = sessionPlanExercises(session);
         const doneLogs = session.setLogs.filter((l) => l.done);
+        // Une série peut porter sur un exercice absent du plan figé (retiré du
+        // programme pendant la séance). Elle reste affichée, sous le nom
+        // qu'elle a conservé — c'est à cela que sert `exerciseName`.
+        const planIds = new Set(planExercises.map((e) => e.id));
+        const loggedExercises = [
+          ...planExercises.map((e) => ({
+            id: e.id,
+            name: e.name,
+            sets: e.sets,
+          })),
+          ...session.setLogs
+            .filter((l) => !planIds.has(l.exerciseId))
+            .filter(
+              (l, i, all) =>
+                all.findIndex((o) => o.exerciseId === l.exerciseId) === i
+            )
+            .map((l) => ({ id: l.exerciseId, name: l.exerciseName, sets: 0 })),
+        ];
         const volume = doneLogs.reduce(
           (acc, l) => acc + (l.weightKg ?? 0) * (l.reps ?? 0),
           0
@@ -83,7 +113,7 @@ export default async function HistoryPage() {
                     {session.completedAt ? formatDate(session.completedAt) : ""}
                   </p>
                   <p className="mt-1 truncate text-[15px] font-bold">
-                    {session.day.program.name} — {session.day.name}
+                    {plan.programName} — {plan.dayName}
                   </p>
                   <p className="mt-0.5 font-mono text-[12.5px] text-muted-2">
                     {[
@@ -95,13 +125,19 @@ export default async function HistoryPage() {
                     ]
                       .filter(Boolean)
                       .join(" · ")}
+                    {session.programVersion && (
+                      <span className="ml-1.5 inline-flex items-baseline gap-1 text-muted">
+                        <History size={11} className="self-center" />v
+                        {session.programVersion.versionNumber}
+                      </span>
+                    )}
                   </p>
                 </div>
                 <ChevronDown size={17} className="shrink-0 text-muted-2" />
               </div>
             </summary>
             <div className="flex flex-col gap-2 border-t border-card-border p-4">
-              {session.day.exercises.flatMap((ex) => {
+              {loggedExercises.flatMap((ex) => {
                 const exLogs = session.setLogs.filter(
                   (l) => l.exerciseId === ex.id
                 );
@@ -155,10 +191,10 @@ export default async function HistoryPage() {
                   série oubliée ou enregistrée en double. */}
               <SessionLogEditor
                 sessionId={session.id}
-                label={`${session.day.program.name} — ${session.day.name}${
+                label={`${plan.programName} — ${plan.dayName}${
                   session.completedAt ? ` · ${formatDate(session.completedAt)}` : ""
                 }`}
-                exercises={session.day.exercises.map((ex) => {
+                exercises={loggedExercises.map((ex) => {
                   const exLogs = session.setLogs.filter(
                     (l) => l.exerciseId === ex.id
                   );
@@ -184,6 +220,37 @@ export default async function HistoryPage() {
                   };
                 })}
               />
+
+              {/* Le plan tel qu'il était ce jour-là, exercices non joués
+                  compris : c'est la mémoire de la séance, indépendante de ce
+                  qu'est devenu le programme depuis. */}
+              {planExercises.length > 0 && (
+                <details className="mt-1 rounded-[14px] bg-surface-2 p-3">
+                  <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-extrabold text-muted-2">
+                    <ClipboardList size={13} /> Plan prescrit ce jour-là
+                    {session.programVersion && (
+                      <span className="font-mono font-normal text-muted">
+                        v{session.programVersion.versionNumber}
+                      </span>
+                    )}
+                  </summary>
+                  <ul className="mt-2 flex flex-col gap-1">
+                    {planExercises.map((ex) => (
+                      <li
+                        key={ex.id}
+                        className="flex items-baseline justify-between gap-3 text-xs"
+                      >
+                        <span className="min-w-0 truncate text-muted-2">
+                          {ex.name}
+                        </span>
+                        <span className="shrink-0 font-mono text-muted">
+                          {ex.sets} × {ex.reps} · {ex.restSeconds} s
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
 
               {session.aiFeedback && (
                 <div className="mt-1 rounded-[14px] bg-surface-2 p-3">

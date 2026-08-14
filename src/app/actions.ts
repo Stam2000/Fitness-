@@ -1,7 +1,18 @@
 "use server";
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { programDraftSchema, type ProgramDraft } from "@/lib/program-schema";
+import {
+  buildProgramSnapshot,
+  buildSessionPlan,
+  diffSnapshots,
+  latestVersionId,
+  parseProgramSnapshot,
+  recordProgramVersion,
+  summarizeDiff,
+  type VersionSource,
+} from "@/lib/program-versions";
 import {
   ensureMuscleCombosExist,
   ensureMusclesExist,
@@ -294,6 +305,7 @@ export async function saveProgram(
   });
   await ensureMusclesExist(draftMuscleNames(parsed));
   await ensureMuscleCombosExist(draftMuscleSets(parsed));
+  await recordProgramVersion(program.id, "creation", "Programme généré");
   revalidatePath("/");
   return program.id;
 }
@@ -332,6 +344,11 @@ export async function saveNextBlock(
   });
   await ensureMusclesExist(draftMuscleNames(parsed));
   await ensureMuscleCombosExist(draftMuscleSets(parsed));
+  await recordProgramVersion(
+    program.id,
+    "creation",
+    `Bloc ${prev.blockNumber + 1}`
+  );
   revalidatePath("/");
   revalidatePath(`/programs/${previousProgramId}`);
   return program.id;
@@ -363,12 +380,21 @@ export type ProgramUpdatePayload = {
   }[];
 };
 
-// Met à jour un programme en conservant les ids existants (et donc
-// l'historique de séances) quand c'est possible.
-export async function updateProgram(programId: string, payload: ProgramUpdatePayload) {
+// Met à jour un programme en conservant les ids existants quand c'est
+// possible. Les séries déjà enregistrées ne dépendent plus de ces lignes
+// (elles portent leur propre nom d'exercice et chaque séance garde son plan
+// figé) : retirer un exercice n'efface donc plus son historique, il disparaît
+// seulement des séances à venir.
+export async function updateProgram(
+  programId: string,
+  payload: ProgramUpdatePayload,
+  source: VersionSource = "edit"
+) {
   const user = await requireActionUser();
   await assertOwnsProgram(programId, user.id);
   const knownMuscles = await getKnownMuscles();
+  // Relevé de l'état d'avant : sert à décrire le changement dans la version.
+  const before = await buildProgramSnapshot(prisma, programId);
   await prisma.$transaction(async (tx) => {
     await tx.program.update({
       where: { id: programId },
@@ -441,6 +467,14 @@ export async function updateProgram(programId: string, payload: ProgramUpdatePay
   );
   await ensureMusclesExist(muscleSets.flat());
   await ensureMuscleCombosExist(muscleSets);
+
+  const after = await buildProgramSnapshot(prisma, programId);
+  await recordProgramVersion(
+    programId,
+    source,
+    before && after ? summarizeDiff(diffSnapshots(before, after)) : null
+  );
+
   revalidatePath(`/programs/${programId}`);
   revalidatePath("/");
 }
@@ -516,8 +550,127 @@ export async function duplicateProgram(id: string): Promise<string> {
       },
     },
   });
+  await recordProgramVersion(
+    copy.id,
+    "creation",
+    `Copie de « ${program.name} »`
+  );
   revalidatePath("/");
   return copy.id;
+}
+
+// Réécrit le programme tel qu'il était dans une version antérieure.
+//
+// Les lignes sont recréées avec LEURS IDENTIFIANTS D'ORIGINE : un exercice
+// retiré puis restauré retrouve son id, et donc le lien avec les séries déjà
+// enregistrées sous cet id (suggestions de charge, dernier passage). La
+// restauration est elle-même versionnée, si bien qu'elle n'est jamais un
+// aller sans retour.
+export async function restoreProgramVersion(versionId: string): Promise<void> {
+  const user = await requireActionUser();
+  const version = await prisma.programVersion.findFirst({
+    where: { id: versionId, program: { userId: user.id } },
+    select: { programId: true, versionNumber: true, snapshot: true },
+  });
+  if (!version) throw new Error(NOT_FOUND);
+  const snapshot = parseProgramSnapshot(version.snapshot);
+  if (!snapshot) throw new Error("Version illisible.");
+
+  const programId = version.programId;
+  await prisma.$transaction(async (tx) => {
+    await tx.program.update({
+      where: { id: programId },
+      data: { name: snapshot.name, description: snapshot.description },
+    });
+
+    await tx.programDay.deleteMany({
+      where: { programId, id: { notIn: snapshot.days.map((d) => d.id) } },
+    });
+
+    for (let di = 0; di < snapshot.days.length; di++) {
+      const day = snapshot.days[di];
+      const dayData = { dayIndex: di, name: day.name, focus: day.focus };
+      await tx.programDay.upsert({
+        where: { id: day.id },
+        update: dayData,
+        create: { ...dayData, id: day.id, programId },
+      });
+
+      await tx.exercise.deleteMany({
+        where: { dayId: day.id, id: { notIn: day.exercises.map((e) => e.id) } },
+      });
+
+      for (let ei = 0; ei < day.exercises.length; ei++) {
+        const ex = day.exercises[ei];
+        const exData = {
+          order: ei,
+          name: ex.name,
+          sets: ex.sets,
+          reps: ex.reps,
+          restSeconds: ex.restSeconds,
+          weightHint: ex.weightHint,
+          equipment: ex.equipment,
+          muscles: ex.muscles,
+          targetSeconds: ex.targetSeconds,
+          setSeconds: ex.setSeconds,
+          transitionSeconds: ex.transitionSeconds,
+          notes: ex.notes,
+          imageUrl: ex.imageUrl,
+          videoUrl: ex.videoUrl,
+        };
+        await tx.exercise.upsert({
+          where: { id: ex.id },
+          update: exData,
+          create: { ...exData, id: ex.id, dayId: day.id },
+        });
+
+        await tx.exerciseVariation.deleteMany({
+          where: {
+            exerciseId: ex.id,
+            id: { notIn: ex.variations.map((v) => v.id) },
+          },
+        });
+
+        for (let vi = 0; vi < ex.variations.length; vi++) {
+          const v = ex.variations[vi];
+          const vData = {
+            order: vi,
+            name: v.name,
+            sets: v.sets,
+            reps: v.reps,
+            restSeconds: v.restSeconds,
+            weightHint: v.weightHint,
+            equipment: v.equipment,
+            muscles: v.muscles,
+            targetSeconds: v.targetSeconds,
+            setSeconds: v.setSeconds,
+            notes: v.notes,
+            imageUrl: v.imageUrl,
+            videoUrl: v.videoUrl,
+          };
+          await tx.exerciseVariation.upsert({
+            where: { id: v.id },
+            update: vData,
+            create: { ...vData, id: v.id, exerciseId: ex.id },
+          });
+        }
+      }
+    }
+  });
+
+  const muscleSets = snapshot.days.flatMap((d) =>
+    d.exercises.flatMap((e) => [e.muscles, ...e.variations.map((v) => v.muscles)])
+  );
+  await ensureMusclesExist(muscleSets.flat());
+  await ensureMuscleCombosExist(muscleSets);
+
+  await recordProgramVersion(
+    programId,
+    "restore",
+    `Retour à la version ${version.versionNumber}`
+  );
+  revalidatePath(`/programs/${programId}`);
+  revalidatePath("/");
 }
 
 export async function deleteProgram(id: string) {
@@ -542,11 +695,25 @@ export async function startSession(dayId: string) {
     // N° de passage sur ce jour : pilote la rotation des variantes d'exercices.
     // Compté par utilisateur — un programme partagé par duplication ne doit
     // pas faire avancer le cycle de son auteur.
-    const cycleIndex = await prisma.workoutSession.count({
-      where: { dayId, userId: user.id, completedAt: { not: null } },
-    });
+    const [cycleIndex, plan] = await Promise.all([
+      prisma.workoutSession.count({
+        where: { dayId, userId: user.id, completedAt: { not: null } },
+      }),
+      // Plan figé dès le départ : si le programme est modifié pendant la
+      // séance, ce qui a été prescrit reste consultable. Il est rafraîchi à la
+      // clôture pour tenir compte d'une retouche faite en cours de route.
+      buildSessionPlan(prisma, dayId),
+    ]);
     session = await prisma.workoutSession.create({
-      data: { dayId, cycleIndex, userId: user.id },
+      data: {
+        dayId,
+        cycleIndex,
+        userId: user.id,
+        planSnapshot: (plan ?? undefined) as Prisma.InputJsonValue | undefined,
+        programVersionId: plan?.programId
+          ? await latestVersionId(plan.programId)
+          : null,
+      },
     });
   }
   redirect(`/workout/${session.id}`);
@@ -656,6 +823,11 @@ export async function promoteVariation(variationId: string) {
     });
   });
 
+  await recordProgramVersion(
+    exercise.day.programId,
+    "edit",
+    `Variante promue : ${variation.name}`
+  );
   revalidatePath(`/programs/${exercise.day.programId}`);
   revalidatePath("/");
 }

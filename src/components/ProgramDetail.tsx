@@ -52,6 +52,7 @@ import MusclePreviewSheet, {
   type MuscleComboInfo,
 } from "@/components/MusclePreviewSheet";
 import MovementVideosSheet from "@/components/MovementVideosSheet";
+import ProgramVersions, { type VersionRow } from "@/components/ProgramVersions";
 import { muscleComboKey, normalizeName } from "@/lib/normalize";
 
 type VariationView = {
@@ -135,6 +136,7 @@ export default function ProgramDetail({
   hasOpenrouterKey,
   muscleInfoByName = {},
   muscleComboByKey = {},
+  versions = [],
 }: {
   program: ProgramView;
   locations: { id: string; name: string; icon: string | null }[];
@@ -143,6 +145,8 @@ export default function ProgramDetail({
   muscleInfoByName?: Record<string, MuscleChipInfo>;
   // Combinaisons de muscles indexées par clé canonique (muscleComboKey).
   muscleComboByKey?: Record<string, MuscleComboInfo>;
+  // Historique des modifications du plan, la plus récente en tête.
+  versions?: VersionRow[];
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -1021,6 +1025,12 @@ export default function ProgramDetail({
           )}
         </section>
       ))}
+
+      {versions.length > 0 && (
+        <div className="card px-3.5 py-1">
+          <ProgramVersions programId={program.id} versions={versions} />
+        </div>
+      )}
 
       <div className="flex items-center justify-center gap-2.5">
         <IconButton

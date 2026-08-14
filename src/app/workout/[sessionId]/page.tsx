@@ -39,7 +39,11 @@ export default async function WorkoutPage({
       },
     },
   });
-  if (!session) notFound();
+  // Le lecteur travaille sur le programme vivant : une séance dont le jour a
+  // été supprimé n'est plus jouable. Elle reste lisible dans le suivi, qui
+  // s'appuie sur son plan figé.
+  if (!session?.day) notFound();
+  const day = session.day;
 
   // Dernières séances terminées sur ce jour : sert à retrouver, pour chaque
   // option (base ou variante), la dernière fois où elle a été exécutée.
@@ -57,13 +61,20 @@ export default async function WorkoutPage({
 
   // Noms de tous les mouvements (base + variantes) : sert au repli par nom
   // quand ce jour n'a pas encore d'historique (ex. début d'un nouveau bloc).
-  const optionNames = session.day.exercises.flatMap((ex) => [
+  const optionNames = day.exercises.flatMap((ex) => [
     ex.name,
     ...ex.variations.map((v) => v.name),
   ]);
 
-  const [settings, prefs, historicalMax, lastLogsByName, allMuscles, allCombos] =
-    await Promise.all([
+  const [
+    settings,
+    prefs,
+    historicalMax,
+    lastLogsByName,
+    allMuscles,
+    allCombos,
+    movementVideos,
+  ] = await Promise.all([
       getSettings(),
       getUserPreferences(user.id),
       getHistoricalMaxByName(user.id, session.id),
@@ -80,6 +91,12 @@ export default async function WorkoutPage({
           imageTaskId: true,
         },
       }),
+      // Vidéos de démonstration des mouvements de la séance : seul le compte
+      // est envoyé, la feuille charge le détail à l'ouverture.
+      prisma.movementVideo.findMany({
+        where: { movementKey: { in: optionNames.map(normalizeName) } },
+        select: { movementKey: true },
+      }),
     ]);
 
   // Catalogue Muscle indexé par nom normalisé : le popup de prévisualisation
@@ -92,7 +109,13 @@ export default async function WorkoutPage({
     allCombos.map((c) => [c.key, c])
   );
 
-  const exercises = session.day.exercises.map((ex) => {
+  const videoCountByMovement: Record<string, number> = {};
+  for (const v of movementVideos) {
+    videoCountByMovement[v.movementKey] =
+      (videoCountByMovement[v.movementKey] ?? 0) + 1;
+  }
+
+  const exercises = day.exercises.map((ex) => {
     const options = [
       {
         name: ex.name,
@@ -170,8 +193,8 @@ export default async function WorkoutPage({
   return (
     <WorkoutPlayer
       sessionId={session.id}
-      programName={session.day.program.name}
-      dayName={session.day.name}
+      programName={day.program.name}
+      dayName={day.name}
       completed={Boolean(session.completedAt)}
       exercises={exercises}
       initialLogs={session.setLogs.map((l) => ({
@@ -195,6 +218,7 @@ export default async function WorkoutPage({
       }
       muscleInfoByName={muscleInfoByName}
       muscleComboByKey={muscleComboByKey}
+      videoCountByMovement={videoCountByMovement}
     />
   );
 }

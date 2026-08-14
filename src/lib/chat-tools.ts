@@ -6,6 +6,10 @@ import {
   type EditedProgramDraft,
 } from "@/lib/ai-program-edit";
 import { generateSubstitute, generateVariations } from "@/lib/ai-exercise";
+import {
+  describeSessionPlan,
+  sessionPlanExercises,
+} from "@/lib/program-versions";
 import type { ChatProposal } from "@/lib/chat-shared";
 
 export type { ChatProposal, ChatToolTrace } from "@/lib/chat-shared";
@@ -358,18 +362,19 @@ async function getProgress(
     take: limit,
     include: {
       day: { include: { program: { select: { name: true } } } },
-      setLogs: { where: { done: true }, include: { exercise: true } },
+      setLogs: { where: { done: true } },
     },
   });
 
   const sessionRows = sessions.map((s) => {
+    const plan = describeSessionPlan(s);
     // Regroupe les séries par nom effectif (variante exécutée ou exercice).
     const byName = new Map<
       string,
       { sets: number; topWeightKg: number | null; topReps: number | null }
     >();
     for (const log of s.setLogs) {
-      const name = log.variationName ?? log.exercise.name;
+      const name = log.variationName ?? log.exerciseName;
       const entry = byName.get(name) ?? {
         sets: 0,
         topWeightKg: null,
@@ -386,8 +391,8 @@ async function getProgress(
     }
     return {
       date: s.completedAt!.toISOString().slice(0, 10),
-      program: s.day.program.name,
-      day: s.day.name,
+      program: plan.programName,
+      day: plan.dayName,
       exercises: Object.fromEntries(byName),
       feedback: s.aiFeedback,
     };
@@ -398,10 +403,7 @@ async function getProgress(
     const needle = args.exerciseName.trim().toLowerCase();
     const logs = await prisma.setLog.findMany({
       where: { done: true, session: { userId, completedAt: { not: null } } },
-      include: {
-        exercise: { select: { name: true } },
-        session: { select: { completedAt: true } },
-      },
+      include: { session: { select: { completedAt: true } } },
       orderBy: { session: { completedAt: "asc" } },
     });
     const points = new Map<
@@ -409,7 +411,7 @@ async function getProgress(
       { topWeightKg: number | null; topReps: number | null }
     >();
     for (const log of logs) {
-      const name = log.variationName ?? log.exercise.name;
+      const name = log.variationName ?? log.exerciseName;
       if (!name.toLowerCase().includes(needle)) continue;
       const date = log.session.completedAt!.toISOString().slice(0, 10);
       const key = `${date} — ${name}`;
@@ -436,12 +438,14 @@ async function getProgress(
 function sessionLabel(session: {
   startedAt: Date;
   completedAt: Date | null;
-  day: { name: string; program: { name: string } };
+  planSnapshot: unknown;
+  day?: { name: string; focus: string | null; program: { name: string } } | null;
 }): string {
   const date = (session.completedAt ?? session.startedAt)
     .toISOString()
     .slice(0, 10);
-  return `${session.day.program.name} — ${session.day.name} (${date})`;
+  const plan = describeSessionPlan(session);
+  return `${plan.programName} — ${plan.dayName} (${date})`;
 }
 
 // « 60 kg × 10 », « 10 reps », « passée », « — ».
@@ -516,11 +520,13 @@ async function getSessionLogs(
       summary: "Séance introuvable",
     };
   }
+  // Le plan figé de la séance, pas le programme d'aujourd'hui : l'assistant
+  // doit voir ce qui était prescrit ce jour-là.
   const detail = {
     sessionId: session.id,
     label: sessionLabel(session),
     status: session.completedAt ? "terminée" : "en cours",
-    exercises: session.day.exercises.map((ex) => {
+    exercises: sessionPlanExercises(session).map((ex) => {
       const logs = session.setLogs.filter((l) => l.exerciseId === ex.id);
       const maxIndex = Math.max(ex.sets - 1, ...logs.map((l) => l.setIndex));
       return {
@@ -544,7 +550,7 @@ async function getSessionLogs(
   };
   return {
     result: JSON.stringify(detail),
-    summary: `Séries de « ${session.day.name} » lues`,
+    summary: `Séries de « ${describeSessionPlan(session).dayName} » lues`,
   };
 }
 

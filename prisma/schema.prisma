@@ -228,12 +228,41 @@ model Program {
   nextProgram       Program?           @relation("ProgramBlocks")
   // Archivé automatiquement quand son successeur est enregistré.
   archivedAt        DateTime?
+  versions          ProgramVersion[]
   chats             ChatConversation[]
   // Propriétaire — voir la note sur Location.userId.
   userId            String?
   user              User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// État figé d'un programme à un instant donné. Une version est écrite après
+// chaque modification du plan (édition manuelle, retouche par l'IA, promotion
+// d'une variante, restauration) — et seulement si le plan a réellement changé,
+// pour qu'un enregistrement sans modification ne pollue pas la liste.
+//
+// C'est un enregistrement de CONSULTATION : les séances gardent leur propre
+// copie du jour travaillé (WorkoutSession.planSnapshot), si bien que supprimer
+// un programme et ses versions ne retire rien à l'historique.
+model ProgramVersion {
+  id            String   @id @default(cuid())
+  programId     String
+  program       Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  // N° affiché, croissant à partir de 1 (version de création).
+  versionNumber Int
+  // « creation » | « edit » | « ai » | « restore » — origine du changement.
+  source        String   @default("edit")
+  // Libellé court de ce qui a changé, écrit par l'appelant.
+  note          String?
+  // Plan complet figé — voir ProgramSnapshot dans src/lib/program-versions.ts.
+  snapshot      Json
+  createdAt     DateTime @default(now())
+
+  sessions WorkoutSession[]
+
+  @@unique([programId, versionNumber])
+  @@index([programId, createdAt])
 }
 
 // Conversation du panneau d'assistant IA. programId = programme sur lequel la
@@ -312,7 +341,6 @@ model Exercise {
   videoUrl          String?
   videoTaskId       String?
   videoPrompt       String?
-  setLogs           SetLog[]
   variations        ExerciseVariation[]
 }
 
@@ -344,35 +372,54 @@ model ExerciseVariation {
   videoPrompt   String?
 }
 
+// Séance réalisée. C'est un JOURNAL : une fois écrite, elle ne doit plus
+// dépendre du programme vivant, sans quoi modifier son plan réécrirait le
+// passé. D'où `planSnapshot` (ce qui était prescrit ce jour-là) et le lien
+// `day` volontairement facultatif — supprimer un jour, voire le programme
+// entier, détache la séance au lieu de l'effacer.
 model WorkoutSession {
-  id               String     @id @default(cuid())
-  dayId            String
-  day              ProgramDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  startedAt        DateTime   @default(now())
+  id               String          @id @default(cuid())
+  dayId            String?
+  day              ProgramDay?     @relation(fields: [dayId], references: [id], onDelete: SetNull)
+  // Plan du jour tel que prescrit, écrit au démarrage puis rafraîchi à la
+  // clôture (une retouche en cours de séance est donc prise en compte).
+  // Forme : SessionPlan dans src/lib/program-versions.ts. null pour les
+  // séances antérieures à la migration dont le jour a disparu depuis.
+  planSnapshot     Json?
+  // Version du programme en vigueur à la clôture, pour l'étiquette « Plan v3 ».
+  programVersionId String?
+  programVersion   ProgramVersion? @relation(fields: [programVersionId], references: [id], onDelete: SetNull)
+  startedAt        DateTime        @default(now())
   completedAt      DateTime?
   notes            String?
   aiFeedback       String?
   setLogs          SetLog[]
   // N° de passage sur ce jour, figé au démarrage de la séance.
-  cycleIndex       Int        @default(0)
+  cycleIndex       Int             @default(0)
   // Overrides manuels de variante : { [exerciseId]: index choisi }.
-  variationChoices Json       @default("{}")
+  variationChoices Json            @default("{}")
   // Temps passé par exercice (secondes) : { [exerciseId]: secondes }.
-  exerciseSeconds  Json       @default("{}")
+  exerciseSeconds  Json            @default("{}")
   // Propriétaire — voir la note sur Location.userId. Dénormalisé depuis
   // day.program.userId pour filtrer l'historique sans jointure.
   userId           String?
-  user             User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
+// Série enregistrée. `exerciseId` est un identifiant de journal, pas une clé
+// étrangère : la ligne Exercise correspondante peut être modifiée ou retirée
+// du programme sans que la série disparaisse ni change de sens. C'est
+// `exerciseName` (figé à l'écriture) qui fait foi pour l'historique et les
+// courbes — renommer un exercice ne réattribue plus les séries passées.
 model SetLog {
   id            String         @id @default(cuid())
   sessionId     String
   session       WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   exerciseId    String
-  exercise      Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  // Nom de l'exercice prescrit au moment de la série.
+  exerciseName  String
   setIndex      Int
   reps          Int?
   weightKg      Float?
@@ -381,6 +428,7 @@ model SetLog {
   variationName String?
 
   @@unique([sessionId, exerciseId, setIndex])
+  @@index([exerciseName])
 }
 
 // Vidéo YouTube de démonstration téléchargée pour un mouvement. Rattachée par

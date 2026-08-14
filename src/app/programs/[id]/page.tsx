@@ -15,8 +15,15 @@ export default async function ProgramPage({
 }) {
   const { id } = await params;
   const user = await requireUser();
-  const [program, locations, settings, completedCycles, allMuscles, allCombos] =
-    await Promise.all([
+  const [
+    program,
+    locations,
+    settings,
+    completedCycles,
+    allMuscles,
+    allCombos,
+    versions,
+  ] = await Promise.all([
     // findFirst + userId : le programme d'un autre compte est un 404.
     prisma.program.findFirst({
       where: { id, userId: user.id },
@@ -52,6 +59,19 @@ export default async function ProgramPage({
         imageTaskId: true,
       },
     }),
+    // Les snapshots eux-mêmes ne sont pas envoyés avec la page : le panneau
+    // charge le détail d'une version à la demande.
+    prisma.programVersion.findMany({
+      where: { programId: id, program: { userId: user.id } },
+      orderBy: { versionNumber: "desc" },
+      select: {
+        id: true,
+        versionNumber: true,
+        source: true,
+        note: true,
+        createdAt: true,
+      },
+    }),
   ]);
   if (!program) notFound();
 
@@ -67,6 +87,13 @@ export default async function ProgramPage({
         allMuscles.map((m) => [normalizeName(m.name), m])
       )}
       muscleComboByKey={Object.fromEntries(allCombos.map((c) => [c.key, c]))}
+      versions={versions.map((v) => ({
+        id: v.id,
+        versionNumber: v.versionNumber,
+        source: v.source,
+        note: v.note,
+        createdAt: v.createdAt.toISOString(),
+      }))}
       program={{
         id: program.id,
         name: program.name,

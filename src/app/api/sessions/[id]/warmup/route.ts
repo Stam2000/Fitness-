@@ -57,18 +57,20 @@ export async function POST(
       },
     },
   });
-  if (!session) {
+  // Sans jour vivant (programme supprimé), il n'y a plus de séance à préparer.
+  if (!session?.day) {
     return NextResponse.json({ error: "Séance introuvable" }, { status: 404 });
   }
+  const day = session.day;
 
   // L'échauffement cible les mouvements réellement joués cette séance
   // (variante active plutôt que l'exercice de base le cas échéant).
-  const plannedNames = session.day.exercises.map((ex) => {
+  const plannedNames = day.exercises.map((ex) => {
     const idx = activeVariationIndex(session, ex);
     return idx === 0 ? ex.name : ex.variations[idx - 1].name;
   });
 
-  const prompt = `Séance à venir : « ${session.day.name} »${session.day.focus ? ` (${session.day.focus})` : ""}.
+  const prompt = `Séance à venir : « ${day.name} »${day.focus ? ` (${day.focus})` : ""}.
 Exercices prévus : ${plannedNames.join(", ")}.
 
 Propose un échauffement ciblé d'environ 5 minutes, sans matériel, préparant spécifiquement les muscles et articulations sollicités. Réponds UNIQUEMENT avec un objet JSON :

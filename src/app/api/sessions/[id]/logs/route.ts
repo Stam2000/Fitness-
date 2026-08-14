@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireApiUser } from "@/lib/session";
-import { ownsExercise } from "@/lib/ownership";
+import { loggedExerciseName } from "@/lib/program-versions";
 
 const logSchema = z.object({
   exerciseId: z.string(),
@@ -28,16 +28,11 @@ export async function POST(
   const { exerciseId, setIndex, reps, weightKg, done, variationName } =
     body.data;
 
-  // L'exercice arrive du corps de la requête : il doit appartenir au compte,
-  // sinon on écrirait une série sur l'exercice de quelqu'un d'autre.
-  const [session, exerciseOwned] = await Promise.all([
-    prisma.workoutSession.findFirst({
-      where: { id, userId: user.id },
-      select: { id: true },
-    }),
-    ownsExercise(exerciseId, user.id),
-  ]);
-  if (!session || !exerciseOwned) {
+  // L'exercice arrive du corps de la requête : il doit faire partie du plan de
+  // cette séance, sinon on écrirait une série sur l'exercice de quelqu'un
+  // d'autre. La résolution du nom sert aussi de contrôle de propriété.
+  const exerciseName = await loggedExerciseName(prisma, id, user.id, exerciseId);
+  if (!exerciseName) {
     return NextResponse.json({ error: "Séance introuvable" }, { status: 404 });
   }
 
@@ -45,10 +40,13 @@ export async function POST(
     where: {
       sessionId_exerciseId_setIndex: { sessionId: id, exerciseId, setIndex },
     },
+    // `exerciseName` n'est pas réécrit : une correction saisie des mois plus
+    // tard ne doit pas rebaptiser la série avec le nom d'aujourd'hui.
     update: { reps, weightKg, done, variationName: variationName ?? null },
     create: {
       sessionId: id,
       exerciseId,
+      exerciseName,
       setIndex,
       reps,
       weightKg,

@@ -35,12 +35,12 @@ export async function getKnownExercises(
     }),
     prisma.setLog.findMany({
       where: { done: true, session: { userId } },
-      select: { variationName: true, exercise: { select: { name: true } } },
+      select: { variationName: true, exerciseName: true },
     }),
   ]);
 
   const practiced = new Set(
-    logs.map((l) => normalizeName(l.variationName ?? l.exercise.name))
+    logs.map((l) => normalizeName(l.variationName ?? l.exerciseName))
   );
 
   type Entry = Omit<KnownExercise, "ref"> & { count: number };
