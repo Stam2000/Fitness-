@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Beef,
+  Camera,
   ChevronRight,
   Loader2,
   Pencil,
@@ -474,6 +475,20 @@ export default function NutritionGoals({
       {/* Le tableau des sources de protéines se règle sur la cible ci-dessus :
           il n'a de sens qu'à côté d'elle, d'où l'entrée depuis cette carte
           plutôt qu'un onglet de plus dans une barre déjà chargée. */}
+      {/* La cible ci-dessus n'a de valeur que confrontée à ce qui est
+          réellement mangé : le journal des repas se range donc ici, comme le
+          tableau des sources, plutôt que dans une barre déjà chargée. */}
+      {!editing && (
+        <Link
+          href="/body/meals"
+          className="flex items-center gap-1.5 border-t border-border pt-3 text-[13px] font-semibold text-muted-2 hover:text-ink"
+        >
+          <Camera size={14} className="shrink-0" />
+          <span className="min-w-0 flex-1">Repas du jour et calories</span>
+          <ChevronRight size={15} className="shrink-0" />
+        </Link>
+      )}
+
       {!editing && (
         <Link
           href="/body/foods"

@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { mkdir, unlink, writeFile } from "fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 
 // Répertoire persistant des médias rapatriés (les URLs Kie.ai expirent au
@@ -75,6 +75,30 @@ export async function persistMediaBuffer(
   await mkdir(MEDIA_DIR, { recursive: true });
   await writeFile(path.join(MEDIA_DIR, name), buffer);
   return `/api/media/${name}`;
+}
+
+// Relit un fichier local pour le renvoyer à un modèle multimodal (analyse
+// d'une photo de repas). /api/media est protégé par la session : le modèle ne
+// peut pas suivre l'URL, l'image doit repartir en base64 dans la requête.
+// null si l'URL n'est pas locale, si le nom est suspect ou si le fichier a
+// disparu — l'appelant en fait un message clair.
+export async function readLocalMedia(
+  localUrl: string
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+  if (!localUrl.startsWith("/api/media/")) return null;
+  const fileName = localUrl.slice("/api/media/".length);
+  const filePath = mediaFilePath(fileName);
+  if (!filePath) return null;
+  try {
+    const buffer = await readFile(filePath);
+    const ext = path.extname(fileName).toLowerCase();
+    return {
+      buffer,
+      contentType: TYPE_BY_EXT[ext] ?? "application/octet-stream",
+    };
+  } catch {
+    return null;
+  }
 }
 
 // Supprime le fichier d'une URL locale « /api/media/<fichier> », en douceur

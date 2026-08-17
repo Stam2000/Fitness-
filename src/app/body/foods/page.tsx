@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, UtensilsCrossed } from "lucide-react";
+import { Camera, ChevronLeft, ChevronRight, UtensilsCrossed } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import FoodTable from "@/components/FoodTable";
@@ -69,6 +69,18 @@ export default async function FoodsPage() {
       </section>
 
       <FoodTable mealProteinG={mealProteinG} />
+
+      {/* Ce tableau dit quoi manger ; le journal dit ce qui a été mangé. */}
+      <Link
+        href="/body/meals"
+        className="card flex items-center gap-2 p-4 text-[13px] font-semibold text-muted-2 hover:text-ink"
+      >
+        <Camera size={15} className="shrink-0 text-accent" />
+        <span className="min-w-0 flex-1">
+          Photographier un repas et compter les calories
+        </span>
+        <ChevronRight size={15} className="shrink-0" />
+      </Link>
     </main>
   );
 }

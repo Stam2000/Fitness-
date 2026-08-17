@@ -10,91 +10,120 @@ import {
 import { prisma } from "@/lib/prisma";
 import { startSession } from "@/app/actions";
 import { requireUser } from "@/lib/session";
+import { getSettings } from "@/lib/settings";
 import { btn } from "@/components/ui/button";
 import MediaThumb from "@/components/ui/MediaThumb";
+import MealQuickCapture from "@/components/meals/MealQuickCapture";
+import {
+  dayRange,
+  dayTotals,
+  openQuestions,
+  toIsoDay,
+  toMealView,
+} from "@/lib/meals";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const user = await requireUser();
-  const [locations, orphanPrograms, activeSession] = await Promise.all([
-    prisma.location.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "asc" },
-      include: {
-        programs: {
-          // Les blocs archivés (remplacés par leur suite) n'encombrent pas
-          // l'accueil ; ils restent accessibles depuis leur successeur.
-          where: { archivedAt: null },
-          orderBy: { createdAt: "desc" },
-          include: {
-            days: {
-              orderBy: { dayIndex: "asc" },
-              include: {
-                _count: {
-                  select: {
-                    exercises: true,
-                    sessions: {
-                      where: { userId: user.id, completedAt: { not: null } },
+  const todayKey = toIsoDay(new Date());
+  const today = dayRange(todayKey);
+  const [locations, orphanPrograms, activeSession, todayMeals, goal, settings] =
+    await Promise.all([
+      prisma.location.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: "asc" },
+        include: {
+          programs: {
+            // Les blocs archivés (remplacés par leur suite) n'encombrent pas
+            // l'accueil ; ils restent accessibles depuis leur successeur.
+            where: { archivedAt: null },
+            orderBy: { createdAt: "desc" },
+            include: {
+              days: {
+                orderBy: { dayIndex: "asc" },
+                include: {
+                  _count: {
+                    select: {
+                      exercises: true,
+                      sessions: {
+                        where: { userId: user.id, completedAt: { not: null } },
+                      },
                     },
                   },
+                  exercises: {
+                    where: { imageUrl: { not: null } },
+                    orderBy: { order: "asc" },
+                    select: { imageUrl: true },
+                    take: 2,
+                  },
                 },
-                exercises: {
-                  where: { imageUrl: { not: null } },
-                  orderBy: { order: "asc" },
-                  select: { imageUrl: true },
-                  take: 2,
+              },
+            },
+          },
+        },
+      }),
+      prisma.program.findMany({
+        where: { locationId: null, archivedAt: null, userId: user.id },
+        orderBy: { createdAt: "desc" },
+        include: {
+          days: {
+            orderBy: { dayIndex: "asc" },
+            include: {
+              _count: {
+                select: {
+                  exercises: true,
+                  sessions: {
+                    where: { userId: user.id, completedAt: { not: null } },
+                  },
                 },
+              },
+              exercises: {
+                where: { imageUrl: { not: null } },
+                orderBy: { order: "asc" },
+                select: { imageUrl: true },
+                take: 2,
               },
             },
           },
         },
-      },
-    }),
-    prisma.program.findMany({
-      where: { locationId: null, archivedAt: null, userId: user.id },
-      orderBy: { createdAt: "desc" },
-      include: {
-        days: {
-          orderBy: { dayIndex: "asc" },
-          include: {
-            _count: {
-              select: {
-                exercises: true,
-                sessions: {
-                  where: { userId: user.id, completedAt: { not: null } },
-                },
+      }),
+      prisma.workoutSession.findFirst({
+        // Une séance dont le jour a disparu (programme supprimé entre-temps)
+        // reste dans l'historique mais ne se reprend plus.
+        where: { userId: user.id, completedAt: null, dayId: { not: null } },
+        orderBy: { startedAt: "desc" },
+        include: {
+          day: {
+            include: {
+              program: true,
+              exercises: {
+                orderBy: { order: "asc" },
+                select: { sets: true, imageUrl: true },
               },
             },
-            exercises: {
-              where: { imageUrl: { not: null } },
-              orderBy: { order: "asc" },
-              select: { imageUrl: true },
-              take: 2,
-            },
           },
+          setLogs: { where: { done: true }, select: { id: true } },
         },
-      },
-    }),
-    prisma.workoutSession.findFirst({
-      // Une séance dont le jour a disparu (programme supprimé entre-temps)
-      // reste dans l'historique mais ne se reprend plus.
-      where: { userId: user.id, completedAt: null, dayId: { not: null } },
-      orderBy: { startedAt: "desc" },
-      include: {
-        day: {
-          include: {
-            program: true,
-            exercises: {
-              orderBy: { order: "asc" },
-              select: { sets: true, imageUrl: true },
-            },
-          },
+      }),
+      prisma.meal.findMany({
+        where: {
+          userId: user.id,
+          eatenAt: { gte: today.start, lt: today.end },
         },
-        setLogs: { where: { done: true }, select: { id: true } },
-      },
-    }),
-  ]);
+        orderBy: { eatenAt: "asc" },
+        include: { items: { orderBy: { order: "asc" } } },
+      }),
+      prisma.nutritionGoal.findUnique({ where: { userId: user.id } }),
+      getSettings(),
+    ]);
+
+  const mealViews = todayMeals.map(toMealView);
+  const mealTotalsToday = dayTotals(mealViews);
+  const openQuestionCount = mealViews.reduce(
+    (n, m) => n + openQuestions(m.items).length,
+    0
+  );
 
   const groups = [
     ...locations
@@ -161,6 +190,18 @@ export default async function HomePage() {
           </div>
         </Link>
       )}
+
+      {/* Suivi calorique : la fonctionnalité la plus fréquente de la journée,
+          donc à portée d'un seul appui depuis l'accueil. */}
+      <MealQuickCapture
+        dayKey={todayKey}
+        totals={mealTotalsToday}
+        targetKcal={goal?.dailyCalories ?? null}
+        targetProteinG={goal?.dailyProteinG ?? null}
+        mealCount={mealViews.length}
+        pendingCount={openQuestionCount}
+        hasAiKey={Boolean(settings.openrouterApiKey)}
+      />
 
       {!hasPrograms && (
         <div className="card p-6 text-center">

@@ -21,6 +21,7 @@ import {
   resolveMuscleNames,
 } from "@/lib/known-muscles";
 import { deleteLocalMedia } from "@/lib/media-store";
+import { scaleItemBy, scaleItemToGrams } from "@/lib/meals";
 import { findActivity, findObjective } from "@/lib/nutrition";
 import { requireActionAdmin, requireActionUser } from "@/lib/session";
 import {
@@ -125,6 +126,7 @@ export async function saveSettings(data: {
   voiceInput?: boolean;
   voiceAnnounce?: boolean;
   voiceModel?: string;
+  visionModel?: string;
 }) {
   const user = await requireActionUser();
 
@@ -153,6 +155,7 @@ export async function saveSettings(data: {
   }
   if (data.openrouterModel) update.openrouterModel = data.openrouterModel;
   if (data.voiceModel) update.voiceModel = data.voiceModel.trim();
+  if (data.visionModel) update.visionModel = data.visionModel.trim();
 
   if (Object.keys(update).length > 0) {
     if (!user.isAdmin) {
@@ -945,12 +948,113 @@ export async function deleteProgressPhoto(id: string) {
   });
   if (!photo) return;
   await prisma.progressPhoto.delete({ where: { id: photo.id } });
-  // Comptage volontairement NON filtré par utilisateur : le nom de fichier
-  // dérive du contenu, deux comptes qui téléversent la même photo partagent
-  // le même fichier. On ne l'efface que s'il n'est plus référencé nulle part.
-  const stillUsed = await prisma.progressPhoto.count({
-    where: { imageUrl: photo.imageUrl },
-  });
-  if (stillUsed === 0) await deleteLocalMedia(photo.imageUrl);
+  if (await isMediaUnused(photo.imageUrl)) {
+    await deleteLocalMedia(photo.imageUrl);
+  }
   revalidatePath("/body");
+}
+
+// Le nom de fichier dérive du contenu : deux comptes qui téléversent la même
+// image partagent le même fichier, et depuis l'arrivée du journal des repas
+// deux TABLES le partagent aussi. Le comptage est donc volontairement non
+// filtré par utilisateur, et porte sur les deux tables — effacer une photo de
+// suivi ne doit pas crever l'image d'un repas, ni l'inverse.
+async function isMediaUnused(imageUrl: string): Promise<boolean> {
+  const [photos, meals] = await Promise.all([
+    prisma.progressPhoto.count({ where: { imageUrl } }),
+    prisma.meal.count({ where: { imageUrl } }),
+  ]);
+  return photos + meals === 0;
+}
+
+// ---------- Repas ----------
+
+/**
+ * Retient ou écarte une ligne de repas — la seule écriture faite après
+ * l'analyse, puisque le total se recalcule à la lecture.
+ *
+ * `answeredAt` date la décision : pour une hypothèse, il distingue un « non »
+ * d'une question encore sans réponse, que l'écran n'affiche pas pareil (dans
+ * le second cas le total est un minimum, pas un résultat).
+ */
+export async function setMealItemIncluded(itemId: string, included: boolean) {
+  const user = await requireActionUser();
+  // updateMany + filtre propriétaire traversant la relation : viser la ligne
+  // d'un autre compte ne modifie rien.
+  await prisma.mealItem.updateMany({
+    where: { id: itemId, meal: { userId: user.id } },
+    data: { included, answeredAt: new Date() },
+  });
+  revalidatePath("/body/meals");
+  revalidatePath("/");
+}
+
+/**
+ * Corrige la portion d'une ligne et recalcule ses apports au prorata. Une
+ * portion mal estimée est la première source d'erreur d'une analyse photo :
+ * doubler les grammes doit doubler les calories.
+ *
+ * `factor` sert aux lignes dont le modèle n'a pas su chiffrer la masse
+ * (« 1 bol ») : l'écran propose alors ×0,5 / ×2 plutôt que des grammes.
+ */
+export async function setMealItemPortion(
+  itemId: string,
+  change: { grams: number } | { factor: number }
+) {
+  const user = await requireActionUser();
+  const item = await prisma.mealItem.findFirst({
+    where: { id: itemId, meal: { userId: user.id } },
+  });
+  if (!item) return;
+
+  const current = {
+    kcal: item.kcal,
+    proteinG: item.proteinG,
+    carbsG: item.carbsG,
+    fatG: item.fatG,
+    grams: item.grams,
+  };
+  const next =
+    "grams" in change
+      ? scaleItemToGrams(current, change.grams)
+      : scaleItemBy(current, change.factor);
+
+  await prisma.mealItem.update({
+    where: { id: item.id },
+    data: {
+      kcal: next.kcal,
+      proteinG: next.proteinG,
+      carbsG: next.carbsG,
+      fatG: next.fatG,
+      grams: next.grams,
+      // Le libellé du modèle (« 1 filet ») ne décrit plus la portion retenue.
+      quantityLabel: next.grams ? `${next.grams} g` : item.quantityLabel,
+    },
+  });
+  revalidatePath("/body/meals");
+  revalidatePath("/");
+}
+
+/** Précisions ajoutées après coup ; la relance d'analyse les reprendra. */
+export async function updateMealNote(mealId: string, note: string) {
+  const user = await requireActionUser();
+  const trimmed = note.trim().slice(0, 500);
+  await prisma.meal.updateMany({
+    where: { id: mealId, userId: user.id },
+    data: { note: trimmed || null },
+  });
+  revalidatePath("/body/meals");
+}
+
+/** Supprime un repas, ses lignes (cascade) et sa photo si plus rien ne l'utilise. */
+export async function deleteMeal(id: string) {
+  const user = await requireActionUser();
+  const meal = await prisma.meal.findFirst({ where: { id, userId: user.id } });
+  if (!meal) return;
+  await prisma.meal.delete({ where: { id: meal.id } });
+  if (meal.imageUrl && (await isMediaUnused(meal.imageUrl))) {
+    await deleteLocalMedia(meal.imageUrl);
+  }
+  revalidatePath("/body/meals");
+  revalidatePath("/");
 }

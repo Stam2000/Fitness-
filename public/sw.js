@@ -10,7 +10,7 @@
  *
  * Incrémenter VERSION invalide tous les caches au prochain déploiement.
  */
-const VERSION = "v1";
+const VERSION = "v2";
 const RUNTIME = `runtime-${VERSION}`;
 const MEDIA = `media-${VERSION}`;
 const STATIC = `static-${VERSION}`;

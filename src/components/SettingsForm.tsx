@@ -30,6 +30,7 @@ export default function SettingsForm({
     voiceInput: boolean;
     voiceAnnounce: boolean;
     voiceModel: string;
+    visionModel: string;
   };
 }) {
   const [openrouterKey, setOpenrouterKey] = useState("");
@@ -38,6 +39,7 @@ export default function SettingsForm({
   const [voiceInput, setVoiceInput] = useState(initial.voiceInput);
   const [voiceAnnounce, setVoiceAnnounce] = useState(initial.voiceAnnounce);
   const [voiceModel, setVoiceModel] = useState(initial.voiceModel);
+  const [visionModel, setVisionModel] = useState(initial.visionModel);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -55,6 +57,7 @@ export default function SettingsForm({
               kieApiKey: kieKey,
               openrouterModel: model.trim(),
               voiceModel: voiceModel.trim(),
+              visionModel: visionModel.trim(),
             }
           : {}),
       });
@@ -178,6 +181,20 @@ export default function SettingsForm({
           <ModelPicker
             value={voiceModel}
             onChange={setVoiceModel}
+            initialPinned={initial.pinnedModels}
+          />
+        </div>
+        ) : null}
+        {isAdmin ? (
+        <div className="mt-3 border-t border-card-border pt-3">
+          <p className="text-sm font-bold">Modèle photo (analyse des repas)</p>
+          <p className="mb-2 mt-1 text-xs text-muted-2">
+            Lit les photos de repas et estime les calories : choisis un modèle
+            qui accepte les images (ex. Gemini Flash, GPT-4o).
+          </p>
+          <ModelPicker
+            value={visionModel}
+            onChange={setVisionModel}
             initialPinned={initial.pinnedModels}
           />
         </div>

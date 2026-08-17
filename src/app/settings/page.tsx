@@ -54,6 +54,7 @@ export default async function SettingsPage() {
           voiceInput: prefs.voiceInput,
           voiceAnnounce: prefs.voiceAnnounce,
           voiceModel: s.voiceModel,
+          visionModel: s.visionModel,
         }}
       />
     </main>

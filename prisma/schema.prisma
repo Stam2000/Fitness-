@@ -42,6 +42,7 @@ model User {
   chatConversations ChatConversation[]
   settings          UserSettings?
   nutritionGoal     NutritionGoal?
+  meals             Meal[]
   invitesCreated    InviteCode[]
 
   @@unique([email])
@@ -146,6 +147,87 @@ model NutritionGoal {
   dailyProteinG  Int?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+// Repas photographié puis estimé par le modèle multimodal. Là où
+// NutritionGoal porte l'intention (les cibles), Meal porte la mesure : ce qui
+// a réellement été mangé. La photo est conservée telle quelle — c'est la
+// seule pièce vérifiable si l'estimation paraît fausse plus tard.
+model Meal {
+  id        String     @id @default(cuid())
+  eatenAt   DateTime   @default(now())
+  imageUrl  String?
+  // Précisions saisies (ou dictées) par l'utilisateur avant l'analyse :
+  // ce que la photo ne peut pas montrer (« cuit à l'huile d'olive »).
+  note      String?
+  // Nom court donné au repas par le modèle (« Poulet riz brocolis »).
+  title     String?
+  // « pending » | « ready » | « failed ». La photo est téléversée puis
+  // analysée en DEUX requêtes : une estimation prend cinq à quinze secondes,
+  // trop pour tenir une connexion mobile ouverte. La ligne existe donc dès
+  // l'envoi, et un échec laisse un repas relançable plutôt qu'un cliché
+  // envolé.
+  status    String     @default("pending")
+  // Message d'échec, affiché tel quel à côté du bouton « Relancer ».
+  error     String?
+  // Modèle ayant produit l'estimation — utile quand on en change.
+  model     String?
+  // Phrase du modèle sur ce qui rend son estimation incertaine.
+  comment   String?
+  items     MealItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, eatenAt])
+}
+
+// Composant d'un repas. Les totaux ne sont volontairement PAS stockés sur
+// Meal : ils se déduisent des lignes incluses (mealTotals dans
+// src/lib/meals.ts), ce qui rend impossible toute dérive entre le total
+// affiché et le détail qui le justifie.
+// Ligne d'un repas. Deux natures cohabitent, distinguées par `kind` :
+// « detected »   — vu dans l'assiette, retenu par défaut ;
+// « hypothesis » — ce que la photo NE PEUT PAS montrer (huile de cuisson,
+//                  sauce, sucre…), d'où `question` : une question fermée,
+//                  écartée du total tant qu'elle n'a pas reçu de réponse ;
+// « manual »     — saisie à la main (valeur réservée, pas encore exposée).
+//
+// `answeredAt` date la décision de l'utilisateur. Une hypothèse sans réponse
+// n'est PAS une hypothèse refusée : dans le premier cas le total est un
+// minimum connu (« + 320 kcal en attente de réponse »), dans le second il est
+// arrêté. L'écran doit pouvoir dire les deux.
+//
+// Pas de `userId` : la ligne ne s'atteint que par son repas, dont elle suit
+// le propriétaire et le sort (cascade) — même raison que ProgramDay.
+model MealItem {
+  id            String    @id @default(cuid())
+  mealId        String
+  meal          Meal      @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  name          String
+  // Libellé de portion tel que formulé (« 1 filet », « ~150 g », « 1 bol »).
+  quantityLabel String?
+  // Masse estimée : base du recalcul proportionnel quand l'utilisateur
+  // corrige la quantité. Null quand le modèle n'a pas su la chiffrer — l'UI
+  // propose alors un multiplicateur de portion plutôt que des grammes.
+  grams         Float?
+  // Entier : afficher des décimales de calories laisserait croire à une
+  // précision qu'une estimation photo n'a pas.
+  kcal          Int       @default(0)
+  proteinG      Float     @default(0)
+  carbsG        Float     @default(0)
+  fatG          Float     @default(0)
+  kind          String    @default("detected")
+  question      String?
+  // Seule source de vérité du total : l'utilisateur peut aussi bien retenir
+  // une hypothèse que écarter un aliment que le modèle a cru voir.
+  included      Boolean   @default(true)
+  answeredAt    DateTime?
+  order         Int       @default(0)
+  createdAt     DateTime  @default(now())
+
+  @@index([mealId])
 }
 
 // ---------------------------------------------------------------------------
@@ -491,4 +573,6 @@ model Settings {
   voiceAnnounce    Boolean  @default(true)
   // Modèle acceptant l'audio (dictée directe au micro via OpenRouter).
   voiceModel       String   @default("google/gemini-2.5-flash")
+  // Modèle acceptant les images (estimation calorique d'une photo de repas).
+  visionModel      String   @default("google/gemini-2.5-flash")
 }

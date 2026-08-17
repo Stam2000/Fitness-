@@ -6,6 +6,7 @@ export type ResolvedSettings = {
   pinnedModels: string[];
   kieApiKey: string | null;
   voiceModel: string;
+  visionModel: string;
 };
 
 // Réglages GLOBAUX de l'instance : clés API et choix des modèles. C'est le
@@ -27,6 +28,7 @@ export async function getSettings(): Promise<ResolvedSettings> {
     pinnedModels: s.pinnedModels,
     kieApiKey: s.kieApiKey || process.env.KIE_API_KEY || null,
     voiceModel: s.voiceModel,
+    visionModel: s.visionModel,
   };
 }
 
