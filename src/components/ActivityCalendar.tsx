@@ -1,7 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Flame } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Flame,
+  Footprints,
+} from "lucide-react";
 import type { ActivityStats } from "@/lib/activity";
 import StatTile from "@/components/ui/StatTile";
 import IconButton from "@/components/ui/IconButton";
@@ -148,8 +154,12 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 2 + 3 tuiles sur téléphone, une seule rangée de 5 dès md */}
-      <div className="flex flex-col gap-2 md:grid md:grid-cols-5 md:gap-3">
+      {/* 2 + 3 tuiles sur téléphone, une seule rangée dès md */}
+      <div
+        className={`flex flex-col gap-2 md:grid md:gap-3 ${
+          stats.totalCalories > 0 ? "md:grid-cols-6" : "md:grid-cols-5"
+        }`}
+      >
       <div className="flex gap-2 md:contents">
         <StatTile
           className="flex-1"
@@ -195,6 +205,19 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
           value={`${Math.round(stats.totalVolume / 1000)} t`}
           label="volume soulevé"
         />
+        {stats.totalCalories > 0 && (
+          <StatTile
+            className="flex-1"
+            value={`${stats.totalCalories}`}
+            label={
+              <span className="inline-flex items-center gap-1">
+                <Footprints size={11} />
+                kcal brûlées
+              </span>
+            }
+            hint={`${stats.totalDistanceKm.toFixed(1)} km parcourus`}
+          />
+        )}
       </div>
       </div>
 

@@ -14,6 +14,8 @@ import { getSettings } from "@/lib/settings";
 import { btn } from "@/components/ui/button";
 import MediaThumb from "@/components/ui/MediaThumb";
 import MealQuickCapture from "@/components/meals/MealQuickCapture";
+import TreadmillQuickLog from "@/components/cardio/TreadmillQuickLog";
+import { DEFAULT_WEIGHT_KG } from "@/lib/cardio";
 import {
   dayRange,
   dayTotals,
@@ -28,8 +30,16 @@ export default async function HomePage() {
   const user = await requireUser();
   const todayKey = toIsoDay(new Date());
   const today = dayRange(todayKey);
-  const [locations, orphanPrograms, activeSession, todayMeals, goal, settings] =
-    await Promise.all([
+  const [
+    locations,
+    orphanPrograms,
+    activeSession,
+    todayMeals,
+    goal,
+    settings,
+    cardio,
+    lastWeighIn,
+  ] = await Promise.all([
       prisma.location.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: "asc" },
@@ -116,7 +126,25 @@ export default async function HomePage() {
       }),
       prisma.nutritionGoal.findUnique({ where: { userId: user.id } }),
       getSettings(),
+      prisma.cardioSession.findMany({
+        where: { userId: user.id },
+        orderBy: { performedAt: "desc" },
+        take: 5,
+      }),
+      // Dernière pesée : sert de poids par défaut pour l'estimation calorique.
+      prisma.bodyMeasurement.findFirst({
+        where: { userId: user.id, weightKg: { not: null } },
+        orderBy: { date: "desc" },
+        select: { weightKg: true },
+      }),
     ]);
+
+  const cardioToday = cardio.filter(
+    (c) => c.performedAt >= today.start && c.performedAt < today.end
+  );
+  // À défaut de pesée, on reprend le poids de la dernière séance saisie.
+  const defaultWeightKg =
+    lastWeighIn?.weightKg ?? cardio[0]?.weightKg ?? DEFAULT_WEIGHT_KG;
 
   const mealViews = todayMeals.map(toMealView);
   const mealTotalsToday = dayTotals(mealViews);
@@ -193,6 +221,20 @@ export default async function HomePage() {
 
       {/* Suivi calorique : la fonctionnalité la plus fréquente de la journée,
           donc à portée d'un seul appui depuis l'accueil. */}
+      <TreadmillQuickLog
+        defaultWeightKg={defaultWeightKg}
+        todayCalories={cardioToday.reduce((acc, c) => acc + c.calories, 0)}
+        recent={cardio.map((c) => ({
+          id: c.id,
+          speedKmh: c.speedKmh,
+          inclinePct: c.inclinePct,
+          minutes: c.minutes,
+          distanceKm: c.distanceKm,
+          calories: c.calories,
+          performedAt: c.performedAt.toISOString(),
+        }))}
+      />
+
       <MealQuickCapture
         dayKey={todayKey}
         totals={mealTotalsToday}

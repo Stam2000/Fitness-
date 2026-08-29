@@ -1,16 +1,9 @@
-import {
-  Bot,
-  ChevronDown,
-  ClipboardList,
-  History,
-  Shuffle,
-  Timer,
-  TrendingUp,
-} from "lucide-react";
+import { Bot, ChevronDown, ClipboardList, Footprints, History, Shuffle, Timer, TrendingUp } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getExerciseProgress } from "@/lib/progress";
 import { getActivityStats } from "@/lib/activity";
+import { formatDistance, formatDuration } from "@/lib/cardio";
 import {
   describeSessionPlan,
   sessionPlanExercises,
@@ -34,7 +27,7 @@ function formatDate(d: Date) {
 
 export default async function HistoryPage() {
   const user = await requireUser();
-  const [sessions, progress, activity] = await Promise.all([
+  const [sessions, progress, activity, cardio] = await Promise.all([
     // Le jour n'est chargé qu'en repli : ce qui est affiché vient du plan figé
     // de la séance (`planSnapshot`). C'est toute la différence — modifier un
     // programme ne réécrit plus les séances déjà enregistrées.
@@ -55,11 +48,16 @@ export default async function HistoryPage() {
     }),
     getExerciseProgress(user.id),
     getActivityStats(user.id),
+    prisma.cardioSession.findMany({
+      where: { userId: user.id },
+      orderBy: { performedAt: "desc" },
+      take: 50,
+    }),
   ]);
 
   const sessionList = (
     <div className="grid gap-3 md:grid-cols-2 md:items-start">
-      {sessions.length === 0 && (
+      {sessions.length === 0 && cardio.length === 0 && (
         <div className="card p-6 text-center md:col-span-2">
           <TrendingUp size={40} strokeWidth={1.5} className="mx-auto text-muted" />
           <p className="mt-3 text-sm text-muted-2">
@@ -68,6 +66,29 @@ export default async function HistoryPage() {
           </p>
         </div>
       )}
+
+      {cardio.map((c) => (
+        <div key={c.id} className="card p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 truncate font-extrabold">
+                <Footprints size={15} className="text-accent" /> Tapis de course
+              </p>
+              <p className="mt-0.5 text-[12px] text-muted-2">
+                {formatDate(c.performedAt)}
+              </p>
+              <p className="mt-1 text-[13px] text-muted-2">
+                {c.speedKmh} km/h
+                {c.inclinePct > 0 ? ` · pente ${c.inclinePct} %` : ""} ·{" "}
+                {formatDuration(c.minutes)} · {formatDistance(c.distanceKm)}
+              </p>
+            </div>
+            <p className="shrink-0 font-mono text-[15px] font-bold text-accent">
+              {c.calories} kcal
+            </p>
+          </div>
+        </div>
+      ))}
 
       {sessions.map((session) => {
         const plan = describeSessionPlan(session);

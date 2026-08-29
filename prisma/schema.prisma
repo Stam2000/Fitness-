@@ -43,6 +43,7 @@ model User {
   settings          UserSettings?
   nutritionGoal     NutritionGoal?
   meals             Meal[]
+  cardioSessions    CardioSession[]
   invitesCreated    InviteCode[]
 
   @@unique([email])
@@ -575,4 +576,26 @@ model Settings {
   voiceModel       String   @default("google/gemini-2.5-flash")
   // Modèle acceptant les images (estimation calorique d'une photo de repas).
   visionModel      String   @default("google/gemini-2.5-flash")
+}
+
+// Séance de cardio saisie à la main (tapis de course). Les calories sont
+// estimées à partir de la vitesse, de la pente et du poids — voir
+// src/lib/cardio.ts. Le poids retenu est figé sur la ligne : une pesée
+// ultérieure ne doit pas réécrire l'historique.
+model CardioSession {
+  id          String   @id @default(cuid())
+  kind        String   @default("treadmill")
+  speedKmh    Float
+  inclinePct  Float    @default(0)
+  minutes     Float
+  distanceKm  Float
+  calories    Int
+  weightKg    Float
+  performedAt DateTime @default(now())
+  notes       String?
+  createdAt   DateTime @default(now())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, performedAt])
 }

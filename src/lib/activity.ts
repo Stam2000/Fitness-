@@ -14,6 +14,8 @@ export type ActivityStats = {
   totalSessions: number;
   totalMinutes: number;
   totalVolume: number;
+  totalCalories: number;
+  totalDistanceKm: number;
   currentStreakWeeks: number;
   bestStreakWeeks: number;
   thisWeekSessions: number;
@@ -43,14 +45,20 @@ function addWeeks(d: Date, n: number): Date {
 }
 
 export async function getActivityStats(userId: string): Promise<ActivityStats> {
-  const sessions = await prisma.workoutSession.findMany({
-    where: { userId, completedAt: { not: null } },
-    orderBy: { completedAt: "asc" },
-    include: {
-      setLogs: { where: { done: true } },
-      day: { include: { program: { select: { name: true } } } },
-    },
-  });
+  const [sessions, cardioSessions] = await Promise.all([
+    prisma.workoutSession.findMany({
+      where: { userId, completedAt: { not: null } },
+      orderBy: { completedAt: "asc" },
+      include: {
+        setLogs: { where: { done: true } },
+        day: { include: { program: { select: { name: true } } } },
+      },
+    }),
+    prisma.cardioSession.findMany({
+      where: { userId },
+      orderBy: { performedAt: "asc" },
+    }),
+  ]);
   // Le libellé vient du plan figé de la séance : un jour renommé ou supprimé
   // depuis ne doit pas réécrire le calendrier d'activité.
 
@@ -94,6 +102,37 @@ export async function getActivityStats(userId: string): Promise<ActivityStats> {
     focusCount.set(focus, (focusCount.get(focus) ?? 0) + 1);
   }
 
+  // Le cardio compte comme une activité à part entière : il remplit le
+  // calendrier, la série de semaines et les totaux.
+  let totalCalories = 0;
+  let totalDistanceKm = 0;
+  for (const c of cardioSessions) {
+    const key = dateKey(c.performedAt);
+    totalMinutes += c.minutes;
+    totalCalories += c.calories;
+    totalDistanceKm += c.distanceKm;
+
+    const entry = byDay.get(key) ?? {
+      date: key,
+      sessions: 0,
+      minutes: 0,
+      volume: 0,
+      labels: [],
+    };
+    entry.sessions += 1;
+    entry.minutes += c.minutes;
+    entry.labels.push(
+      `Tapis de course — ${c.speedKmh} km/h · ${Math.round(c.minutes)} min · ${c.calories} kcal`
+    );
+    byDay.set(key, entry);
+
+    weekSet.add(dateKey(startOfWeek(c.performedAt)));
+    focusCount.set(
+      "Tapis de course",
+      (focusCount.get("Tapis de course") ?? 0) + 1
+    );
+  }
+
   const now = new Date();
   const thisWeekStart = startOfWeek(now);
   const thisWeekKey = dateKey(thisWeekStart);
@@ -133,14 +172,20 @@ export async function getActivityStats(userId: string): Promise<ActivityStats> {
     weeklyCounts.push({ weekStart: key, count });
   }
 
-  const lastSession = sessions[sessions.length - 1];
-  const daysSinceLast = lastSession
+  const lastDates = [
+    sessions[sessions.length - 1]?.completedAt,
+    cardioSessions[cardioSessions.length - 1]?.performedAt,
+  ].filter(Boolean) as Date[];
+  const lastDate = lastDates.length
+    ? new Date(Math.max(...lastDates.map((d) => d.getTime())))
+    : null;
+  const daysSinceLast = lastDate
     ? Math.floor(
         (new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() -
           new Date(
-            lastSession.completedAt!.getFullYear(),
-            lastSession.completedAt!.getMonth(),
-            lastSession.completedAt!.getDate()
+            lastDate.getFullYear(),
+            lastDate.getMonth(),
+            lastDate.getDate()
           ).getTime()) /
           86400000
       )
@@ -148,9 +193,11 @@ export async function getActivityStats(userId: string): Promise<ActivityStats> {
 
   return {
     days: [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date)),
-    totalSessions: sessions.length,
+    totalSessions: sessions.length + cardioSessions.length,
     totalMinutes,
     totalVolume,
+    totalCalories,
+    totalDistanceKm,
     currentStreakWeeks,
     bestStreakWeeks,
     thisWeekSessions: weeklyCounts[weeklyCounts.length - 1]?.count ?? 0,

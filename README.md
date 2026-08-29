@@ -20,6 +20,10 @@ mises en page multi-colonnes sur grand écran.
   **minuteur d'échauffement** (2/5/10 min) et **chrono intégré** pour les
   exercices en secondes (planche, corde à sauter…) avec validation automatique
   de la série.
+- **Tapis de course** 🏃 : saisie rapide sur l'accueil (vitesse, durée, pente,
+  poids) avec **calcul automatique des calories** et de la distance, recalculé
+  à chaque frappe. Les séances alimentent le calendrier de suivi, les totaux et
+  l'historique.
 - **Suivi d'activité** 🗓️ : calendrier mensuel de tes jours d'entraînement
   (tape un jour pour voir les séances faites), série de semaines consécutives,
   séances par semaine sur 12 semaines, répartition par type de séance, temps
@@ -187,6 +191,25 @@ Avec Docker : `docker compose run --rm migrate npm run images:generate`.
 Le script génère 3 images en parallèle, attend le résultat de chaque tâche et
 enregistre les URLs en base ; les exercices de même nom partagent la même
 image. Relance la commande pour rattraper les échecs éventuels.
+
+## Comment sont calculées les calories du tapis ? 🔥
+
+L'estimation repose sur les **équations métaboliques de l'ACSM**, qui donnent la
+consommation d'oxygène à partir de la vitesse **et de la pente** :
+
+- marche : `VO2 = 0,1 × S + 1,8 × S × G + 3,5`
+- course : `VO2 = 0,2 × S + 0,9 × S × G + 3,5`
+
+(`S` en m/min, `G` la pente en fraction ; interpolation entre 6,4 et 8 km/h, où
+ni l'une ni l'autre n'est validée). Les calories en découlent via
+`kcal/min = VO2 × poids / 1000 × 5`, un litre d'oxygène consommé valant environ
+5 kcal. Voir `src/lib/cardio.ts`.
+
+Le poids proposé est celui de ta **dernière pesée** (page Corps), à défaut celui
+de ta dernière séance de tapis, sinon 70 kg ; il est figé sur chaque séance
+enregistrée pour que l'historique ne bouge plus. Comme sur les tapis du
+commerce, il s'agit d'une dépense *brute* — métabolisme de repos compris — donc
+d'un ordre de grandeur, pas d'une mesure.
 
 ## Notes
 

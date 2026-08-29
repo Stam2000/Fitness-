@@ -23,6 +23,7 @@ import {
 import { deleteLocalMedia } from "@/lib/media-store";
 import { scaleItemBy, scaleItemToGrams } from "@/lib/meals";
 import { findActivity, findObjective } from "@/lib/nutrition";
+import { estimateCardio } from "@/lib/cardio";
 import { requireActionAdmin, requireActionUser } from "@/lib/session";
 import {
   NOT_FOUND,
@@ -1057,4 +1058,51 @@ export async function deleteMeal(id: string) {
   }
   revalidatePath("/body/meals");
   revalidatePath("/");
+}
+
+// ---------- Cardio (tapis de course) ----------
+
+export async function logCardioSession(input: {
+  speedKmh: number;
+  inclinePct: number;
+  minutes: number;
+  weightKg: number;
+  notes?: string | null;
+}): Promise<{ calories: number; distanceKm: number }> {
+  const user = await requireActionUser();
+  const { speedKmh, inclinePct, minutes, weightKg } = input;
+  if (speedKmh <= 0 || minutes <= 0 || weightKg <= 0) {
+    throw new Error("Vitesse, durée et poids doivent être positifs.");
+  }
+  const { calories, distanceKm } = estimateCardio({
+    speedKmh,
+    inclinePct,
+    minutes,
+    weightKg,
+  });
+
+  await prisma.cardioSession.create({
+    data: {
+      speedKmh,
+      inclinePct,
+      minutes,
+      weightKg,
+      calories,
+      distanceKm,
+      notes: input.notes?.trim() || null,
+      userId: user.id,
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/history");
+  return { calories, distanceKm };
+}
+
+export async function deleteCardioSession(id: string) {
+  const user = await requireActionUser();
+  // Filtré par propriétaire : un id d'autrui ne supprime rien.
+  await prisma.cardioSession.deleteMany({ where: { id, userId: user.id } });
+  revalidatePath("/");
+  revalidatePath("/history");
 }
