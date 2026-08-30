@@ -163,6 +163,37 @@ est pensée mobile, ajoutable à l'écran d'accueil en PWA).
    `npx prisma migrate deploy && npx prisma db seed` (en local, pointé sur la
    base de production).
 
+## Les images ont disparu ? 🔍
+
+Si des images **s'affichaient puis ont disparu** (cadres vides), lance le
+diagnostic — il distingue les deux pannes possibles :
+
+```bash
+npm run media:doctor
+# avec Docker :
+docker compose run --rm migrate npm run media:doctor
+```
+
+1. **URL Kie.ai expirée.** Les liens renvoyés par Kie.ai ne vivent que ~14
+   jours. Les images générées avant l'arrivée du stockage local pointent encore
+   dessus et cassent toutes en même temps. `--repair` rapatrie celles qui
+   répondent encore ; les autres sont à régénérer.
+2. **Fichier local absent.** L'URL est en `/api/media/…` mais le fichier n'est
+   plus sur le disque : le dossier des médias n'est pas persistant. `docker
+   compose` monte le volume `media-data` sur `/app/data/media` ; sous **Coolify**
+   il faut déclarer un « Persistent Storage » sur ce même chemin, sinon chaque
+   redéploiement efface les images.
+
+Réparation puis régénération de ce qui est irrécupérable :
+
+```bash
+npm run media:doctor -- --repair --clear-dead
+npm run images:generate
+```
+
+Une image qui ne se charge pas n'affiche plus l'icône cassée du navigateur :
+elle laisse un visuel neutre à la place.
+
 ## Pourquoi les images n'apparaissent-elles pas ? 🎨
 
 Les images ne sont **jamais générées automatiquement** (chaque image est un

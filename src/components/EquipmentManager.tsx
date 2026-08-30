@@ -22,6 +22,7 @@ import {
 } from "@/app/actions";
 import { btn, Button } from "@/components/ui/button";
 import Chip from "@/components/ui/Chip";
+import MediaThumb from "@/components/ui/MediaThumb";
 import IconButton from "@/components/ui/IconButton";
 
 type LocationView = {
@@ -490,12 +491,11 @@ export default function EquipmentManager({
                     >
                       <div className="relative aspect-[1.35] w-full bg-surface-2">
                         {img?.status === "done" && img.url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={img.url}
+                          <MediaThumb
+                            url={img.url}
                             alt={eq.name}
-                            loading="lazy"
-                            className="h-full w-full object-cover"
+                            className="h-full w-full"
+                            iconSize={30}
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-muted">

@@ -9,7 +9,8 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "images:generate": "tsx scripts/generate-images.ts",
-    "media:localize": "tsx scripts/localize-media.ts"
+    "media:localize": "tsx scripts/localize-media.ts",
+    "media:doctor": "tsx scripts/media-doctor.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
