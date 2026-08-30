@@ -254,6 +254,17 @@ export default function EquipmentManager({
     [pollImage]
   );
 
+  // URL en base mais plus accessible (lien Kie.ai expiré, fichier perdu) :
+  // l'échec de chargement repasse l'image en « erreur » — sans ça, elle reste
+  // comptée « done » et le bouton « générer tout » reste caché.
+  function markImageFailed(equipmentId: string) {
+    setImages((m) =>
+      m[equipmentId]?.status === "done"
+        ? { ...m, [equipmentId]: { status: "error", error: "image indisponible" } }
+        : m
+    );
+  }
+
   async function generateAll() {
     setGeneratingAll(true);
     setImageError(null);
@@ -496,6 +507,10 @@ export default function EquipmentManager({
                             alt={eq.name}
                             className="h-full w-full"
                             iconSize={30}
+                            // URL en base mais fichier injoignable : repasser
+                            // en erreur pour recompter l'image comme manquante
+                            // et réafficher le bouton de génération groupée.
+                            onFail={() => markImageFailed(eq.id)}
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-muted">
