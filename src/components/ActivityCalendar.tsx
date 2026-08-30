@@ -215,7 +215,11 @@ export default function ActivityCalendar({ stats }: { stats: ActivityStats }) {
                 kcal brûlées
               </span>
             }
-            hint={`${stats.totalDistanceKm.toFixed(1)} km parcourus`}
+            hint={
+              stats.totalSteps > 0
+                ? `${stats.totalDistanceKm.toFixed(1)} km · ${stats.totalSteps.toLocaleString("fr-FR")} pas`
+                : `${stats.totalDistanceKm.toFixed(1)} km parcourus`
+            }
           />
         )}
       </div>

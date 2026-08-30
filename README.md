@@ -21,9 +21,11 @@ mises en page multi-colonnes sur grand écran.
   exercices en secondes (planche, corde à sauter…) avec validation automatique
   de la série.
 - **Tapis de course** 🏃 : saisie rapide sur l'accueil (vitesse, durée, pente,
-  poids) avec **calcul automatique des calories** et de la distance, recalculé
-  à chaque frappe. Les séances alimentent le calendrier de suivi, les totaux et
-  l'historique.
+  poids, **nombre de pas**) avec **calcul automatique des calories** et de la
+  distance, recalculé à chaque frappe. Le **jour est modifiable** — une marche
+  oubliée hier ou la semaine passée se rattrape. Les pas sont lus sur
+  l'afficheur du tapis ; à défaut ils sont estimés depuis la distance. Les
+  séances alimentent le calendrier de suivi, les totaux et l'historique.
 - **Suivi d'activité** 🗓️ : calendrier mensuel de tes jours d'entraînement
   (tape un jour pour voir les séances faites), série de semaines consécutives,
   séances par semaine sur 12 semaines, répartition par type de séance, temps
@@ -241,6 +243,11 @@ de ta dernière séance de tapis, sinon 70 kg ; il est figé sur chaque séance
 enregistrée pour que l'historique ne bouge plus. Comme sur les tapis du
 commerce, il s'agit d'une dépense *brute* — métabolisme de repos compris — donc
 d'un ordre de grandeur, pas d'une mesure.
+
+**Les pas** : si tu ne saisis pas le compteur du tapis, ils sont estimés depuis
+la distance parcourue et la vitesse (longueur de pas croissante avec l'allure,
+~0,70 m à 4 km/h, soit 1 300 à 1 500 pas/km). Ta saisie, elle, fait toujours
+foi.
 
 ## Notes
 

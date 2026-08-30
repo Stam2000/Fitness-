@@ -16,6 +16,7 @@ export type ActivityStats = {
   totalVolume: number;
   totalCalories: number;
   totalDistanceKm: number;
+  totalSteps: number;
   currentStreakWeeks: number;
   bestStreakWeeks: number;
   thisWeekSessions: number;
@@ -106,11 +107,13 @@ export async function getActivityStats(userId: string): Promise<ActivityStats> {
   // calendrier, la série de semaines et les totaux.
   let totalCalories = 0;
   let totalDistanceKm = 0;
+  let totalSteps = 0;
   for (const c of cardioSessions) {
     const key = dateKey(c.performedAt);
     totalMinutes += c.minutes;
     totalCalories += c.calories;
     totalDistanceKm += c.distanceKm;
+    totalSteps += c.steps ?? 0;
 
     const entry = byDay.get(key) ?? {
       date: key,
@@ -122,7 +125,8 @@ export async function getActivityStats(userId: string): Promise<ActivityStats> {
     entry.sessions += 1;
     entry.minutes += c.minutes;
     entry.labels.push(
-      `Tapis de course — ${c.speedKmh} km/h · ${Math.round(c.minutes)} min · ${c.calories} kcal`
+      `Tapis de course — ${c.speedKmh} km/h · ${Math.round(c.minutes)} min · ${c.calories} kcal` +
+        (c.steps != null ? ` · ${c.steps.toLocaleString("fr-FR")} pas` : "")
     );
     byDay.set(key, entry);
 
@@ -198,6 +202,7 @@ export async function getActivityStats(userId: string): Promise<ActivityStats> {
     totalVolume,
     totalCalories,
     totalDistanceKm,
+    totalSteps,
     currentStreakWeeks,
     bestStreakWeeks,
     thisWeekSessions: weeklyCounts[weeklyCounts.length - 1]?.count ?? 0,

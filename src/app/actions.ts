@@ -21,9 +21,15 @@ import {
   resolveMuscleNames,
 } from "@/lib/known-muscles";
 import { deleteLocalMedia } from "@/lib/media-store";
-import { scaleItemBy, scaleItemToGrams } from "@/lib/meals";
+import {
+  dayRange,
+  isIsoDay,
+  scaleItemBy,
+  scaleItemToGrams,
+  toIsoDay,
+} from "@/lib/meals";
 import { findActivity, findObjective } from "@/lib/nutrition";
-import { estimateCardio } from "@/lib/cardio";
+import { clampSteps, estimateCardio, estimateSteps } from "@/lib/cardio";
 import { requireActionAdmin, requireActionUser } from "@/lib/session";
 import {
   NOT_FOUND,
@@ -1067,8 +1073,13 @@ export async function logCardioSession(input: {
   inclinePct: number;
   minutes: number;
   weightKg: number;
+  // Pas lus sur l'afficheur du tapis. Absents : estimés depuis la distance.
+  steps?: number | null;
+  // Jour visé (« AAAA-MM-JJ »), aujourd'hui par défaut — une marche d'hier
+  // oubliée se rattrape. Un jour futur retombe sur aujourd'hui.
+  dayKey?: string | null;
   notes?: string | null;
-}): Promise<{ calories: number; distanceKm: number }> {
+}): Promise<{ calories: number; distanceKm: number; steps: number }> {
   const user = await requireActionUser();
   const { speedKmh, inclinePct, minutes, weightKg } = input;
   if (speedKmh <= 0 || minutes <= 0 || weightKg <= 0) {
@@ -1080,6 +1091,26 @@ export async function logCardioSession(input: {
     minutes,
     weightKg,
   });
+  const steps =
+    input.steps != null
+      ? clampSteps(input.steps)
+      : clampSteps(estimateSteps(distanceKm, speedKmh));
+
+  // L'heure courante est conservée même sur un jour passé : deux saisies du
+  // même jour restent ainsi correctement ordonnées à l'affichage.
+  const now = new Date();
+  const todayKey = toIsoDay(now);
+  const targetKey =
+    isIsoDay(input.dayKey) && input.dayKey <= todayKey ? input.dayKey : todayKey;
+  const { start } = dayRange(targetKey);
+  const performedAt = new Date(
+    start.getFullYear(),
+    start.getMonth(),
+    start.getDate(),
+    now.getHours(),
+    now.getMinutes(),
+    now.getSeconds()
+  );
 
   await prisma.cardioSession.create({
     data: {
@@ -1089,14 +1120,16 @@ export async function logCardioSession(input: {
       weightKg,
       calories,
       distanceKm,
+      steps,
       notes: input.notes?.trim() || null,
+      performedAt,
       userId: user.id,
     },
   });
 
   revalidatePath("/");
   revalidatePath("/history");
-  return { calories, distanceKm };
+  return { calories, distanceKm, steps };
 }
 
 export async function deleteCardioSession(id: string) {

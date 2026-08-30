@@ -222,8 +222,10 @@ export default async function HomePage() {
       {/* Suivi calorique : la fonctionnalité la plus fréquente de la journée,
           donc à portée d'un seul appui depuis l'accueil. */}
       <TreadmillQuickLog
+        todayKey={todayKey}
         defaultWeightKg={defaultWeightKg}
         todayCalories={cardioToday.reduce((acc, c) => acc + c.calories, 0)}
+        todaySteps={cardioToday.reduce((acc, c) => acc + (c.steps ?? 0), 0)}
         recent={cardio.map((c) => ({
           id: c.id,
           speedKmh: c.speedKmh,
@@ -231,6 +233,7 @@ export default async function HomePage() {
           minutes: c.minutes,
           distanceKm: c.distanceKm,
           calories: c.calories,
+          steps: c.steps,
           performedAt: c.performedAt.toISOString(),
         }))}
       />

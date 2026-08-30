@@ -81,6 +81,8 @@ export default async function HistoryPage() {
                 {c.speedKmh} km/h
                 {c.inclinePct > 0 ? ` · pente ${c.inclinePct} %` : ""} ·{" "}
                 {formatDuration(c.minutes)} · {formatDistance(c.distanceKm)}
+                {c.steps != null &&
+                  ` · ${c.steps.toLocaleString("fr-FR")} pas`}
               </p>
             </div>
             <p className="shrink-0 font-mono text-[15px] font-bold text-accent">

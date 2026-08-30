@@ -590,6 +590,10 @@ model CardioSession {
   minutes     Float
   distanceKm  Float
   calories    Int
+  // Pas lus sur l'afficheur du tapis. Null pour les séances antérieures à la
+  // saisie (ou quand l'utilisateur ne le connaît pas) : estimables depuis la
+  // distance — voir estimateSteps dans src/lib/cardio.ts.
+  steps       Int?
   weightKg    Float
   performedAt DateTime @default(now())
   notes       String?

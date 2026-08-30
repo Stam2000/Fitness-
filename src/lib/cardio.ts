@@ -70,3 +70,22 @@ export function formatDuration(minutes: number): string {
   const m = Math.round(minutes % 60);
   return h > 0 ? `${h} h ${String(m).padStart(2, "0")}` : `${m} min`;
 }
+
+/**
+ * Pas estimés pour une distance parcourue à une vitesse donnée.
+ *
+ * La longueur du pas grandit avec l'allure — ~0,67 m à 3 km/h, ~0,70 m à
+ * 4 km/h, ~0,77 m à 6,4 km/h — soit 1 300 à 1 500 pas par kilomètre, ordre
+ * de grandeur des tables de marche. C'est la valeur proposée à l'utilisateur
+ * tant qu'il n'a pas lu le compteur du tapis ; sa saisie fait foi.
+ */
+export function estimateSteps(distanceKm: number, speedKmh: number): number {
+  const strideM = 0.58 + 0.03 * speedKmh;
+  if (distanceKm <= 0 || strideM <= 0) return 0;
+  return Math.round((distanceKm * 1000) / strideM);
+}
+
+/** Jusqu'à 200 000 pas : au-delà d'une saisie, c'est une frappe parasite. */
+export function clampSteps(steps: number): number {
+  return Math.min(Math.max(Math.round(steps), 0), 200_000);
+}
