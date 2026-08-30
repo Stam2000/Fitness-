@@ -23,6 +23,7 @@ import {
 } from "@/app/actions";
 import { btn, Button } from "@/components/ui/button";
 import IconButton from "@/components/ui/IconButton";
+import MediaThumb from "@/components/ui/MediaThumb";
 import NutritionGoals, { type GoalView } from "@/components/NutritionGoals";
 
 type MeasurementView = {
@@ -556,12 +557,11 @@ export default function BodyTracker({
                   className="overflow-hidden rounded-2xl border border-card-border"
                   aria-label={`${panel.label} : agrandir la photo`}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={panel.photo.imageUrl}
+                  <MediaThumb
+                    url={panel.photo.imageUrl}
                     alt={`${panel.label} — ${formatDate(panel.photo.dateIso)}`}
-                    loading="lazy"
-                    className="aspect-[3/4] w-full object-cover"
+                    icon={Camera}
+                    className="aspect-[3/4] w-full"
                   />
                 </button>
                 <select
@@ -591,12 +591,11 @@ export default function BodyTracker({
               onClick={() => setViewer(p)}
               className="group relative overflow-hidden rounded-2xl border border-card-border"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={p.imageUrl}
+              <MediaThumb
+                url={p.imageUrl}
                 alt={`Photo du ${formatDate(p.dateIso)}`}
-                loading="lazy"
-                className="aspect-[3/4] w-full object-cover"
+                icon={Camera}
+                className="aspect-[3/4] w-full"
               />
               <span className="absolute inset-x-0 bottom-0 bg-black/55 px-1.5 py-1 text-center font-mono text-[10px] font-bold text-white">
                 {formatDate(p.dateIso)}
@@ -615,11 +614,12 @@ export default function BodyTracker({
             className="absolute inset-0"
           />
           <div className="relative m-auto flex w-full max-w-lg flex-col gap-3 p-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={viewer.imageUrl}
+            <MediaThumb
+              url={viewer.imageUrl}
               alt={`Photo du ${formatDate(viewer.dateIso)}`}
-              className="max-h-[75vh] w-full rounded-2xl object-contain"
+              icon={Camera}
+              fit="contain"
+              className="max-h-[75vh] w-full rounded-2xl"
             />
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-bold text-white">

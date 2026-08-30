@@ -9,6 +9,8 @@ type MediaThumbProps = {
   icon?: LucideIcon;
   className?: string;
   iconSize?: number;
+  /** Recadrage de l'image : cover par défaut, contain pour la vue plein écran. */
+  fit?: "cover" | "contain";
 };
 
 /**
@@ -24,8 +26,11 @@ export default function MediaThumb({
   icon: Icon = Dumbbell,
   className = "",
   iconSize = 28,
+  fit = "cover",
 }: MediaThumbProps) {
   const [failed, setFailed] = useState(false);
+  // Classes littérales : Tailwind n'extrait pas les noms composés à l'exécution.
+  const fitClass = fit === "contain" ? "object-contain" : "object-cover";
 
   if (url && !failed) {
     return (
@@ -35,7 +40,7 @@ export default function MediaThumb({
         alt={alt}
         loading="lazy"
         onError={() => setFailed(true)}
-        className={`object-cover ${className}`}
+        className={`${fitClass} ${className}`}
       />
     );
   }

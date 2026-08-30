@@ -46,6 +46,7 @@ import {
 import { btn } from "@/components/ui/button";
 import Chip from "@/components/ui/Chip";
 import IconButton from "@/components/ui/IconButton";
+import MediaThumb from "@/components/ui/MediaThumb";
 import BottomSheet from "@/components/ui/BottomSheet";
 import MusclePreviewSheet, {
   type MuscleChipInfo,
@@ -703,11 +704,10 @@ export default function ProgramDetail({
                       />
                     ) : img?.status === "done" && img.url ? (
                       <div className="relative aspect-[3/2] w-full">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={img.url}
+                        <MediaThumb
+                          url={img.url}
                           alt={ex.name}
-                          className="h-full w-full object-cover"
+                          className="h-full w-full"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
                         <p className="absolute bottom-2.5 left-3.5 right-3.5 text-[17.5px] font-extrabold leading-tight text-white">
@@ -886,11 +886,11 @@ export default function ProgramDetail({
                                 className="mt-2 flex items-center gap-2.5"
                               >
                                 {vimg?.status === "done" && vimg.url ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={vimg.url}
+                                  <MediaThumb
+                                    url={vimg.url}
                                     alt={v.name}
-                                    className="h-[34px] w-[46px] shrink-0 rounded-lg object-cover"
+                                    iconSize={15}
+                                    className="h-[34px] w-[46px] shrink-0 rounded-lg"
                                   />
                                 ) : (
                                   <button

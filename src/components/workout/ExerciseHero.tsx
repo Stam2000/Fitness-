@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, Dumbbell, X } from "lucide-react";
+import { Check, X } from "lucide-react";
+import MediaThumb from "@/components/ui/MediaThumb";
 
 type HeroOption = {
   name: string;
@@ -89,18 +90,14 @@ export default function ExerciseHero({
 
   return (
     <section className="relative h-[250px] overflow-hidden rounded-2xl border border-card-border">
-      {option.imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={option.imageUrl}
-          alt={option.name}
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-2 to-bg">
-          <Dumbbell size={48} strokeWidth={1.5} className="text-muted/60" />
-        </div>
-      )}
+      {/* Sans URL ou URL morte (lien Kie.ai expiré, fichier perdu) : le repli
+          de MediaThumb évite l'icône d'image cassée du navigateur. */}
+      <MediaThumb
+        url={option.imageUrl}
+        alt={option.name}
+        iconSize={48}
+        className="h-full w-full"
+      />
       <div className="absolute inset-0 bg-gradient-to-b from-bg/55 via-bg/0 to-bg/95" />
       {closeBtn}
       {counter}

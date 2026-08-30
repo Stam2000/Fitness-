@@ -37,6 +37,11 @@ services:
       # La CLI Prisma interroge checkpoint.prisma.io au lancement (vérification de
       # version). Sur un serveur au réseau sortant filtré, cet appel peut traîner.
       CHECKPOINT_DISABLE: "1"
+    volumes:
+      # `media:doctor --repair` rapatrie les médias dans ce volume partagé avec
+      # « app » ; sans lui, les fichiers atterrissent dans ce conteneur éphémère
+      # et les URLs réparées pointeraient dans le vide.
+      - media-data:/app/data/media
     depends_on:
       db:
         condition: service_healthy
