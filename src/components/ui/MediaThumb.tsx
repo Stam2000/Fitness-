@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dumbbell, type LucideIcon } from "lucide-react";
 
 type MediaThumbProps = {
@@ -36,13 +36,27 @@ export default function MediaThumb({
   onFail,
 }: MediaThumbProps) {
   const [failed, setFailed] = useState(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
   // Classes littérales : Tailwind n'extrait pas les noms composés à l'exécution.
   const fitClass = fit === "contain" ? "object-contain" : "object-cover";
+
+  // Une image peut échouer AVANT l'hydratation (URL morte, chargement plus
+  // rapide que le JS) : l'événement onError est alors perdu — React ne
+  // l'écoute pas encore — et l'icône d'image cassée du navigateur reste à
+  // l'écran. L'état DOM permet de constater l'échec a posteriori.
+  useEffect(() => {
+    const el = imgRef.current;
+    if (el?.complete && el.naturalWidth === 0) {
+      setFailed(true);
+      onFail?.();
+    }
+  }, [onFail]);
 
   if (url && !failed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
+        ref={imgRef}
         src={url}
         alt={alt}
         loading="lazy"
@@ -50,7 +64,11 @@ export default function MediaThumb({
           setFailed(true);
           onFail?.();
         }}
-        className={`${fitClass} ${className}`}
+        // text-transparent : si l'image casse avant l'hydratation, le
+        // navigateur rend le texte alternatif avec la couleur de l'élément —
+        // en transparent, la fenêtre de battement n'affiche plus un gros
+        // pavé de texte. Les lecteurs d'écran le lisent toujours.
+        className={`${fitClass} text-transparent ${className}`}
       />
     );
   }
