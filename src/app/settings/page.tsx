@@ -5,6 +5,7 @@ import { getUserPreferences } from "@/lib/settings";
 import { requireUser } from "@/lib/session";
 import SettingsForm from "@/components/SettingsForm";
 import AccountCard from "@/components/auth/AccountCard";
+import MediaLocalizeCard from "@/components/settings/MediaLocalizeCard";
 
 export const dynamic = "force-dynamic";
 
@@ -32,14 +33,19 @@ export default async function SettingsPage() {
       <AccountCard name={user.name} email={user.email} isAdmin={user.isAdmin} />
 
       {user.isAdmin ? (
-        <Link
-          href="/settings/invitations"
-          className="card flex max-w-2xl items-center gap-3 px-4 py-3.5"
-        >
-          <Ticket size={18} className="text-accent" />
-          <span className="flex-1 text-sm font-semibold">Invitations</span>
-          <ChevronRight size={18} className="text-muted" />
-        </Link>
+        <>
+          <Link
+            href="/settings/invitations"
+            className="card flex max-w-2xl items-center gap-3 px-4 py-3.5"
+          >
+            <Ticket size={18} className="text-accent" />
+            <span className="flex-1 text-sm font-semibold">Invitations</span>
+            <ChevronRight size={18} className="text-muted" />
+          </Link>
+          <div className="max-w-2xl">
+            <MediaLocalizeCard />
+          </div>
+        </>
       ) : null}
 
       <SettingsForm

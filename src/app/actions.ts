@@ -20,7 +20,7 @@ import {
   resolveDraftMuscles,
   resolveMuscleNames,
 } from "@/lib/known-muscles";
-import { deleteLocalMedia } from "@/lib/media-store";
+import { deleteLocalMedia, persistMediaUrl } from "@/lib/media-store";
 import {
   dayRange,
   isIsoDay,
@@ -1138,4 +1138,124 @@ export async function deleteCardioSession(id: string) {
   await prisma.cardioSession.deleteMany({ where: { id, userId: user.id } });
   revalidatePath("/");
   revalidatePath("/history");
+}
+
+// ---------- Médias : rapatriement local ----------
+
+export type MediaLocalizeReport = {
+  /** Fichiers téléchargés dans le stockage local, URL réécrite en base. */
+  localized: number;
+  /** Libellés des médias dont le lien distant ne répond plus (à régénérer). */
+  dead: string[];
+};
+
+/**
+ * Télécharge dans le stockage local tout média encore hébergé chez Kie.ai et
+ * réécrit son URL en base vers /api/media/. Les générations récentes passent
+ * déjà par persistMediaUrl à la création : cette action rattrape les lignes
+ * antérieures — la marche à suivre quand un lien expire. Réservée à l'admin
+ * (elle consomme la bande passante du serveur et réécrit toutes les tables).
+ */
+export async function localizeRemoteMedia(): Promise<MediaLocalizeReport> {
+  await requireActionAdmin();
+
+  const remote = { startsWith: "http" } as const;
+  const [
+    equipment,
+    exerciseImages,
+    exerciseVideos,
+    variationImages,
+    variationVideos,
+    muscles,
+    combos,
+  ] = await Promise.all([
+    prisma.equipment.findMany({
+      where: { imageUrl: remote },
+      select: { id: true, name: true, imageUrl: true },
+    }),
+    prisma.exercise.findMany({
+      where: { imageUrl: remote },
+      select: { id: true, name: true, imageUrl: true },
+    }),
+    prisma.exercise.findMany({
+      where: { videoUrl: remote },
+      select: { id: true, name: true, videoUrl: true },
+    }),
+    prisma.exerciseVariation.findMany({
+      where: { imageUrl: remote },
+      select: { id: true, name: true, imageUrl: true },
+    }),
+    prisma.exerciseVariation.findMany({
+      where: { videoUrl: remote },
+      select: { id: true, name: true, videoUrl: true },
+    }),
+    prisma.muscle.findMany({
+      where: { imageUrl: remote },
+      select: { id: true, name: true, imageUrl: true },
+    }),
+    prisma.muscleCombo.findMany({
+      where: { imageUrl: remote },
+      select: { id: true, key: true, imageUrl: true },
+    }),
+  ]);
+
+  type Item = {
+    label: string;
+    url: string;
+    save: (localUrl: string) => Promise<unknown>;
+  };
+  const items: Item[] = [
+    ...equipment.map((r) => ({
+      label: r.name,
+      url: r.imageUrl!,
+      save: (u: string) => prisma.equipment.update({ where: { id: r.id }, data: { imageUrl: u } }),
+    })),
+    ...exerciseImages.map((r) => ({
+      label: r.name,
+      url: r.imageUrl!,
+      save: (u: string) => prisma.exercise.update({ where: { id: r.id }, data: { imageUrl: u } }),
+    })),
+    ...exerciseVideos.map((r) => ({
+      label: `${r.name} (vidéo)`,
+      url: r.videoUrl!,
+      save: (u: string) => prisma.exercise.update({ where: { id: r.id }, data: { videoUrl: u } }),
+    })),
+    ...variationImages.map((r) => ({
+      label: r.name,
+      url: r.imageUrl!,
+      save: (u: string) =>
+        prisma.exerciseVariation.update({ where: { id: r.id }, data: { imageUrl: u } }),
+    })),
+    ...variationVideos.map((r) => ({
+      label: `${r.name} (vidéo)`,
+      url: r.videoUrl!,
+      save: (u: string) =>
+        prisma.exerciseVariation.update({ where: { id: r.id }, data: { videoUrl: u } }),
+    })),
+    ...muscles.map((r) => ({
+      label: r.name,
+      url: r.imageUrl!,
+      save: (u: string) => prisma.muscle.update({ where: { id: r.id }, data: { imageUrl: u } }),
+    })),
+    ...combos.map((r) => ({
+      label: r.key,
+      url: r.imageUrl!,
+      save: (u: string) => prisma.muscleCombo.update({ where: { id: r.id }, data: { imageUrl: u } }),
+    })),
+  ];
+
+  let localized = 0;
+  const dead: string[] = [];
+  for (const item of items) {
+    const localUrl = await persistMediaUrl(item.url);
+    if (localUrl.startsWith("/api/media/")) {
+      await item.save(localUrl);
+      localized += 1;
+    } else {
+      // persistMediaUrl renvoie l'URL d'origine quand le téléchargement
+      // échoue : lien expiré ou serveur distant injoignable.
+      dead.push(item.label);
+    }
+  }
+  return { localized, dead };
 }
