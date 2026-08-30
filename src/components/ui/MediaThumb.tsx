@@ -11,6 +11,12 @@ type MediaThumbProps = {
   iconSize?: number;
   /** Recadrage de l'image : cover par défaut, contain pour la vue plein écran. */
   fit?: "cover" | "contain";
+  /**
+   * Prévenu quand le chargement échoue (URL morte). Le parent peut réagir —
+   * p. ex. ProgramDetail repasse le média en « erreur », ce qui rouvre la
+   * génération et recompte l'image comme manquante.
+   */
+  onFail?: () => void;
 };
 
 /**
@@ -27,6 +33,7 @@ export default function MediaThumb({
   className = "",
   iconSize = 28,
   fit = "cover",
+  onFail,
 }: MediaThumbProps) {
   const [failed, setFailed] = useState(false);
   // Classes littérales : Tailwind n'extrait pas les noms composés à l'exécution.
@@ -39,7 +46,10 @@ export default function MediaThumb({
         src={url}
         alt={alt}
         loading="lazy"
-        onError={() => setFailed(true)}
+        onError={() => {
+          setFailed(true);
+          onFail?.();
+        }}
         className={`${fitClass} ${className}`}
       />
     );

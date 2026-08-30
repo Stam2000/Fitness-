@@ -293,8 +293,21 @@ export default function ProgramDetail({
     }
   }
 
-  async function generateAll(type: MediaType) {
-    const items: { kind: MediaKind; id: string }[] = [];
+  // Une URL peut exister en base sans plus répondre (lien Kie.ai expiré,
+  // fichier perdu du volume) : l'échec de chargement constaté par MediaThumb
+  // repasse le média en « erreur », ce qui rouvre la génération et recompte
+  // l'image comme manquante — sinon le bouton « générer tout » reste caché
+  // derrière une image morte.
+  function markMediaFailed(type: MediaType, id: string) {
+    const key = mediaKey(type, id);
+    setMedia((m) =>
+      m[key]?.status === "done"
+        ? { ...m, [key]: { status: "error", error: "média indisponible" } }
+        : m
+    );
+  }
+
+  async function generateAll(type: MediaType) {    const items: { kind: MediaKind; id: string }[] = [];
     for (const day of program.days) {
       for (const ex of day.exercises) {
         items.push({ kind: "exercise", id: ex.id });
@@ -696,6 +709,7 @@ export default function ProgramDetail({
                       <video
                         src={vid.url}
                         poster={img?.url}
+                        onError={() => markMediaFailed("video", ex.id)}
                         controls
                         muted
                         loop
@@ -708,6 +722,7 @@ export default function ProgramDetail({
                           url={img.url}
                           alt={ex.name}
                           className="h-full w-full"
+                          onFail={() => markMediaFailed("image", ex.id)}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
                         <p className="absolute bottom-2.5 left-3.5 right-3.5 text-[17.5px] font-extrabold leading-tight text-white">
@@ -891,6 +906,7 @@ export default function ProgramDetail({
                                     alt={v.name}
                                     iconSize={15}
                                     className="h-[34px] w-[46px] shrink-0 rounded-lg"
+                                    onFail={() => markMediaFailed("image", v.id)}
                                   />
                                 ) : (
                                   <button
