@@ -29,7 +29,12 @@ import {
   toIsoDay,
 } from "@/lib/meals";
 import { findActivity, findObjective } from "@/lib/nutrition";
-import { clampSteps, estimateCardio, estimateSteps } from "@/lib/cardio";
+import {
+  clampSteps,
+  estimateCardio,
+  estimateSteps,
+  estimateWalkFromSteps,
+} from "@/lib/cardio";
 import { requireActionAdmin, requireActionUser } from "@/lib/session";
 import {
   NOT_FOUND,
@@ -1096,24 +1101,9 @@ export async function logCardioSession(input: {
       ? clampSteps(input.steps)
       : clampSteps(estimateSteps(distanceKm, speedKmh));
 
-  // L'heure courante est conservée même sur un jour passé : deux saisies du
-  // même jour restent ainsi correctement ordonnées à l'affichage.
-  const now = new Date();
-  const todayKey = toIsoDay(now);
-  const targetKey =
-    isIsoDay(input.dayKey) && input.dayKey <= todayKey ? input.dayKey : todayKey;
-  const { start } = dayRange(targetKey);
-  const performedAt = new Date(
-    start.getFullYear(),
-    start.getMonth(),
-    start.getDate(),
-    now.getHours(),
-    now.getMinutes(),
-    now.getSeconds()
-  );
-
   await prisma.cardioSession.create({
     data: {
+      kind: "treadmill",
       speedKmh,
       inclinePct,
       minutes,
@@ -1122,7 +1112,7 @@ export async function logCardioSession(input: {
       distanceKm,
       steps,
       notes: input.notes?.trim() || null,
-      performedAt,
+      performedAt: cardioPerformedAt(input.dayKey),
       userId: user.id,
     },
   });
@@ -1130,6 +1120,66 @@ export async function logCardioSession(input: {
   revalidatePath("/");
   revalidatePath("/history");
   return { calories, distanceKm, steps };
+}
+
+/**
+ * Marche dehors : seuls les pas sont connus, la durée est facultative.
+ * Allure, distance et dépense en sont déduites (estimateWalkFromSteps).
+ */
+export async function logWalkSession(input: {
+  steps: number;
+  minutes?: number | null;
+  weightKg: number;
+  dayKey?: string | null;
+  notes?: string | null;
+}): Promise<{ calories: number; distanceKm: number; steps: number }> {
+  const user = await requireActionUser();
+  const steps = clampSteps(input.steps);
+  const { weightKg } = input;
+  if (steps <= 0 || weightKg <= 0) {
+    throw new Error("Pas et poids doivent être positifs.");
+  }
+  const minutes =
+    input.minutes != null && input.minutes > 0 ? input.minutes : null;
+  const estimate = estimateWalkFromSteps({ steps, minutes, weightKg });
+
+  await prisma.cardioSession.create({
+    data: {
+      kind: "walk",
+      speedKmh: Math.round(estimate.speedKmh * 10) / 10,
+      inclinePct: 0,
+      minutes: Math.round(estimate.minutes),
+      weightKg,
+      calories: estimate.calories,
+      distanceKm: estimate.distanceKm,
+      steps,
+      notes: input.notes?.trim() || null,
+      performedAt: cardioPerformedAt(input.dayKey),
+      userId: user.id,
+    },
+  });
+
+  revalidatePath("/");
+  revalidatePath("/history");
+  return { calories: estimate.calories, distanceKm: estimate.distanceKm, steps };
+}
+
+// Jour visé (« AAAA-MM-JJ »), aujourd'hui par défaut ; un jour futur retombe
+// sur aujourd'hui. L'heure courante est conservée même sur un jour passé :
+// deux saisies du même jour restent ainsi correctement ordonnées à l'affichage.
+function cardioPerformedAt(dayKey: string | null | undefined): Date {
+  const now = new Date();
+  const todayKey = toIsoDay(now);
+  const targetKey = isIsoDay(dayKey) && dayKey <= todayKey ? dayKey : todayKey;
+  const { start } = dayRange(targetKey);
+  return new Date(
+    start.getFullYear(),
+    start.getMonth(),
+    start.getDate(),
+    now.getHours(),
+    now.getMinutes(),
+    now.getSeconds()
+  );
 }
 
 export async function deleteCardioSession(id: string) {

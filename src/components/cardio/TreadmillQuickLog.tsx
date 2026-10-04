@@ -3,11 +3,17 @@
 import { useMemo, useState, useTransition } from "react";
 import { Footprints, X } from "lucide-react";
 import { btn } from "@/components/ui/button";
-import { deleteCardioSession, logCardioSession } from "@/app/actions";
 import {
+  deleteCardioSession,
+  logCardioSession,
+  logWalkSession,
+} from "@/app/actions";
+import {
+  type CardioKind,
   clampSteps,
   estimateCardio,
   estimateSteps,
+  estimateWalkFromSteps,
   formatDistance,
   formatDuration,
 } from "@/lib/cardio";
@@ -15,6 +21,7 @@ import { formatDayLabel } from "@/lib/meals";
 
 export type CardioEntry = {
   id: string;
+  kind: string;
   speedKmh: number;
   inclinePct: number;
   minutes: number;
@@ -99,6 +106,10 @@ function DayField({
  * Le jour est modifiable (rattrapage d'une marche oubliée) et le nombre de
  * pas se lit sur l'afficheur du tapis : pré-rempli par l'estimation, la
  * saisie de l'utilisateur fait foi.
+ *
+ * Mode « Extérieur » : pour une marche dehors, seuls les pas (et au besoin la
+ * durée) sont saisis ; allure et dépense en sont déduites. Le mode ouvert par
+ * défaut est celui de la dernière séance enregistrée.
  */
 export default function TreadmillQuickLog({
   todayKey,
@@ -113,7 +124,12 @@ export default function TreadmillQuickLog({
   todayCalories: number;
   todaySteps: number;
 }) {
+  const [mode, setMode] = useState<CardioKind>(
+    recent[0]?.kind === "walk" ? "walk" : "treadmill"
+  );
   const [day, setDay] = useState(todayKey);
+  // Durée facultative dehors : vide = estimée depuis les pas.
+  const [walkMinutes, setWalkMinutes] = useState("");
   const [speed, setSpeed] = useState("6");
   const [minutes, setMinutes] = useState("30");
   const [incline, setIncline] = useState("0");
@@ -130,36 +146,60 @@ export default function TreadmillQuickLog({
   const inclinePct = num(incline);
   const weightKg = num(weight);
   const stepsInput = steps.trim() === "" ? null : clampSteps(num(steps));
-  const valid = speedKmh > 0 && min > 0 && weightKg > 0;
+  const walkMin = num(walkMinutes) > 0 ? num(walkMinutes) : null;
+  const isWalk = mode === "walk";
+  const valid = isWalk
+    ? stepsInput != null && stepsInput > 0 && weightKg > 0
+    : speedKmh > 0 && min > 0 && weightKg > 0;
 
-  const estimate = useMemo(
+  const treadmillEstimate = useMemo(
     () =>
-      valid
+      !isWalk && valid
         ? estimateCardio({ speedKmh, inclinePct, minutes: min, weightKg })
         : null,
-    [valid, speedKmh, inclinePct, min, weightKg]
+    [isWalk, valid, speedKmh, inclinePct, min, weightKg]
   );
-  const stepsShown = stepsInput ?? (estimate ? estimateSteps(estimate.distanceKm, speedKmh) : null);
+  const walkEstimate = useMemo(
+    () =>
+      isWalk && valid && stepsInput != null
+        ? estimateWalkFromSteps({ steps: stepsInput, minutes: walkMin, weightKg })
+        : null,
+    [isWalk, valid, stepsInput, walkMin, weightKg]
+  );
+  const estimate = isWalk ? walkEstimate : treadmillEstimate;
+  const stepsShown =
+    stepsInput ??
+    (treadmillEstimate
+      ? estimateSteps(treadmillEstimate.distanceKm, speedKmh)
+      : null);
 
   function save() {
     if (!valid) return;
     setError(null);
     startTransition(async () => {
       try {
-        const res = await logCardioSession({
-          speedKmh,
-          inclinePct,
-          minutes: min,
-          weightKg,
-          steps: stepsInput,
-          dayKey: day,
-        });
+        const res = isWalk
+          ? await logWalkSession({
+              steps: stepsInput!,
+              minutes: walkMin,
+              weightKg,
+              dayKey: day,
+            })
+          : await logCardioSession({
+              speedKmh,
+              inclinePct,
+              minutes: min,
+              weightKg,
+              steps: stepsInput,
+              dayKey: day,
+            });
         setSaved(
           `✓ ${formatDayLabel(day, todayKey)} : ${res.calories} kcal · ${
             res.steps > 0 ? `${res.steps.toLocaleString("fr-FR")} pas · ` : ""
           }${formatDistance(res.distanceKm)}`
         );
         setSteps("");
+        setWalkMinutes("");
         setDay(todayKey);
         setTimeout(() => setSaved(null), 6000);
       } catch {
@@ -172,7 +212,8 @@ export default function TreadmillQuickLog({
     <section className="card p-4">
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="overline-label flex items-center gap-1.5">
-          <Footprints size={13} className="text-accent" /> Tapis de course
+          <Footprints size={13} className="text-accent" />{" "}
+          {isWalk ? "Marche" : "Tapis de course"}
         </h2>
         {(todayCalories > 0 || todaySteps > 0) && (
           <span className="text-[12px] text-muted-2">
@@ -194,63 +235,128 @@ export default function TreadmillQuickLog({
         )}
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3">
-        <NumberField
-          label="Vitesse"
-          unit="km/h"
-          value={speed}
-          onChange={setSpeed}
-          step="0.1"
-        />
-        <NumberField
-          label="Durée"
-          unit="min"
-          value={minutes}
-          onChange={setMinutes}
-        />
-        <NumberField
-          label="Pente"
-          unit="%"
-          value={incline}
-          onChange={setIncline}
-          step="0.5"
-        />
-        <NumberField
-          label="Pas"
-          unit="pas"
-          value={steps}
-          onChange={setSteps}
-          inputMode="numeric"
-          placeholder={
-            estimate && estimateSteps(estimate.distanceKm, speedKmh) > 0
-              ? `≈ ${estimateSteps(estimate.distanceKm, speedKmh).toLocaleString("fr-FR")}`
-              : undefined
-          }
-        />
-        <NumberField
-          label="Mon poids"
-          unit="kg"
-          value={weight}
-          onChange={setWeight}
-          step="0.5"
-        />
-        <DayField value={day} max={todayKey} onChange={setDay} />
-      </div>
-
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {DURATION_CHIPS.map((d) => (
+      <div
+        role="tablist"
+        aria-label="Type de marche"
+        className="mt-3 grid grid-cols-2 gap-1 rounded-full border border-border bg-surface-2 p-1"
+      >
+        {(
+          [
+            ["treadmill", "Tapis"],
+            ["walk", "Extérieur"],
+          ] as const
+        ).map(([value, label]) => (
           <button
-            key={d}
-            onClick={() => setMinutes(String(d))}
-            className={`rounded-full border px-3 py-1.5 text-[12px] ${
-              minutes === String(d)
-                ? "border-accent bg-accent/15 text-accent"
-                : "border-border text-muted-2"
+            key={value}
+            role="tab"
+            aria-selected={mode === value}
+            onClick={() => setMode(value)}
+            className={`rounded-full px-3 py-1.5 text-[12.5px] font-semibold ${
+              mode === value ? "bg-accent/15 text-accent" : "text-muted-2"
             }`}
           >
-            {d} min
+            {label}
           </button>
         ))}
+      </div>
+
+      {isWalk ? (
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+          <NumberField
+            label="Pas"
+            unit="pas"
+            value={steps}
+            onChange={setSteps}
+            inputMode="numeric"
+            placeholder="8 000"
+          />
+          <NumberField
+            label="Durée (facultatif)"
+            unit="min"
+            value={walkMinutes}
+            onChange={setWalkMinutes}
+            placeholder={
+              walkEstimate && walkMin == null
+                ? `≈ ${Math.round(walkEstimate.minutes)}`
+                : undefined
+            }
+          />
+          <NumberField
+            label="Mon poids"
+            unit="kg"
+            value={weight}
+            onChange={setWeight}
+            step="0.5"
+          />
+          <DayField value={day} max={todayKey} onChange={setDay} />
+        </div>
+      ) : (
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3">
+          <NumberField
+            label="Vitesse"
+            unit="km/h"
+            value={speed}
+            onChange={setSpeed}
+            step="0.1"
+          />
+          <NumberField
+            label="Durée"
+            unit="min"
+            value={minutes}
+            onChange={setMinutes}
+          />
+          <NumberField
+            label="Pente"
+            unit="%"
+            value={incline}
+            onChange={setIncline}
+            step="0.5"
+          />
+          <NumberField
+            label="Pas"
+            unit="pas"
+            value={steps}
+            onChange={setSteps}
+            inputMode="numeric"
+            placeholder={
+              treadmillEstimate &&
+              estimateSteps(treadmillEstimate.distanceKm, speedKmh) > 0
+                ? `≈ ${estimateSteps(treadmillEstimate.distanceKm, speedKmh).toLocaleString("fr-FR")}`
+                : undefined
+            }
+          />
+          <NumberField
+            label="Mon poids"
+            unit="kg"
+            value={weight}
+            onChange={setWeight}
+            step="0.5"
+          />
+          <DayField value={day} max={todayKey} onChange={setDay} />
+        </div>
+      )}
+
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {DURATION_CHIPS.map((d) => {
+          const current = isWalk ? walkMinutes : minutes;
+          const setCurrent = isWalk ? setWalkMinutes : setMinutes;
+          return (
+            <button
+              key={d}
+              // Dehors la durée est facultative : un second appui la retire.
+              onClick={() =>
+                setCurrent(isWalk && current === String(d) ? "" : String(d))
+              }
+              className={`rounded-full border px-3 py-1.5 text-[12px] ${
+                current === String(d)
+                  ? "border-accent bg-accent/15 text-accent"
+                  : "border-border text-muted-2"
+              }`}
+            >
+              {d} min
+            </button>
+          );
+        })}
       </div>
 
       <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center">
@@ -260,10 +366,16 @@ export default function TreadmillQuickLog({
             <span className="text-[13px] font-medium text-muted-2"> kcal</span>
           </p>
           <p className="mt-1.5 text-[12px] text-muted-2">
-            {estimate
-              ? `${formatDistance(estimate.distanceKm)} · ${formatDuration(min)} · ${estimate.mets.toFixed(1)} MET`
-              : "Saisis une vitesse et une durée"}
-            {stepsShown != null && stepsShown > 0 && (
+            {walkEstimate
+              ? `≈ ${formatDistance(walkEstimate.distanceKm)} · ${
+                  walkMin == null ? "≈ " : ""
+                }${formatDuration(walkEstimate.minutes)} · ≈ ${walkEstimate.speedKmh.toFixed(1)} km/h`
+              : treadmillEstimate
+                ? `${formatDistance(treadmillEstimate.distanceKm)} · ${formatDuration(min)} · ${treadmillEstimate.mets.toFixed(1)} MET`
+                : isWalk
+                  ? "Saisis ton nombre de pas"
+                  : "Saisis une vitesse et une durée"}
+            {!isWalk && stepsShown != null && stepsShown > 0 && (
               <>
                 {" · "}
                 {stepsInput != null ? "" : "≈ "}
@@ -302,9 +414,15 @@ export default function TreadmillQuickLog({
                   hour: "2-digit",
                   minute: "2-digit",
                 }).format(new Date(entry.performedAt))}{" "}
-                · {entry.speedKmh} km/h
-                {entry.inclinePct > 0 ? ` · ${entry.inclinePct} %` : ""} ·{" "}
-                {formatDuration(entry.minutes)}
+                {entry.kind === "walk" ? (
+                  <>· Extérieur · {formatDuration(entry.minutes)}</>
+                ) : (
+                  <>
+                    · {entry.speedKmh} km/h
+                    {entry.inclinePct > 0 ? ` · ${entry.inclinePct} %` : ""} ·{" "}
+                    {formatDuration(entry.minutes)}
+                  </>
+                )}
                 {entry.steps != null &&
                   ` · ${entry.steps.toLocaleString("fr-FR")} pas`}
               </span>

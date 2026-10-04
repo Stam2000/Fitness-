@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { describeSessionPlan } from "@/lib/program-versions";
+import { cardioKindLabel } from "@/lib/cardio";
 
 export type ActivityDay = {
   date: string; // AAAA-MM-JJ (heure locale du serveur)
@@ -125,16 +126,14 @@ export async function getActivityStats(userId: string): Promise<ActivityStats> {
     entry.sessions += 1;
     entry.minutes += c.minutes;
     entry.labels.push(
-      `Tapis de course — ${c.speedKmh} km/h · ${Math.round(c.minutes)} min · ${c.calories} kcal` +
+      `${cardioKindLabel(c.kind)} — ${c.speedKmh} km/h · ${Math.round(c.minutes)} min · ${c.calories} kcal` +
         (c.steps != null ? ` · ${c.steps.toLocaleString("fr-FR")} pas` : "")
     );
     byDay.set(key, entry);
 
     weekSet.add(dateKey(startOfWeek(c.performedAt)));
-    focusCount.set(
-      "Tapis de course",
-      (focusCount.get("Tapis de course") ?? 0) + 1
-    );
+    const label = cardioKindLabel(c.kind);
+    focusCount.set(label, (focusCount.get(label) ?? 0) + 1);
   }
 
   const now = new Date();

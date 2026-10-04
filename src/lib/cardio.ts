@@ -89,3 +89,81 @@ export function estimateSteps(distanceKm: number, speedKmh: number): number {
 export function clampSteps(steps: number): number {
   return Math.min(Math.max(Math.round(steps), 0), 200_000);
 }
+
+/**
+ * Types de séance cardio (colonne `kind`). Le tapis connaît la vitesse et la
+ * pente ; une marche dehors ne connaît que les pas lus sur le téléphone ou la
+ * montre, et éventuellement la durée.
+ */
+export type CardioKind = "treadmill" | "walk";
+
+export function cardioKindLabel(kind: string): string {
+  return kind === "walk" ? "Marche extérieure" : "Tapis de course";
+}
+
+/** Allure de marche dehors supposée quand la durée est inconnue. */
+export const DEFAULT_WALK_KMH = 4.8;
+const WALK_FLOOR_KMH = 2.5;
+const WALK_CEIL_KMH = 8;
+
+function strideM(speedKmh: number): number {
+  return 0.58 + 0.03 * speedKmh;
+}
+
+export type WalkInput = {
+  steps: number;
+  /** Null = durée inconnue : on suppose une allure de DEFAULT_WALK_KMH. */
+  minutes: number | null;
+  weightKg: number;
+};
+
+export type WalkEstimate = CardioEstimate & {
+  speedKmh: number;
+  /** Durée saisie, ou estimée depuis les pas à l'allure par défaut. */
+  minutes: number;
+};
+
+/**
+ * Dépense d'une marche connue par ses seuls pas.
+ *
+ * La longueur du pas dépend de l'allure (voir estimateSteps) : avec une durée,
+ * la cadence fixe l'allure — distance d = n × (0,58 + 0,03 v) et v = d / t se
+ * résolvent en d = 0,58 n / (1 − 0,0018 n / t), d en mètres et t en minutes.
+ * 100 pas/min donnent ~4,2 km/h, 120 pas/min ~5,3 km/h. L'allure est bornée à
+ * la plage de marche : une cadence trop basse signale des pauses, et seule la
+ * durée effectivement marchée à l'allure plancher est comptée.
+ *
+ * Sans durée, on suppose une allure de 4,8 km/h. Le coût d'une marche dépend
+ * surtout de la distance, donc l'erreur reste faible.
+ */
+export function estimateWalkFromSteps({
+  steps,
+  minutes,
+  weightKg,
+}: WalkInput): WalkEstimate {
+  let speedKmh = DEFAULT_WALK_KMH;
+  if (minutes != null && minutes > 0) {
+    const denom = 1 - (0.0018 * steps) / minutes;
+    const distanceM = denom > 0 ? (0.58 * steps) / denom : Infinity;
+    speedKmh = (0.06 * distanceM) / minutes;
+  }
+  speedKmh = Math.min(Math.max(speedKmh, WALK_FLOOR_KMH), WALK_CEIL_KMH);
+
+  const distanceKm = (steps * strideM(speedKmh)) / 1000;
+  const walkedMinutes = (distanceKm / speedKmh) * 60;
+  const activeMinutes =
+    minutes != null && minutes > 0 ? Math.min(minutes, walkedMinutes) : walkedMinutes;
+
+  const base = estimateCardio({
+    speedKmh,
+    inclinePct: 0,
+    minutes: activeMinutes,
+    weightKg,
+  });
+  return {
+    ...base,
+    distanceKm,
+    speedKmh,
+    minutes: minutes != null && minutes > 0 ? minutes : walkedMinutes,
+  };
+}

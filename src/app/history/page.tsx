@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { getExerciseProgress } from "@/lib/progress";
 import { getActivityStats } from "@/lib/activity";
-import { formatDistance, formatDuration } from "@/lib/cardio";
+import { cardioKindLabel, formatDistance, formatDuration } from "@/lib/cardio";
 import {
   describeSessionPlan,
   sessionPlanExercises,
@@ -72,12 +72,14 @@ export default async function HistoryPage() {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="flex items-center gap-1.5 truncate font-extrabold">
-                <Footprints size={15} className="text-accent" /> Tapis de course
+                <Footprints size={15} className="text-accent" />{" "}
+                {cardioKindLabel(c.kind)}
               </p>
               <p className="mt-0.5 text-[12px] text-muted-2">
                 {formatDate(c.performedAt)}
               </p>
               <p className="mt-1 text-[13px] text-muted-2">
+                {c.kind === "walk" ? "≈ " : ""}
                 {c.speedKmh} km/h
                 {c.inclinePct > 0 ? ` · pente ${c.inclinePct} %` : ""} ·{" "}
                 {formatDuration(c.minutes)} · {formatDistance(c.distanceKm)}

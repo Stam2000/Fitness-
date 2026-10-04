@@ -228,6 +228,7 @@ export default async function HomePage() {
         todaySteps={cardioToday.reduce((acc, c) => acc + (c.steps ?? 0), 0)}
         recent={cardio.map((c) => ({
           id: c.id,
+          kind: c.kind,
           speedKmh: c.speedKmh,
           inclinePct: c.inclinePct,
           minutes: c.minutes,
