@@ -5,7 +5,9 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
+import { clientIpFromHeaders } from "@/lib/client-ip";
 import { prisma } from "@/lib/prisma";
+import { authLimiters, retryMessage } from "@/lib/rate-limit";
 import { requireActionAdmin } from "@/lib/session";
 
 // État renvoyé aux formulaires (useActionState). null = pas encore soumis.
@@ -17,6 +19,23 @@ function authErrorMessage(e: unknown, fallback: string): string {
   if (body?.message) return body.message;
   if (e instanceof Error && e.message) return e.message;
   return fallback;
+}
+
+// Limitation par IP des actions publiques (connexion, /setup, inscription).
+// L'IP vient uniquement de l'en-tête posé par notre reverse proxy — voir
+// src/lib/client-ip.ts. Sans IP fiable (accès direct), seule la limite par
+// compte s'applique.
+async function ipLimitKey(): Promise<string | null> {
+  const ip = clientIpFromHeaders(await headers());
+  return ip ? `ip:${ip}` : null;
+}
+
+function ipBlockedFor(key: string | null): number {
+  return key ? authLimiters.ip.blockedFor(key) : 0;
+}
+
+function ipFail(key: string | null) {
+  if (key) authLimiters.ip.fail(key);
 }
 
 function readCredentials(formData: FormData) {
@@ -53,7 +72,12 @@ export async function completeSetup(
   const { name, email, password } = readCredentials(formData);
   const token = String(formData.get("token") ?? "");
 
+  const ipKey = await ipLimitKey();
+  const wait = ipBlockedFor(ipKey);
+  if (wait > 0) return { error: retryMessage(wait) };
+
   if (!(await setupTokenIsValid(token))) {
+    ipFail(ipKey);
     return { error: "Jeton d'installation invalide." };
   }
   // Verrou définitif : dès qu'un compte existe, plus personne ne peut
@@ -103,14 +127,31 @@ export async function signInWithPassword(
   if (!email || !password) {
     return { error: "E-mail et mot de passe requis." };
   }
+
+  // Anti-bruteforce : limite par IP (password spraying) ET par compte
+  // (attaque distribuée sur une seule adresse). Vérifiée AVANT tout calcul
+  // de hachage ; seuls les échecs sont comptés.
+  const ipKey = await ipLimitKey();
+  const accountKey = `account:${email.slice(0, 320)}`;
+  const wait = Math.max(
+    ipBlockedFor(ipKey),
+    authLimiters.account.blockedFor(accountKey)
+  );
+  if (wait > 0) return { error: retryMessage(wait) };
+
   try {
     await auth.api.signInEmail({
       body: { email, password },
       headers: await headers(),
     });
   } catch (e) {
+    ipFail(ipKey);
+    authLimiters.account.fail(accountKey);
     return { error: authErrorMessage(e, "E-mail ou mot de passe incorrect.") };
   }
+  // Le compteur par compte repart à zéro ; celui de l'IP non (un attaquant
+  // titulaire d'un compte valide ne doit pas pouvoir le remettre à zéro).
+  authLimiters.account.reset(accountKey);
   revalidatePath("/", "layout");
   redirect("/");
 }
@@ -134,6 +175,11 @@ export async function registerWithInvite(
     return { error: "Nom, e-mail et mot de passe (8 caractères minimum) requis." };
   }
   if (!code) return { error: "Code d'invitation requis." };
+
+  const ipKey = await ipLimitKey();
+  const wait = ipBlockedFor(ipKey);
+  if (wait > 0) return { error: retryMessage(wait) };
+
   // Tant qu'aucun compte n'existe, l'inscription est fermée : les données
   // historiques doivent d'abord être adoptées via /setup.
   if ((await prisma.user.count()) === 0) {
@@ -148,6 +194,7 @@ export async function registerWithInvite(
        AND ("expiresAt" IS NULL OR "expiresAt" > NOW())
        AND "usedCount" < "maxUses"`;
   if (consumed === 0) {
+    ipFail(ipKey);
     return { error: "Code d'invitation invalide, expiré ou déjà utilisé." };
   }
 

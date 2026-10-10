@@ -10,8 +10,8 @@ import { prisma } from "@/lib/prisma";
 //
 // L'inscription publique passe par la Server Action `registerWithInvite`
 // (src/app/auth-actions.ts) : elle valide un code d'invitation avant d'appeler
-// `auth.api.signUpEmail`. Le point d'entrée HTTP brut reste fermé — voir le
-// garde-fou `hooks.before` plus bas.
+// `auth.api.signUpEmail`. Les points d'entrée HTTP bruts d'inscription et de
+// connexion restent fermés — voir le garde-fou `hooks.before` plus bas.
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   secret: process.env.BETTER_AUTH_SECRET,
@@ -31,6 +31,15 @@ export const auth = betterAuth({
       if (ctx.path.startsWith("/sign-up") && ctx.request) {
         throw new APIError("FORBIDDEN", {
           message: "Inscription sur invitation uniquement.",
+        });
+      }
+      // Même verrou pour la connexion : l'interface passe exclusivement par
+      // la Server Action `signInWithPassword`, qui applique la limitation des
+      // tentatives par compte et par IP (src/lib/rate-limit.ts). Laisser
+      // POST /api/auth/sign-in/email ouvert offrirait un contournement.
+      if (ctx.path.startsWith("/sign-in") && ctx.request) {
+        throw new APIError("FORBIDDEN", {
+          message: "Connexion via le formulaire de l'application uniquement.",
         });
       }
     }),
