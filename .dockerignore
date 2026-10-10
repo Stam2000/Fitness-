@@ -1,9 +1,14 @@
 node_modules
 .next
 .git
+# Fichiers d'environnement : jamais dans le contexte de build, donc jamais
+# dans une image (les secrets arrivent au RUNTIME par les variables du
+# conteneur, pas par COPY ni par des build args).
 .env*
 !.env.example
+*.pem
 *.md
 Dockerfile*
-docker-compose.yml
+docker-compose*.yml
 .dockerignore
+data

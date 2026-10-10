@@ -7,7 +7,8 @@ COPY prisma ./prisma
 RUN npm ci
 
 # Mode développement : `next dev` avec HMR. Le code source est synchronisé
-# en continu par `docker compose watch` (voir docker-compose.yml, service « dev »).
+# en continu par `docker compose watch` (voir docker-compose.dev.yml, service
+# « dev » — jamais déployé en production).
 FROM node:22-alpine AS dev
 WORKDIR /app
 # yt-dlp + ffmpeg : téléchargement des vidéos YouTube de démonstration.
@@ -25,12 +26,21 @@ WORKDIR /app
 # YouTube exige des IP de datacenter — il dialogue avec le service
 # pot-provider du docker-compose (variable POT_PROVIDER_URL). Il doit être
 # installé dans le même environnement Python que yt-dlp pour être découvert.
+# Version du plugin alignée sur l'image pot-provider épinglée dans
+# docker-compose.yml (le plugin et le serveur doivent être compatibles).
+ARG BGUTIL_POT_VERSION=2.0.2
 RUN apk add --no-cache ffmpeg python3 py3-pip \
   && pip install --no-cache-dir --break-system-packages \
-       yt-dlp bgutil-ytdlp-pot-provider
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+       yt-dlp "bgutil-ytdlp-pot-provider==${BGUTIL_POT_VERSION}"
+# Utilisateur non root, même UID que l'image de production : le volume de
+# médias partagé reste accessible aux deux.
+RUN addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 nextjs \
+  && chown nextjs:nodejs /app
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --chown=nextjs:nodejs . .
 ENV NEXT_TELEMETRY_DISABLED=1
+USER nextjs
 EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
@@ -69,9 +79,10 @@ ENV CHECKPOINT_DISABLE=1
 
 # yt-dlp + ffmpeg : téléchargement des vidéos YouTube de démonstration.
 # Depuis PyPI plutôt qu'apk ou GitHub, + plugin PO token — voir l'étape dev.
+ARG BGUTIL_POT_VERSION=2.0.2
 RUN apk add --no-cache ffmpeg python3 py3-pip \
   && pip install --no-cache-dir --break-system-packages \
-       yt-dlp bgutil-ytdlp-pot-provider
+       yt-dlp "bgutil-ytdlp-pot-provider==${BGUTIL_POT_VERSION}"
 
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
