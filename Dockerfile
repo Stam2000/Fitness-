@@ -35,7 +35,7 @@ RUN apk add --no-cache ffmpeg python3 py3-pip \
 # Utilisateur non root, même UID que l'image de production : le volume de
 # médias partagé reste accessible aux deux.
 RUN addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 nextjs \
+  && adduser --system --uid 1001 -G nodejs nextjs \
   && chown nextjs:nodejs /app
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --chown=nextjs:nodejs . .
@@ -85,7 +85,7 @@ RUN apk add --no-cache ffmpeg python3 py3-pip \
        yt-dlp "bgutil-ytdlp-pot-provider==${BGUTIL_POT_VERSION}"
 
 RUN addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 nextjs
+  && adduser --system --uid 1001 -G nodejs nextjs
 
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
