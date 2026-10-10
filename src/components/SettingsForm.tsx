@@ -41,11 +41,13 @@ export default function SettingsForm({
   const [voiceModel, setVoiceModel] = useState(initial.voiceModel);
   const [visionModel, setVisionModel] = useState(initial.visionModel);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function submit() {
     startTransition(async () => {
-      await saveSettings({
+      setError(null);
+      const result = await saveSettings({
         voiceInput,
         voiceAnnounce,
         // Champs globaux : n'envoyer que depuis un compte admin — l'action
@@ -61,6 +63,10 @@ export default function SettingsForm({
             }
           : {}),
       });
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
       setOpenrouterKey("");
       setKieKey("");
       setSaved(true);
@@ -200,6 +206,12 @@ export default function SettingsForm({
         </div>
         ) : null}
       </section>
+
+      {error ? (
+        <p role="alert" className="text-sm font-semibold text-red-500">
+          {error}
+        </p>
+      ) : null}
 
       <Button onClick={submit} disabled={pending} variant="primary" size="lg">
         {pending ? (

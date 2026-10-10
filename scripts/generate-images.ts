@@ -20,6 +20,7 @@ import {
   getImageTaskResult,
 } from "../src/lib/kie";
 import { persistMediaUrl } from "../src/lib/media-store";
+import { getSettings } from "../src/lib/settings";
 
 const prisma = new PrismaClient();
 
@@ -51,8 +52,9 @@ type Job = {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function resolveApiKey(): Promise<string> {
-  const settings = await prisma.settings.findUnique({ where: { id: 1 } });
-  const key = settings?.kieApiKey || process.env.KIE_API_KEY;
+  // Même résolution que l'application : clé de Réglages déchiffrée
+  // (SETTINGS_ENCRYPTION_KEY requise), sinon KIE_API_KEY.
+  const { kieApiKey: key } = await getSettings();
   if (!key) {
     throw new Error(
       "Aucune clé Kie.ai : renseigne KIE_API_KEY dans .env ou la clé dans Réglages."

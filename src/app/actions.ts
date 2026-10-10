@@ -2,6 +2,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { encryptSecret, getEncryptionKey } from "@/lib/secret-box";
 import { programDraftSchema, type ProgramDraft } from "@/lib/program-schema";
 import {
   buildProgramSnapshot,
@@ -139,7 +140,7 @@ export async function saveSettings(data: {
   voiceAnnounce?: boolean;
   voiceModel?: string;
   visionModel?: string;
-}) {
+}): Promise<{ error: string | null }> {
   const user = await requireActionUser();
 
   if (data.voiceInput !== undefined || data.voiceAnnounce !== undefined) {
@@ -158,12 +159,27 @@ export async function saveSettings(data: {
 
   const update: Record<string, string | null> = {};
   // Champ vide = ne pas changer ; "-" seul = effacer la clé.
+  // Les clés API sont chiffrées (AES-256-GCM) avant d'atteindre la base ;
+  // sans SETTINGS_ENCRYPTION_KEY, on refuse plutôt que de stocker en clair.
+  const isNewKey = (v: string | undefined) => !!v && v !== "-";
+  const wantsKeyChange =
+    isNewKey(data.openrouterApiKey) || isNewKey(data.kieApiKey);
+  if (wantsKeyChange && !getEncryptionKey()) {
+    return {
+      error:
+        "Stockage des clés désactivé : définis SETTINGS_ENCRYPTION_KEY sur le " +
+        "serveur, ou fournis les clés par OPENROUTER_API_KEY / KIE_API_KEY.",
+    };
+  }
   if (data.openrouterApiKey !== undefined && data.openrouterApiKey !== "") {
     update.openrouterApiKey =
-      data.openrouterApiKey === "-" ? null : data.openrouterApiKey.trim();
+      data.openrouterApiKey === "-"
+        ? null
+        : encryptSecret(data.openrouterApiKey.trim());
   }
   if (data.kieApiKey !== undefined && data.kieApiKey !== "") {
-    update.kieApiKey = data.kieApiKey === "-" ? null : data.kieApiKey.trim();
+    update.kieApiKey =
+      data.kieApiKey === "-" ? null : encryptSecret(data.kieApiKey.trim());
   }
   if (data.openrouterModel) update.openrouterModel = data.openrouterModel;
   if (data.voiceModel) update.voiceModel = data.voiceModel.trim();
@@ -180,6 +196,7 @@ export async function saveSettings(data: {
     });
   }
   revalidatePath("/settings");
+  return { error: null };
 }
 
 // Épingle / désépingle un modèle ; renvoie la liste à jour pour que le

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ChevronRight, Settings, Ticket } from "lucide-react";
-import { prisma } from "@/lib/prisma";
-import { getUserPreferences } from "@/lib/settings";
+import { getSettings, getUserPreferences } from "@/lib/settings";
 import { requireUser } from "@/lib/session";
 import SettingsForm from "@/components/SettingsForm";
 import AccountCard from "@/components/auth/AccountCard";
@@ -14,7 +13,8 @@ export default async function SettingsPage() {
   const [prefs, s] = await Promise.all([
     getUserPreferences(user.id),
     // Réglages globaux : lus pour l'affichage, modifiables par l'admin seul.
-    prisma.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } }),
+    // getSettings déchiffre les clés (et chiffre en place les historiques).
+    getSettings(),
   ]);
 
   return (
@@ -51,10 +51,8 @@ export default async function SettingsPage() {
       <SettingsForm
         isAdmin={user.isAdmin}
         initial={{
-          hasOpenrouterKey:
-            Boolean(s.openrouterApiKey) ||
-            Boolean(process.env.OPENROUTER_API_KEY),
-          hasKieKey: Boolean(s.kieApiKey) || Boolean(process.env.KIE_API_KEY),
+          hasOpenrouterKey: Boolean(s.openrouterApiKey),
+          hasKieKey: Boolean(s.kieApiKey),
           openrouterModel: s.openrouterModel,
           pinnedModels: s.pinnedModels,
           voiceInput: prefs.voiceInput,
