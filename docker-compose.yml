@@ -1,10 +1,36 @@
+# Compose de PRODUCTION (Coolify). Aucun port n'est publié sur l'hôte : le
+# reverse proxy (Traefik/Coolify) joint le service « app » par le réseau
+# Docker, sur le port 3000 déclaré dans `expose`. Un `ports:` publierait le
+# port sur 0.0.0.0 en contournant le pare-feu de l'hôte (Docker écrit ses
+# propres règles iptables).
+#
+# Développement local : voir docker-compose.dev.yml (ports liés à 127.0.0.1,
+# service « dev » avec `next dev`).
+#
+# Variables OBLIGATOIRES (le déploiement échoue immédiatement sans elles) :
+#   POSTGRES_PASSWORD   — mot de passe Postgres. Utiliser une valeur URL-safe
+#                         (ex. `openssl rand -hex 32`) : il est injecté tel quel
+#                         dans DATABASE_URL.
+#   BETTER_AUTH_SECRET  — signe les sessions.
+# Recommandée :
+#   SETTINGS_ENCRYPTION_KEY — chiffre (AES-256-GCM) les clés API saisies dans
+#                         Réglages. Sans elle, aucune clé ne peut être
+#                         enregistrée en base : seules les variables
+#                         d'environnement OPENROUTER_API_KEY / KIE_API_KEY
+#                         sont alors utilisables.
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    <<: *hardening
     environment:
       POSTGRES_USER: fitness
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fitness}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire}
       POSTGRES_DB: fitness
     volumes:
       - db-data:/var/lib/postgresql/data
@@ -16,14 +42,19 @@ services:
 
   # Migrations + seed à la demande, pour une intervention manuelle :
   #   docker compose run --rm --build migrate
-  # Aucun service n'en dépend : `app` et `dev` appliquent eux-mêmes leurs
-  # migrations au démarrage. Un conteneur d'amorçage dont dépend le démarrage
-  # de l'app transforme le moindre incident en déploiement figé sans message.
+  # Aucun service n'en dépend : `app` applique lui-même ses migrations au
+  # démarrage. Un conteneur d'amorçage dont dépend le démarrage de l'app
+  # transforme le moindre incident en déploiement figé sans message.
   migrate:
     profiles: ["tools"]
     build:
       context: .
       target: builder
+    # Même UID que le serveur applicatif (non root) : les médias écrits dans le
+    # volume partagé restent modifiables par « app ». HOME pointe vers /tmp
+    # pour que npm puisse y poser son cache.
+    user: "1001:1001"
+    <<: *hardening
     command: >
       sh -ce "
       echo '→ prisma migrate deploy' ;
@@ -33,7 +64,11 @@ services:
       echo '✓ base prête'
       "
     environment:
-      DATABASE_URL: postgresql://fitness:${POSTGRES_PASSWORD:-fitness}@db:5432/fitness
+      HOME: /tmp
+      DATABASE_URL: postgresql://fitness:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire}@db:5432/fitness
+      # Requis par `images:generate` pour lire la clé Kie chiffrée en base.
+      SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:-}
+      KIE_API_KEY: ${KIE_API_KEY:-}
       # La CLI Prisma interroge checkpoint.prisma.io au lancement (vérification de
       # version). Sur un serveur au réseau sortant filtré, cet appel peut traîner.
       CHECKPOINT_DISABLE: "1"
@@ -47,24 +82,42 @@ services:
         condition: service_healthy
 
   # Fournisseur de « PO tokens » pour yt-dlp (plugin bgutil, installé dans
-  # l'image app/dev) : YouTube exige ces jetons des IP de datacenter, sans
-  # quoi les téléchargements échouent en vérification anti-robot. Service
-  # interne au réseau compose, aucun port publié.
+  # l'image app) : YouTube exige ces jetons des IP de datacenter, sans quoi
+  # les téléchargements échouent en vérification anti-robot. Service interne
+  # au réseau compose, aucun port publié.
+  # Image épinglée (version + digest) plutôt que `:latest`, qui changerait à
+  # chaque redéploiement sans relecture. Garder la même version que le plugin
+  # pip installé dans le Dockerfile (BGUTIL_POT_VERSION).
   pot-provider:
-    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    image: brainicism/bgutil-ytdlp-pot-provider:2.0.2@sha256:d7d34108b76e52c7d3b575fe9e797e4bf41c1b2a08f80c5292eff6f851ce8472
     restart: unless-stopped
+    <<: *hardening
 
   app:
     build:
       context: .
       target: runner
     restart: unless-stopped
-    ports:
-      - "${APP_PORT:-4000}:3000"
+    <<: *hardening
+    # Le serveur Node n'a besoin d'aucune capacité Linux (port 3000 > 1024).
+    cap_drop:
+      - ALL
+    # Port interne joint par le reverse proxy — PAS publié sur l'hôte.
+    expose:
+      - "3000"
     environment:
-      DATABASE_URL: postgresql://fitness:${POSTGRES_PASSWORD:-fitness}@db:5432/fitness
+      DATABASE_URL: postgresql://fitness:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire}@db:5432/fitness
       KIE_API_KEY: ${KIE_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Clé de chiffrement des clés API stockées en base (32 octets, en base64
+      # ou en hex). Générer avec : openssl rand -base64 32
+      SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:-}
+      # Nombre de reverse proxies de confiance devant l'app. L'IP cliente
+      # retenue pour limiter les tentatives de connexion est la N-ième adresse
+      # en partant de la DROITE de X-Forwarded-For — celle ajoutée par notre
+      # propre proxy, que le client ne peut pas falsifier.
+      # Traefik seul (Coolify) : 1. Cloudflare (proxy orange) + Traefik : 2.
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
       # Cookies YouTube pour yt-dlp (vérification anti-robot) : chemin d'un
       # export Netscape. À défaut, /app/data/media/cookies/cookies.txt est
       # utilisé s'il existe (déposable via `docker compose cp`).
@@ -87,64 +140,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-
-  # Mode développement avec mise à jour automatique : `next dev` + HMR.
-  # Lancer avec : docker compose --profile dev watch dev
-  # Chaque modification du code est synchronisée dans le conteneur (rechargement
-  # instantané) ; un changement de dépendances ou de schéma Prisma rebuilde l'image.
-  dev:
-    profiles: ["dev"]
-    build:
-      context: .
-      target: dev
-    # Mêmes migrations au démarrage que le conteneur de production.
-    command: >
-      sh -ce "
-      ./node_modules/.bin/prisma migrate deploy ;
-      node prisma/seed.mjs ;
-      npm run dev
-      "
-    ports:
-      - "${DEV_PORT:-4001}:3000"
-    environment:
-      DATABASE_URL: postgresql://fitness:${POSTGRES_PASSWORD:-fitness}@db:5432/fitness
-      KIE_API_KEY: ${KIE_API_KEY:-}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      # Cookies YouTube pour yt-dlp — voir le commentaire du service « app ».
-      YTDLP_COOKIES: ${YTDLP_COOKIES:-}
-      # URL du fournisseur de PO tokens (service pot-provider).
-      POT_PROVIDER_URL: ${POT_PROVIDER_URL:-http://pot-provider:4416}
-      # Le calendrier de suivi utilise la date locale du serveur.
-      TZ: ${TZ:-Europe/Paris}
-      # Authentification — voir le commentaire du service « app ».
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET est obligatoire}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${DEV_PORT:-4001}}
-      SETUP_TOKEN: ${SETUP_TOKEN:-}
-    volumes:
-      - media-data:/app/data/media
-    depends_on:
-      db:
-        condition: service_healthy
-    develop:
-      watch:
-        - action: sync
-          path: ./src
-          target: /app/src
-        - action: sync
-          path: ./public
-          target: /app/public
-        - action: sync+restart
-          path: ./next.config.ts
-          target: /app/next.config.ts
-        - action: sync+restart
-          path: ./postcss.config.mjs
-          target: /app/postcss.config.mjs
-        - action: rebuild
-          path: ./package.json
-        - action: rebuild
-          path: ./package-lock.json
-        - action: rebuild
-          path: ./prisma
 
 volumes:
   db-data:

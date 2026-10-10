@@ -1,0 +1,74 @@
+# Surcharge de DÉVELOPPEMENT LOCAL — ne jamais déployer ce fichier.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#     → l'app de production sur http://localhost:4000
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile dev watch dev
+#     → `next dev` + HMR sur http://localhost:4001
+#
+# Les ports ne sont liés qu'à 127.0.0.1 : rien n'est exposé sur le réseau.
+
+services:
+  app:
+    ports:
+      - "127.0.0.1:${APP_PORT:-4000}:3000"
+    environment:
+      # Accès direct sans reverse proxy : pas d'en-tête X-Forwarded-For.
+      TRUSTED_PROXY_HOPS: "0"
+
+  # Mode développement avec mise à jour automatique : `next dev` + HMR.
+  # Chaque modification du code est synchronisée dans le conteneur (rechargement
+  # instantané) ; un changement de dépendances ou de schéma Prisma rebuilde l'image.
+  dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      target: dev
+    security_opt:
+      - no-new-privileges:true
+    # Mêmes migrations au démarrage que le conteneur de production.
+    command: >
+      sh -ce "
+      ./node_modules/.bin/prisma migrate deploy ;
+      node prisma/seed.mjs ;
+      npm run dev
+      "
+    ports:
+      - "127.0.0.1:${DEV_PORT:-4001}:3000"
+    environment:
+      DATABASE_URL: postgresql://fitness:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire}@db:5432/fitness
+      KIE_API_KEY: ${KIE_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:-}
+      TRUSTED_PROXY_HOPS: "0"
+      # Cookies YouTube pour yt-dlp — voir le commentaire du service « app ».
+      YTDLP_COOKIES: ${YTDLP_COOKIES:-}
+      POT_PROVIDER_URL: ${POT_PROVIDER_URL:-http://pot-provider:4416}
+      TZ: ${TZ:-Europe/Paris}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET est obligatoire}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${DEV_PORT:-4001}}
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
+    volumes:
+      - media-data:/app/data/media
+    depends_on:
+      db:
+        condition: service_healthy
+    develop:
+      watch:
+        - action: sync
+          path: ./src
+          target: /app/src
+        - action: sync
+          path: ./public
+          target: /app/public
+        - action: sync+restart
+          path: ./next.config.ts
+          target: /app/next.config.ts
+        - action: sync+restart
+          path: ./postcss.config.mjs
+          target: /app/postcss.config.mjs
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./package-lock.json
+        - action: rebuild
+          path: ./prisma
