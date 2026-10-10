@@ -110,30 +110,49 @@ docker compose exec db pg_dump -U fitness fitness > sauvegarde-avant-auth.sql
 Le plus simple : l'app **et** la base PostgreSQL tournent dans Docker.
 
 ```bash
-docker compose up -d --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
 
-Pour les clés API, le plus simple est de les saisir dans la page **Réglages**
-de l'application (elles sont stockées en base et survivent aux redémarrages).
-Sinon, crée un fichier `.env` à côté de `docker-compose.yml` — Docker Compose
-le lit automatiquement :
+`docker-compose.yml` est le fichier de **production** : il ne publie aucun
+port sur l'hôte (le reverse proxy de Coolify joint le conteneur par le réseau
+Docker). En local, la surcharge `docker-compose.dev.yml` publie l'app sur
+`127.0.0.1` uniquement et ajoute le service `dev` (`next dev`) :
+`docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile dev watch dev`.
+
+Crée un fichier `.env` à côté de `docker-compose.yml` — Docker Compose le lit
+automatiquement (il est ignoré par git et exclu des images Docker) :
 
 ```env
-KIE_API_KEY=ta-clé-kie
-OPENROUTER_API_KEY=sk-or-…
-BETTER_AUTH_SECRET=…   # obligatoire, voir « Comptes et invitations »
-SETUP_TOKEN=…          # protège la création du premier compte
+POSTGRES_PASSWORD=…        # obligatoire : openssl rand -hex 32
+BETTER_AUTH_SECRET=…       # obligatoire, voir « Comptes et invitations »
+SETTINGS_ENCRYPTION_KEY=…  # chiffre les clés API en base : openssl rand -base64 32
+SETUP_TOKEN=…              # protège la création du premier compte
+KIE_API_KEY=ta-clé-kie     # facultatif si saisie dans Réglages
+OPENROUTER_API_KEY=sk-or-… # facultatif si saisie dans Réglages
 ```
 
-Puis ouvre <http://localhost:4000>. C'est tout : le conteneur applicatif
-applique lui-même les migrations et le seed à chaque démarrage, et les données
-sont persistées dans le volume `db-data`.
+Les clés API saisies dans la page **Réglages** sont stockées **chiffrées**
+(AES-256-GCM) avec `SETTINGS_ENCRYPTION_KEY` ; sans cette variable, l'app
+refuse de les enregistrer. Une clé historique stockée en clair est chiffrée
+automatiquement à la première lecture une fois la variable définie.
 
-- Changer le port : `APP_PORT=8080 docker compose up -d`
-- Mot de passe Postgres : `POSTGRES_PASSWORD=… docker compose up -d`
-- Mise à jour : `git pull && docker compose up -d --build` (les migrations
-  se rejouent automatiquement)
+Puis ouvre <http://localhost:4000>. Le conteneur applicatif applique lui-même
+les migrations et le seed à chaque démarrage, et les données sont persistées
+dans le volume `db-data`.
+
+- Changer le port local : `APP_PORT=8080` dans `.env`
+- Mise à jour : `git pull` puis la même commande `up -d --build` (les
+  migrations se rejouent automatiquement)
 - Arrêt : `docker compose down` (ajoute `-v` pour effacer les données)
+
+### Production (Coolify)
+
+- Déployer `docker-compose.yml` seul, domaine sur le service `app`, port 3000.
+- Variables : `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`,
+  `SETTINGS_ENCRYPTION_KEY` (+ `TRUSTED_PROXY_HOPS=2` si Cloudflare proxifie
+  devant Traefik).
+- Connexion : 10 échecs / 15 min par compte et 20 / 15 min par IP, au-delà
+  la tentative est refusée jusqu'à la fin de la fenêtre.
 
 ## Démarrage manuel (sans Docker)
 
